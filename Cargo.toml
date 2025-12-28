@@ -1,0 +1,43 @@
+[package]
+name = "on-call-support"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aws_lambda_events = { version = "1.0.2", default-features = false, features = ["apigw"] }
+aws-config = "1.8.12"
+aws-sdk-cloudformation = "1.104.0"
+aws-sdk-dynamodb = "1.101.0"
+aws-sdk-eventbridge = "1.98.0"
+aws-sdk-scheduler = "1.91.0"
+aws-sdk-secretsmanager = "1.97.0"
+base64 = "0.22.1"
+chacha20poly1305 = {version="0.10.1", features=["std"]}
+chrono = "0.4.42"
+chrono-tz = {version = "0.10.4", features=["std", "case-insensitive"]}
+clap = {version ="4.5.53", features=["derive"]}
+cron = "0.15.0"
+derive_more = {version = "2.1.1", features=["full"]}
+form_urlencoded="1.2.2"
+futures = "0.3.28"
+hex = "0.4.3"
+lambda_http = "1.0.2"
+lambda_runtime = "1.0.2"
+lazy_static = "1.4.0"
+more-asserts = "0.3.1"
+rand="0.9.2"
+regex = "1.12.2"
+reqwest = {version="0.12.28", default-features = false, features=["gzip", "json", "rustls-tls-native-roots"]}
+ring = "0.17.14"
+serde = "1.0.228"
+serde_derive = "1.0.228"
+serde_json = "1.0.147"
+shlex = "1.1.0"
+thiserror = "2.0.17"
+tokio = { version = "^1.0", features=["rt-multi-thread", "macros", "sync"]}
+tokio-stream = "0.1.14"
+
+[dev-dependencies]
+serial_test = "*"
+tokio-test = "*"
+
