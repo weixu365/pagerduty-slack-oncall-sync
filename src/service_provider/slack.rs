@@ -40,10 +40,6 @@ struct UserGroupsResponse {
     usergroups: Option<Vec<UserGroup>>,
 }
 
-#[derive(Deserialize, Debug)]
-struct PostMessageResponse {
-}
-
 #[derive(Deserialize, Debug, Display)]
 #[display("Channel ({}, {}, {}, {})", name, is_channel, is_group, is_private)]
 pub struct Channel {

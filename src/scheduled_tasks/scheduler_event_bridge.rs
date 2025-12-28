@@ -1,6 +1,6 @@
 use aws_config::SdkConfig;
 use chrono::Utc;
-use tokio_stream::{self as stream, StreamExt as TokioStreamExt};
+use futures::{stream, StreamExt, TryStreamExt};
 use crate::{errors::AppError, cron::CronSchedule};
 use aws_sdk_scheduler::{Client, types::{FlexibleTimeWindow, Target}, operation::get_schedule::GetScheduleOutput};
 
@@ -131,24 +131,34 @@ impl EventBridgeScheduler {
     async fn list_schedules(&self) -> Result<Vec<GetScheduleOutput>, AppError> {
         println!("list schedules in aws eventbridge scheduler");
 
-        let schedule_summaries: Result<Vec<_>, _> = self.client
+        let schedule_summaries: Vec<_> = self.client
             .list_schedules()
             .name_prefix(&self.name_prefix)
             .into_paginator()
             .items()
             .send()
-            .collect()
-            .await;
+            .collect::<Result<Vec<_>, _>>()
+            .await?;
 
-        // let schedule_summaries = TokioStreamExt::collect::<Result<Vec<_>, _>>(paginator).await?;
-        
-        let schedules: Vec<GetScheduleOutput> = stream::iter(schedule_summaries?).then(|schedule| async move {
-            let x = self.client.get_schedule()
-                .name(schedule.name().expect("name doesn't exists"))
-                .send()
-                .await.expect("Failed to get schedule details");
-            x
-        }).collect().await;
+        let schedules: Vec<GetScheduleOutput> = stream::iter(schedule_summaries)
+            .map(|schedule| {
+                let client = self.client.clone();
+                async move {
+                    let name = schedule
+                        .name()
+                        .ok_or_else(|| {AppError::UnexpectedError("Schedule name doesn't exist".to_string())})?;
+
+                    client
+                        .get_schedule()
+                        .name(name)
+                        .send()
+                        .await
+                        .map_err(|e| AppError::UnexpectedError(format!("Failed to get schedule details: {e:?}")))
+                }
+            })
+            .buffer_unordered(5)
+            .try_collect()
+            .await?;
 
         Ok(schedules)
     }

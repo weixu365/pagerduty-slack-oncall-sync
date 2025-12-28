@@ -236,16 +236,15 @@ pub async fn handle_slack_command(env: &str, request_header: &HeaderMap<HeaderVa
                 last_updated_at: Utc::now().to_rfc3339(),
             };
             
-            // Fixme: handle errors
-            // if let Err(err) = db.save_scheduled_task(&task).await {
-            //     println!("Failed to save to dynamodb, {:?}", err);
-            //     return Ok(response(500, format!("Can't process slack command due to save to dynamodb failed\nCommand: {} {}", command, text)))
-            // }
+            if let Err(err) = db.save_scheduled_task(&task).await {
+                println!("Failed to save to dynamodb, {:?}", err);
+                return Ok(response(500, format!("Can't process slack command due to save to dynamodb failed\nCommand: {} {}", command, text)))
+            }
 
-            // if let Err(err) = scheduler.update_next_schedule(&next_schedule).await {
-            //     println!("Failed to update scheduler, {:?}", err);
-            //     return Ok(response(500, format!("Can't process slack command due to save to update scheduler\nCommand: {} {}", command, text)))
-            // }
+            if let Err(err) = scheduler.update_next_schedule(&next_schedule).await {
+                println!("Failed to update scheduler, {:?}", err);
+                return Ok(response(500, format!("Can't process slack command due to save to update scheduler\nCommand: {} {}", command, text)))
+            }
             
             vec!(format!("Update user group: {}|{} based on pagerduty schedule: {}, at: {}", task.user_group_id, task.user_group_handle, &task.pager_duty_schedule_id, &task.cron))
         },
