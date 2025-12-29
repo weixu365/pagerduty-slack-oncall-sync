@@ -1,12 +1,11 @@
 use std::{collections::HashMap, env};
-use aws_config::BehaviorVersion;
 use aws_lambda_events::{encodings::Body, http::{HeaderMap, HeaderValue}, query_map::QueryMap};
 use lambda_http::Response;
 
 use chrono::{Local, Utc};
 use chrono_tz::Tz;
 use std::str::FromStr;
-use crate::{scheduled_tasks::{ScheduledTask, ScheduledTasksDynamodb, EventBridgeScheduler}, cron::get_next_schedule_from, secrets::SecretsClient, encryptor::Encryptor, errors::AppError, build_http_client, service_provider::slack::swap_slack_access_token, db::{SlackInstallation, SlackInstallationsDynamoDb}, config::Config};
+use crate::{scheduled_tasks::{ScheduledTask, ScheduledTasksDynamodb, EventBridgeScheduler}, cron::get_next_schedule_from, encryptor::Encryptor, errors::AppError, build_http_client, service_provider::slack::swap_slack_access_token, db::{SlackInstallation, SlackInstallationsDynamoDb}, config::Config};
 use form_urlencoded;
 use ring::hmac;
 use clap::{Args, Subcommand};
@@ -75,22 +74,22 @@ fn get_param(params: &HashMap<String, String>, name: &str) -> String {
     params.get(&name.to_string()).unwrap_or(&"".to_string()).to_string()
 }
 
-pub async fn handle_slack_oauth(env: &str, query_map: QueryMap) -> Result<Response<Body>, AppError> {
+pub async fn handle_slack_oauth(config: &Config, query_map: QueryMap) -> Result<Response<Body>, AppError> {
     let code_parameter = query_map.first("code");
 
     match code_parameter {
         Some(temporary_code) => {
             let http_client = build_http_client()?;
-            let config = ::aws_config::load_defaults(BehaviorVersion::latest()).await;
-            let secrets_client = SecretsClient::new(&config);
-            let secrets = secrets_client.get_secret("on-call-support/secrets").await?;
-
-            let encryptor = Encryptor::new(&secrets.encryption_key);
-
-            let oauth_response = swap_slack_access_token(&http_client, temporary_code, &secrets.slack_client_id, &secrets.slack_client_secret).await?;
+            let encryptor = Encryptor::new(&config.secrets.encryption_key);
+            let oauth_response = swap_slack_access_token(
+                &http_client, 
+                temporary_code,
+                &config.secrets.slack_client_id,
+                &config.secrets.slack_client_secret,
+            ).await?;
             
             // Save to dynamodb
-            let db = SlackInstallationsDynamoDb::new(&config, format!("on-call-support-installations-{}", env), encryptor);
+            let db = SlackInstallationsDynamoDb::new(&config, encryptor);
             let installation = SlackInstallation {
                 team_id: oauth_response.team.id,
                 team_name: oauth_response.team.name,
@@ -116,7 +115,7 @@ pub async fn handle_slack_oauth(env: &str, query_map: QueryMap) -> Result<Respon
     }
 }
 
-pub async fn handle_slack_command(env: &str, request_header: &HeaderMap<HeaderValue>, request_body: &str) -> Result<Response<Body>, AppError> {
+pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<HeaderValue>, request_body: &str) -> Result<Response<Body>, AppError> {
     let params: HashMap<String, String> = form_urlencoded::parse(request_body.as_bytes()).into_owned().collect();
     // println!("params in body: {:?}", params);
 
@@ -160,8 +159,6 @@ pub async fn handle_slack_command(env: &str, request_header: &HeaderMap<HeaderVa
         return Ok(response(400, format!("Invalid slack command due to invalid timestamp: {} {}", command, text)))
     }
     
-    let aws_config = ::aws_config::load_defaults(BehaviorVersion::latest()).await;
-    let config = Config::new(env, &aws_config).await?;
     let sig_basestring = format!("v0:{}:{}", slack_request_timestamp, request_body);
     // println!("string to sign: {:?}", sig_basestring);
 
@@ -199,8 +196,8 @@ pub async fn handle_slack_command(env: &str, request_header: &HeaderMap<HeaderVa
             let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
             let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
 
-            let db = ScheduledTasksDynamodb::new(&aws_config, format!("on-call-support-schedules-{}", env), encryptor);
-            let scheduler = EventBridgeScheduler::new(&aws_config, format!("on-call-support-dev_UpdateUserGroupSchedule_"), lambda_arn, lambda_role);
+            let db = ScheduledTasksDynamodb::new(&config, encryptor);
+            let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
 
             let timezone = Tz::from_str(&arg.timezone.unwrap_or("UTC".to_string())).unwrap();
             let from = Utc::now().with_timezone(&timezone);
@@ -249,7 +246,7 @@ pub async fn handle_slack_command(env: &str, request_header: &HeaderMap<HeaderVa
             vec!(format!("Update user group: {}|{} based on pagerduty schedule: {}, at: {}", task.user_group_id, task.user_group_handle, &task.pager_duty_schedule_id, &task.cron))
         },
         Some(Command::SetupPagerduty(args)) => {
-            let slack_installations_db = SlackInstallationsDynamoDb::new(&aws_config, config.installations_table_name, encryptor.clone());
+            let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
 
             //TODO: validate if the installation exists
             //TODO: validate if the pagerduty token valid
@@ -259,7 +256,7 @@ pub async fn handle_slack_command(env: &str, request_header: &HeaderMap<HeaderVa
             vec!(format!("Setup pagerduty with api key"))
         },
         Some(Command::ListSchedules(_args)) => {
-            let db = ScheduledTasksDynamodb::new(&aws_config, format!("on-call-support-schedules-{}", env), encryptor);
+            let db = ScheduledTasksDynamodb::new(&config, encryptor);
             let tasks = db.list_scheduled_tasks().await?;
 
             tasks.into_iter()

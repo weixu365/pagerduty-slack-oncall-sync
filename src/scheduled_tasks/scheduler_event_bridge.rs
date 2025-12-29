@@ -1,7 +1,6 @@
-use aws_config::SdkConfig;
 use chrono::Utc;
 use futures::{stream, StreamExt, TryStreamExt};
-use crate::{errors::AppError, cron::CronSchedule};
+use crate::{config::Config, cron::CronSchedule, errors::AppError};
 use aws_sdk_scheduler::{Client, types::{FlexibleTimeWindow, Target}, operation::get_schedule::GetScheduleOutput};
 
 pub struct EventBridgeScheduler {
@@ -24,10 +23,10 @@ pub struct EventBridgeSchedule {
 }
 
 impl EventBridgeScheduler {
-    pub fn new(config: &SdkConfig, name_prefix: String, lambda_arn: String, lambda_role: String) -> EventBridgeScheduler {
+    pub fn new(config: &Config, lambda_arn: String, lambda_role: String) -> EventBridgeScheduler {
         EventBridgeScheduler {
-            client: Client::new(&config),
-            name_prefix,
+            client: Client::new(&config.aws_config),
+            name_prefix: config.schedule_name_prefix.to_string(),
             lambda_arn,
             lambda_role,
         }
@@ -172,15 +171,14 @@ mod tests {
     use chrono_tz::Tz;
     use std::str::FromStr;
 
-    use crate::{scheduled_tasks::{scheduler_event_bridge::EventBridgeScheduler, ScheduledTask}, errors::AppError, cron::get_next_schedule_from};
+    use crate::{config::Config, cron::get_next_schedule_from, errors::AppError, scheduled_tasks::{ScheduledTask, scheduler_event_bridge::EventBridgeScheduler}};
 
     #[tokio::test]
     async fn test_update_next_schedule() -> Result<(), AppError>{
-        let config = ::aws_config::load_defaults(BehaviorVersion::latest()).await;
-        let scheduler_name_prefix = "on-call-support-dev_UpdateUserGroupSchedule_";
+        let config = Config::new("dev").await?;
         let lambda_arn = "arn:aws:lambda:ap-southeast-2:807579936170:function:on-call-support-dev-UpdateUserGroups";
         let lambda_role_arn = "arn:aws:iam::807579936170:role/on-call-support-dev-ap-southeast-2-lambdaRole";
-        let scheduler = EventBridgeScheduler::new(&config, scheduler_name_prefix.to_string(), lambda_arn.to_string(), lambda_role_arn.to_string());
+        let scheduler = EventBridgeScheduler::new(&config, lambda_arn.to_string(), lambda_role_arn.to_string());
 
         let task = ScheduledTask {
             team: "".to_string(),
@@ -235,10 +233,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_schedules() -> Result<(), AppError> {
-        let config = ::aws_config::load_defaults(BehaviorVersion::latest()).await;
+        let config = Config::new("dev").await?;
         let lambda_arn = "arn:aws:lambda:ap-southeast-2:807579936170:function:on-call-support-dev-UpdateUserGroups";
         let lambda_role_arn = "arn:aws:iam::807579936170:role/on-call-support-dev-ap-southeast-2-lambdaRole";
-        let scheduler = EventBridgeScheduler::new(&config, "on".to_string(), lambda_arn.to_string(), lambda_role_arn.to_string());
+        let scheduler = EventBridgeScheduler::new(&config, lambda_arn.to_string(), lambda_role_arn.to_string());
         let schedules = scheduler.list_schedules().await?;
         
         for item in &schedules {

@@ -1,7 +1,7 @@
-use aws_config::SdkConfig;
 use aws_sdk_dynamodb::{Client, types::AttributeValue};
 use chrono::Utc;
 
+use crate::config::Config;
 use crate::{encryptor::Encryptor, errors::AppError};
 use super::dynamodb_client::{get_attribute, get_optional_attribute};
 
@@ -14,8 +14,12 @@ pub struct SlackInstallationsDynamoDb {
 }
 
 impl SlackInstallationsDynamoDb {
-    pub fn new(config: &SdkConfig, table_name: String, encryptor: Encryptor) -> SlackInstallationsDynamoDb {
-        SlackInstallationsDynamoDb{ client: Client::new(&config), table_name, encryptor }
+    pub fn new(config: &Config, encryptor: Encryptor) -> SlackInstallationsDynamoDb {
+        SlackInstallationsDynamoDb{ 
+            client: Client::new(&config.aws_config),
+            table_name: config.installations_table_name.to_string(),
+            encryptor
+        }
     }
    
     pub fn installation_id(&self, slack_team_id: &str, slack_enterprise_id: &str) -> String {

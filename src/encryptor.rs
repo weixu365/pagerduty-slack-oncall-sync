@@ -20,16 +20,12 @@ pub struct Encryptor {
 
 impl Encryptor {
     pub fn new(key: &str) -> Encryptor {
-        let cipher = XChaCha20Poly1305::new(key.as_bytes().into());
-    
-        Encryptor {
-            cipher,
+        let key_bytes = key.as_bytes();
+        if key_bytes.len() != 32 {
+            panic!("Invalid key length: expected 32 bytes, got {} bytes.", key_bytes.len());
         }
-    }
 
-    pub fn with(key_base64: &str) -> Encryptor {
-        let key = base64::decode_no_pad(key_base64.as_ref()).expect("Failed to decode key, expecting base64 encoded");
-        let cipher = XChaCha20Poly1305::new(key.as_slice().into());
+        let cipher = XChaCha20Poly1305::new(key_bytes.into());
     
         Encryptor {
             cipher,

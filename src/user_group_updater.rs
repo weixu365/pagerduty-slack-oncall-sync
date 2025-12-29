@@ -1,6 +1,5 @@
 use std::{sync::Arc, collections::HashMap, env};
 
-use aws_config::BehaviorVersion;
 use futures::StreamExt;
 use crate::{config::Config, db::{SlackInstallation, SlackInstallationsDynamoDb}, encryptor::Encryptor, scheduled_tasks::{EventBridgeScheduler, ScheduledTask, ScheduledTasksDynamodb}};
 
@@ -111,14 +110,13 @@ async fn run_task(task: &ScheduledTask, slack_tokens: &HashMap<String, SlackInst
 pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
     let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
     let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
-    let aws_config = ::aws_config::load_defaults(BehaviorVersion::latest()).await;
-    let config = Config::new(env, &aws_config).await?;
+    let config = Config::new(env).await?;
     let http_client = Arc::new(Box::new(build_http_client()?));
-    let scheduler = EventBridgeScheduler::new(&aws_config, config.schedule_name_prefix, lambda_arn, lambda_role);
+    let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
     let encryptor = Encryptor::new(&config.secrets.encryption_key);
     
-    let slack_installations_db = SlackInstallationsDynamoDb::new(&aws_config, config.installations_table_name, encryptor.clone());
-    let scheduled_tasks_db = ScheduledTasksDynamodb::new(&aws_config, config.schedules_table_name, encryptor.clone());
+    let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
+    let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor.clone());
     
     let slack_tokens: HashMap<String, SlackInstallation> = slack_installations_db.list_installations().await?
         .into_iter()

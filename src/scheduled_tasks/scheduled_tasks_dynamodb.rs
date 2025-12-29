@@ -1,7 +1,6 @@
-use aws_config::SdkConfig;
 use aws_sdk_dynamodb::{Client, types::AttributeValue};
 
-use crate::{errors::AppError, encryptor::{Encryptor, EncryptedData}};
+use crate::{config::Config, encryptor::{EncryptedData, Encryptor}, errors::AppError};
 use crate::db::dynamodb_client::{get_attribute, get_optional_attribute};
 
 use super::scheduled_task::ScheduledTask;
@@ -13,8 +12,12 @@ pub struct ScheduledTasksDynamodb {
 }
 
 impl ScheduledTasksDynamodb {
-    pub fn new(config: &SdkConfig, table_name: String, encryptor: Encryptor) -> ScheduledTasksDynamodb {
-        ScheduledTasksDynamodb{ client: Client::new(&config), table_name, encryptor }
+    pub fn new(config: &Config, encryptor: Encryptor) -> ScheduledTasksDynamodb {
+        ScheduledTasksDynamodb{ 
+            client: Client::new(&config.aws_config),
+            table_name: config.schedules_table_name.to_string(), 
+            encryptor,
+        }
     }
    
     fn team(&self, team_id: &str, workspace_id: &str) -> String {
