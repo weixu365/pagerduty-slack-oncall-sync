@@ -1,26 +1,27 @@
-use on_call_support::user_group_updater::update_user_groups;
-use tokio;
+use std::env;
 
-use lambda_runtime::{service_fn, LambdaEvent, Error};
-use serde_json::{json, Value};
+use on_call_support::{user_group_updater::update_user_groups, http_util::response};
+use tokio;
+use lambda_http::{Body, Error, Request, Response, service_fn};
+
+use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let func = service_fn(func);
-    lambda_runtime::run(func).await?;
+    lambda_http::run(func).await?;
     Ok(())
 }
 
-async fn func(event: LambdaEvent<Value>) -> Result<Value, Error> {
-    let (_event, _context) = event.into_parts();
-    let env = "dev";
-    let result = update_user_groups(env).await;
+async fn func(_request: Request) -> Result<Response<Body>, Error> {
+    let env = env::var("ENV").unwrap_or("dev".to_string());
+    let result = update_user_groups(&env).await;
 
     match result {
-        Ok(()) => Ok(json!({ "message": "Updated user groups" })),
+        Ok(()) => Ok(response(200, json!({ "message": "Updated user groups" }).to_string())),
         Err(err) => {
             println!("Failed to update user groups: {:?}", err);
-            Err(Box::new(err))
+            Err(err.into())
         }
     }
 }

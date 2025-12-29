@@ -1,4 +1,4 @@
-use on_call_support::{config::Config, slack_handler::{handle_slack_command, handle_slack_oauth, response}};
+use on_call_support::{config::Config, http_util::response, slack_handler::{handle_slack_command, handle_slack_oauth}};
 use tokio;
 use lambda_http::{Body, Error, Request, RequestExt, Response, service_fn};
 

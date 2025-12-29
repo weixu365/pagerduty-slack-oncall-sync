@@ -5,7 +5,7 @@ use lambda_http::Response;
 use chrono::{Local, Utc};
 use chrono_tz::Tz;
 use std::str::FromStr;
-use crate::{scheduled_tasks::{ScheduledTask, ScheduledTasksDynamodb, EventBridgeScheduler}, cron::get_next_schedule_from, encryptor::Encryptor, errors::AppError, build_http_client, service_provider::slack::swap_slack_access_token, db::{SlackInstallation, SlackInstallationsDynamoDb}, config::Config};
+use crate::{build_http_client, config::Config, cron::get_next_schedule_from, db::{SlackInstallation, SlackInstallationsDynamoDb}, encryptor::Encryptor, errors::AppError, http_util::response, scheduled_tasks::{EventBridgeScheduler, ScheduledTask, ScheduledTasksDynamodb}, service_provider::slack::swap_slack_access_token};
 use form_urlencoded;
 use ring::hmac;
 use clap::{Args, Subcommand};
@@ -274,11 +274,4 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
     ;
 
     Ok(response(200, format!(r#"{{ "blocks": [{}] }}"#, sections)))
-}
-
-pub fn response(status_code: u16, body: String) -> Response<Body> {
-    Response::builder()
-        .status(status_code)
-        .body(Body::from(body))
-        .unwrap()
 }
