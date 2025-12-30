@@ -56,7 +56,7 @@ impl PagerDuty {
             }
 
             Err(err) => {
-                println!("Error: {:?}", err);
+                tracing::error!(%err, "Error calling PagerDuty API");
                 Err(AppError::PagerDutyError(err.to_string()))
             }
         }

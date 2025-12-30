@@ -127,7 +127,7 @@ pub async fn handle_slack_oauth(config: &Config, query_map: QueryMap) -> Result<
 
 pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<HeaderValue>, request_body: &str) -> Result<Response<Body>, AppError> {
     let params: HashMap<String, String> = form_urlencoded::parse(request_body.as_bytes()).into_owned().collect();
-    // println!("params in body: {:?}", params);
+    tracing::debug!(?params, "params in request body");
 
     let team_id = get_param(&params, "team_id");
     let team_domain = get_param(&params, "team_domain");
@@ -148,7 +148,7 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
         .expect("Missing X-Slack-Signature")?;
     let now = Local::now().timestamp();
 
-    // println!("parsed parameter: {}", json!({
+    // tracing::debug!("parsed parameter: {}", json!({
     //     "team_id": team_id,
     //     "team_domain": team_domain,
     //     "channel_id": channel_id,
@@ -170,13 +170,13 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
     }
     
     let sig_basestring = format!("v0:{}:{}", slack_request_timestamp, request_body);
-    // println!("string to sign: {:?}", sig_basestring);
+    tracing::debug!(sig_basestring, "string to sign");
 
     let verification_key = hmac::Key::new(hmac::HMAC_SHA256, config.secrets.slack_signing_secret.as_bytes());
     let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
 
     if format!("v0={}", signature) != slack_request_signature {
-        println!("Signature doesn't match {} vs {}", signature, slack_request_signature);
+        tracing::error!(slack_request_signature, expected_signature = signature, "Signature doesn't match");
         return Ok(response(400, format!("Invalid slack command signature: {} {}", command, text)))
     }
     
@@ -198,7 +198,7 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
                 user_group_id = captures.get(1).unwrap().as_str().to_string();
                 user_group_handle = captures.get(2).unwrap().as_str().to_string();
             } else {
-                println!("Invalid user group: {}", arg.user_group);
+                tracing::error!(user_group = %arg.user_group, "Invalid user group");
 
                 return Ok(response(400, format!("Invalid user group: {}", arg.user_group)))
             }
@@ -244,12 +244,12 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
             };
             
             if let Err(err) = db.save_scheduled_task(&task).await {
-                println!("Failed to save to dynamodb, {:?}", err);
+                tracing::error!(%err, "Failed to save to dynamodb");
                 return Ok(response(500, format!("Can't process slack command due to save to dynamodb failed\nCommand: {} {}", command, text)))
             }
 
             if let Err(err) = scheduler.update_next_schedule(&next_schedule).await {
-                println!("Failed to update scheduler, {:?}", err);
+                tracing::error!(%err, "Failed to update scheduler");
                 return Ok(response(500, format!("Can't process slack command due to save to update scheduler\nCommand: {} {}", command, text)))
             }
             

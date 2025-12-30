@@ -54,7 +54,7 @@ impl SlackInstallationsDynamoDb {
 
         let request = builder.table_name(&self.table_name);
 
-        println!("Save slack installation to DynamoDB [{request:?}]");
+        tracing::info!(?request, "Save slack installation to DynamoDB");
         request.send().await?;
         
         Ok(())
@@ -77,7 +77,7 @@ impl SlackInstallationsDynamoDb {
             .expression_attribute_values(":id", AttributeValue::S(installation_id.to_string()))
         ;
 
-        println!("Update pagerduty token for slack installation in DynamoDB, team_id: {}, enterprise_id: {}", slack_team_id, slack_enterprise_id);
+        tracing::info!(slack_team_id, slack_enterprise_id, "Update pagerduty token for slack installation in DynamoDB");
         request.send().await?;
         
         Ok(())

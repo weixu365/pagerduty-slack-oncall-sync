@@ -62,7 +62,7 @@ impl ScheduledTasksDynamodb {
             .item("last_updated_at", AttributeValue::S(t.last_updated_at))
         ;
 
-        println!("Saving task {} with the next schedule at {}", task.task_id, task.next_update_time);
+        tracing::info!(task_id = task.task_id, next_update_time = task.next_update_time, "Saving task");
         builder.send().await?;
         
         Ok(())
@@ -82,7 +82,7 @@ impl ScheduledTasksDynamodb {
             
         ;
 
-        println!("Updating next schedule of task {} to {}", task.task_id, task.next_update_time);
+        tracing::info!(task_id = task.task_id, next_update_time = task.next_update_time, "Updating next schedule of task");
         builder.send().await?;
         
         Ok(())
@@ -109,11 +109,6 @@ impl ScheduledTasksDynamodb {
         //     })
         //     .collect()
         //     .await?;
-
-        // println!("Items in table:");
-        // for item in items {
-        //     println!("   {:?}", item);
-        // }
             
         Ok(())
     }
@@ -180,7 +175,7 @@ impl ScheduledTasksDynamodb {
             .key("task_id", AttributeValue::S(task_id.to_string()))
             .table_name(&self.table_name);
 
-        println!("Deleting scheduled task from DynamoDB [{request:?}]...");
+        tracing::info!(team_id, workspace_id, task_id, "Deleting scheduled task from DynamoDB");
         request.send().await?;
 
         Ok(())

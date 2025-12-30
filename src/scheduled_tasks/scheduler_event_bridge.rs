@@ -33,7 +33,7 @@ impl EventBridgeScheduler {
     }
     
     pub async fn update_next_schedule(&self, next_task_schedule: &CronSchedule) -> Result<(), AppError> {
-        println!("Updating next schedule to: {:?}", next_task_schedule);
+        tracing::info!(?next_task_schedule, "Updating next schedule in EventBridge Scheduler");
 
         let mut current_schedules: Vec<_> = self.list_schedules()
             .await?
@@ -42,19 +42,19 @@ impl EventBridgeScheduler {
 
         current_schedules.sort_by(|a, b| a.next_scheduled_timestamp_utc.cmp(&b.next_scheduled_timestamp_utc));
 
-        println!("Found existing schedules: {:?}", current_schedules);
+        tracing::info!(?current_schedules, "Found existing schedules");
         
         let next_schedule = self.get_next_schedule(&current_schedules, next_task_schedule.next_timestamp_utc);
         let mut next_schedule_timestamp = next_schedule.as_ref().and_then(|s| s.next_scheduled_timestamp_utc).unwrap_or(i64::MAX);
-        println!("Found the next schedule at time: {:?}", next_schedule_timestamp);
-
+        tracing::info!(scheduled_time = next_schedule_timestamp, "Found the current schedule");
         if next_task_schedule.next_timestamp_utc < next_schedule_timestamp {
-            println!("Updating next schedule to: {}", next_task_schedule.next_datetime.format("%FT%T"));
+            let next_schedule = next_task_schedule.next_datetime.format("%FT%T");
+            tracing::info!(%next_schedule, "Updating schedule");
             self.client
                 .create_schedule()
                 .name(format!("{}{}", self.name_prefix, next_task_schedule.next_timestamp_utc))
                 .description("{datetime: <readable date time using original timezone>, datetime_utc, original_cron }")
-                .schedule_expression(format!("at({})", next_task_schedule.next_datetime.format("%FT%T")))
+                .schedule_expression(format!("at({})", next_schedule))
                 .schedule_expression_timezone(format!("{}", next_task_schedule.timezone))
                 .flexible_time_window(FlexibleTimeWindow::builder().mode(aws_sdk_scheduler::types::FlexibleTimeWindowMode::Off).build().unwrap())
                 .target(Target::builder().arn(&self.lambda_arn).role_arn(&self.lambda_role).build().unwrap())
@@ -62,7 +62,7 @@ impl EventBridgeScheduler {
                 .await?;
             next_schedule_timestamp = next_task_schedule.next_timestamp_utc;
         } else {
-            println!("Keep the next schedule unchanged: {}", next_schedule.map(|s| format!("{} {}", s.expression.unwrap(), s.next_scheduled_timestamp_utc.unwrap())).unwrap());
+            tracing::info!(next_schedule = next_schedule.map(|s| format!("{} {}", s.expression.unwrap(), s.next_scheduled_timestamp_utc.unwrap())).unwrap(), "Keep the next schedule unchanged");
         }
 
         // clean up schedules to keep only the earliest
@@ -116,7 +116,7 @@ impl EventBridgeScheduler {
     }
 
     async fn delete_schedules(&self, name: &str) -> Result<(), AppError> {
-        println!("delete schedule: {}", name);
+        tracing::info!(name, "delete schedule");
 
         self.client
             .delete_schedule()
@@ -128,7 +128,7 @@ impl EventBridgeScheduler {
     }
 
     async fn list_schedules(&self) -> Result<Vec<GetScheduleOutput>, AppError> {
-        println!("list schedules in aws eventbridge scheduler");
+        tracing::info!("list schedules in aws eventbridge scheduler");
 
         let schedule_summaries: Vec<_> = self.client
             .list_schedules()

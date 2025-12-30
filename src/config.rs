@@ -21,6 +21,8 @@ pub struct Config {
 
 impl Config {
     pub async fn new(env: &str) -> Result<Config, AppError> {
+        tracing::debug!(env, "Loading config");
+
         let secret_name = env::var("AWS_SECRET_NAME")
             .expect("AWS_SECRET_NAME must be set and the value should contains encryption_key, slack_client_id, slack_client_secret, slack_signing_secret in json format");
         

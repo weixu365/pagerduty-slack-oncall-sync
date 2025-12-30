@@ -7,6 +7,7 @@ pub mod encryptor;
 pub mod errors;
 pub mod http_client;
 pub mod http_util;
+pub mod logging;
 pub mod user_group_updater;
 pub mod scheduled_tasks;
 pub mod service_provider;

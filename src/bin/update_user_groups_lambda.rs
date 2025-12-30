@@ -20,7 +20,7 @@ async fn func(_request: Request) -> Result<Response<Body>, Error> {
     match result {
         Ok(()) => Ok(response(200, json!({ "message": "Updated user groups" }).to_string())),
         Err(err) => {
-            println!("Failed to update user groups: {:?}", err);
+            tracing::error!(%err, "Failed to update user groups");
             Err(err.into())
         }
     }

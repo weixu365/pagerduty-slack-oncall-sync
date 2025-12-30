@@ -67,7 +67,6 @@ mod tests {
         let encrypted = encryptor.encrypt(original).expect("Failed to encrypt text");
 
         let encrypted_json = serde_json::to_string(&encrypted).unwrap();
-        println!("encrypted: {:?}", encrypted_json);
 
         let deserialized_from_json: EncryptedData = serde_json::from_str(&encrypted_json).expect("couldn't parse json");
         let decrypted = encryptor.decrypt(&deserialized_from_json).expect("failed to decrypt encrypted data");

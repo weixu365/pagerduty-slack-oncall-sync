@@ -23,7 +23,7 @@ impl SecretsClient {
     }
    
     pub async fn get_secret(&self, name: &str) -> Result<Secrets, AppError> {
-        println!("Querying secret value for {}", name);
+        tracing::debug!(name, "Querying secret value");
 
         let result = self.client
             .get_secret_value()
@@ -49,7 +49,6 @@ mod tests {
         let client = SecretsClient::new(&config);
         let encryption_key = client.get_secret("on-call-support/secrets").await?;
         
-        println!("{:?}", encryption_key);
         assert_eq!(encryption_key.encryption_key.len(), 32);
         Ok(())
     }

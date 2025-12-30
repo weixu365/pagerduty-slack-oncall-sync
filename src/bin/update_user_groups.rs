@@ -3,12 +3,14 @@ use std::env;
 
 use on_call_support::config::Config;
 use on_call_support::errors::AppError;
+use on_call_support::logging::init_logging;
 use on_call_support::user_group_updater::update_user_groups;
 use aws_sdk_cloudformation::Client as CloudformationClient;
 use tokio;
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
+    init_logging();
     let env = env::var("ENV").unwrap_or("dev".to_string());
     let config = Config::new(&env).await?;
     

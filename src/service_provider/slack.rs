@@ -169,7 +169,7 @@ impl Slack {
 
         if let Some(payload) = payload {
             let body: String = payload.to_string();
-            println!("Slack: {} {}: {}", method.as_str(), endpoint, &body);
+            tracing::debug!(%method, endpoint, body, "Sending Slack request");
             request_builder = request_builder.body(body);
         }
 
@@ -181,17 +181,17 @@ impl Slack {
             let json_response: SlackResponse<T> = response.json().await?;
 
             if json_response.ok {
-                // println!("Slack request successfully");
+                tracing::debug!("Slack request finished successfully");
                 Ok(json_response.data)
-            } else if let Some(error) = json_response.error {
-                println!("SlackClient: Failed to call Slack API, error message: {}", error);
-                Err(AppError::SlackError(error))
+            } else if let Some(err) = json_response.error {
+                tracing::error!(err, "Failed to call Slack API");
+                Err(AppError::SlackError(err))
             } else {
-                println!("SlackClient: Unknown error occurred");
+                tracing::error!("SlackClient: Unknown error occurred");
                 Err(AppError::SlackError("Unknown error".to_string()))
             }
         } else {
-            println!("SlackClient: Failed sending request to Slack, status: {}, Error: {:?}", response.status(), response);
+            tracing::error!(status = response.status().as_u16(), "Failed sending request to Slack");
             Err(AppError::SlackError(format!("Failed sending request to Slack, status: {}", response.status())))
         }        
     }
@@ -230,7 +230,7 @@ pub struct SlackOauthResponse {
 }
 
 pub async fn swap_slack_access_token(http_client: &Client, temp_token: &str, slack_client_id: &str, slack_client_secret: &str) -> Result<SlackOauthResponse, AppError> {
-    println!("Swap slack access token");
+    tracing::info!("Swap slack access token");
     let params = json!({
         "code": temp_token,
     });
@@ -249,24 +249,24 @@ pub async fn swap_slack_access_token(http_client: &Client, temp_token: &str, sla
 
         match json_response_result {
             Err(err) => {
-                println!("Failed to parse json response: {}", response_body);
+                tracing::info!(response_body, "Failed to parse json response");
                 Err(AppError::SlackError(err.to_string()))
             },
             Ok(json_response) => {
                 if json_response.ok {
-                    // println!("Slack request successfully");
+                    tracing::debug!("Slack request finished successfully");
                     Ok(json_response.data)
-                } else if let Some(error) = json_response.error {
-                    println!("SlackClient: Failed to call Slack API, error message: {}", error);
-                    Err(AppError::SlackError(error))
+                } else if let Some(err) = json_response.error {
+                    tracing::error!(err, "Failed to call Slack API");
+                    Err(AppError::SlackError(err))
                 } else {
-                    println!("SlackClient: Unknown error occurred");
+                    tracing::error!("SlackClient: Unknown error occurred");
                     Err(AppError::SlackError("Unknown error".to_string()))
                 }
             }
         }
     } else {
-        println!("SlackClient: Failed sending request to Slack, status: {}, Error: {:?}", response.status(), response);
+        tracing::error!(status = response.status().as_u16(), "Failed sending request to Slack");
         Err(AppError::SlackError(format!("Failed sending request to Slack, status: {}", response.status())))
     }        
 }
