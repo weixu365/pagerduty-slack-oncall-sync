@@ -5,7 +5,11 @@ use crate::{config::Config, db::{SlackInstallation, SlackInstallationsDynamoDb},
 
 use chrono::{Utc, Duration, DateTime};
 use reqwest::Client;
-use crate::{build_http_client, errors::AppError, service_provider::{pager_duty::PagerDuty, slack::Slack}};
+use crate::{
+    errors::AppError,
+    http_client::build_http_client,
+    service_provider::{pager_duty::PagerDuty, slack::Slack},
+};
 
 pub async fn update_user_group(
     http_client: Arc<Box<Client>>, 

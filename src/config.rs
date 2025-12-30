@@ -6,6 +6,8 @@ use crate::{errors::AppError, secrets::{Secrets, SecretsClient}};
 pub struct Config {
     pub env: String,
 
+    pub cloudformation_stack_name: String,
+
     pub secret_name: String,
     pub secrets: Secrets,
 
@@ -29,6 +31,7 @@ impl Config {
 
         Ok(Config {
             env: env.to_string(),
+            cloudformation_stack_name: format!("on-call-support-{}", env),
             secret_name: "on-call-support/secrets".to_string(),
             secrets: secrets,
             schedules_table_name: format!("on-call-support-schedules-{}", env),

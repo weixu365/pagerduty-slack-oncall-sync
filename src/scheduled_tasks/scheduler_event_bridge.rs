@@ -166,7 +166,6 @@ impl EventBridgeScheduler {
 
 #[cfg(test)]
 mod tests {
-    use aws_config::BehaviorVersion;
     use chrono::Utc;
     use chrono_tz::Tz;
     use std::str::FromStr;

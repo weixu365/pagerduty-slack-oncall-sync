@@ -1,3 +1,5 @@
+use std::env;
+
 use on_call_support::{config::Config, http_util::response, slack_handler::{handle_slack_command, handle_slack_oauth}};
 use tokio;
 use lambda_http::{Body, Error, Request, RequestExt, Response, service_fn};
@@ -17,8 +19,8 @@ async fn main() -> Result<(), Error> {
 }
 
 async fn func(request: Request) -> Result<Response<Body>, Error> {
-    let env = "dev";
-    let config = Config::new(env).await?;
+    let env = env::var("ENV").unwrap_or("dev".to_string());
+    let config = Config::new(&env).await?;
     
     let request_path = request.uri().path();
     match request_path {
