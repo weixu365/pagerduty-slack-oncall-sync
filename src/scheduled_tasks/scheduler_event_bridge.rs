@@ -46,7 +46,11 @@ impl EventBridgeScheduler {
         
         let next_schedule = self.get_next_schedule(&current_schedules, next_task_schedule.next_timestamp_utc);
         let mut next_schedule_timestamp = next_schedule.as_ref().and_then(|s| s.next_scheduled_timestamp_utc).unwrap_or(i64::MAX);
-        tracing::info!(scheduled_time = next_schedule_timestamp, "Found the current schedule");
+        tracing::info!(
+            existing_scheduled_time = next_schedule_timestamp,
+            next_schedule=next_task_schedule.next_timestamp_utc,
+            "Found the current schedule",
+        );
         if next_task_schedule.next_timestamp_utc < next_schedule_timestamp {
             let next_schedule = next_task_schedule.next_datetime.format("%FT%T");
             tracing::info!(%next_schedule, "Updating schedule");
@@ -62,7 +66,10 @@ impl EventBridgeScheduler {
                 .await?;
             next_schedule_timestamp = next_task_schedule.next_timestamp_utc;
         } else {
-            tracing::info!(next_schedule = next_schedule.map(|s| format!("{} {}", s.expression.unwrap(), s.next_scheduled_timestamp_utc.unwrap())).unwrap(), "Keep the next schedule unchanged");
+            tracing::info!(
+                next_schedule = next_schedule.map(|s| format!("{} {}", s.expression.unwrap(), s.next_scheduled_timestamp_utc.unwrap())).unwrap(),
+                "Keep the next schedule unchanged",
+            );
         }
 
         // clean up schedules to keep only the earliest

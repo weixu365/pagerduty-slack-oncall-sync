@@ -1,7 +1,7 @@
 use std::{sync::Arc, collections::HashMap, env};
 
 use futures::StreamExt;
-use tracing;
+use tracing::{self, instrument};
 use crate::{config::Config, db::{SlackInstallation, SlackInstallationsDynamoDb}, encryptor::Encryptor, scheduled_tasks::{EventBridgeScheduler, ScheduledTask, ScheduledTasksDynamodb}};
 
 use chrono::{Utc, Duration, DateTime};
@@ -55,9 +55,8 @@ pub async fn update_user_group(
         // return Err(AppError::SlackUpdateUserGroupError("Too many users in the current group, is the group correct?".to_string()));
     }
 
-    tracing::info!(?current_users, "Current user ids in group");
-    tracing::info!(?current_user_names, "Current user names in group");
-    tracing::info!(?slack_user_ids, "Update users to group");
+    tracing::info!(user_ids=?current_users, user_names=?current_user_names, "Current users in Slack User Group");
+    tracing::info!(user_ids=?slack_user_ids, "On-call users in PagerDuty");
     tracing::info!(changed = slack_user_ids != current_users, "Does users changed");
 
     slack.update_user_group_users(&user_group.id, &slack_user_ids).await?;
@@ -71,15 +70,19 @@ pub async fn update_user_group(
     Ok(())
 }
 
+#[instrument(
+    skip(task, slack_tokens, http_client, scheduled_tasks_db),
+    fields(channel=task.channel_name, user_group=task.user_group_handle),
+)]
 async fn run_task(task: &ScheduledTask, slack_tokens: &HashMap<String, SlackInstallation>, http_client: Arc<Box<Client>>, scheduled_tasks_db: &ScheduledTasksDynamodb) -> Result<(), AppError>{
-    tracing::info!(task_id = task.task_id, cron = %task.cron, "Updating user group task");
+    tracing::info!(task_id = task.task_id, cron = task.cron, "Updating user group");
 
     let slack_installation = slack_tokens.get(&task.team_id)
-        .expect(format!("Could not find slack installation for team: {}, task: {}", task.team, task.task_id).as_str());
+        .ok_or(AppError::SlackInstallationNotFoundError(format!("Could not find slack installation for team: {}, task: {}", task.team, task.task_id)))?;
 
     let pagerduty_token = &task.pager_duty_token.clone()
         .or(slack_installation.pager_duty_token.clone())
-        .expect("No PagerDuty token setup for the current Slack installation");
+        .ok_or(AppError::SlackInstallationNotFoundError(format!("No PagerDuty token setup for the current Slack installation, team: {}, task: {}", task.team, task.task_id)))?;
 
     update_user_group(
         http_client.clone(),
@@ -124,7 +127,7 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
         .collect();
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
-    tracing::info!(tasks=tasks.len(), "Found tasks");
+    tracing::info!(count=tasks.len(), "Loaded tasks from DB");
 
     let mut timestamp_of_next_trigger = i64::MAX;
     let mut next_task = None;
@@ -136,8 +139,13 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
                 tracing::error!(task_id=task.task_id, err=%err, "Failed to update user group for task");
             }
         } else {
-            // tracing::info!("Skipped {}, next trigger is: {} which is: {} greater than {}", task.task_id, task.next_update_time, task.next_update_timestamp_utc, Utc::now().timestamp());
-            tracing::info!(task_id=task.task_id, next_update_time=task.next_update_time, next_update_timestamp_utc=task.next_update_timestamp_utc, now=Utc::now().timestamp(), "Skipped task because next trigger is in the future");
+            tracing::info!(
+                task_id=task.task_id,
+                next_update_time=task.next_update_time,
+                next_update_timestamp_utc=task.next_update_timestamp_utc,
+                now=Utc::now().timestamp(),
+                "Task skipped: next trigger is in the future",
+            );
         }
 
         if task.next_update_timestamp_utc > 0 && task.next_update_timestamp_utc < timestamp_of_next_trigger {

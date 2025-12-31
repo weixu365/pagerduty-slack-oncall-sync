@@ -31,6 +31,9 @@ pub enum AppError {
     #[error("Reqwest error")]
     ReqwestError(#[from] reqwest::Error),
 
+    #[error("Slack App not installed, error: `{0:?}`")]
+    SlackInstallationNotFoundError(String),
+
     #[error("Failed to update user group in Slack, error: `{0:?}`")]
     SlackUpdateUserGroupError(String),
 

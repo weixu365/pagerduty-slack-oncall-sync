@@ -23,7 +23,7 @@ impl SecretsClient {
     }
    
     pub async fn get_secret(&self, name: &str) -> Result<Secrets, AppError> {
-        tracing::debug!(name, "Querying secret value");
+        tracing::debug!(name, "Getting secret value");
 
         let result = self.client
             .get_secret_value()
