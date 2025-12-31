@@ -7,6 +7,7 @@ use chrono_tz::Tz;
 use std::str::FromStr;
 use crate::{
     config::Config,
+    constant_time::constant_time_compare_str,
     cron::get_next_schedule_from, 
     db::{SlackInstallation, SlackInstallationsDynamoDb},
     encryptor::Encryptor,
@@ -175,8 +176,10 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
     let verification_key = hmac::Key::new(hmac::HMAC_SHA256, config.secrets.slack_signing_secret.as_bytes());
     let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
 
-    if format!("v0={}", signature) != slack_request_signature {
-        tracing::error!(slack_request_signature, expected_signature = signature, "Signature doesn't match");
+    let expected_signature = format!("v0={}", signature);
+
+    if !constant_time_compare_str(&expected_signature, slack_request_signature) {
+        tracing::error!(slack_request_signature, "Signature verification failed");
         return Ok(response(400, format!("Invalid slack command signature: {} {}", command, text)))
     }
     

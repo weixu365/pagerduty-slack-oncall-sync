@@ -1,5 +1,6 @@
 pub mod base64;
 pub mod config;
+pub mod constant_time;
 pub mod cron;
 pub mod db;
 pub mod timestamp;
