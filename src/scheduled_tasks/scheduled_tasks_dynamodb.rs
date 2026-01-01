@@ -125,7 +125,8 @@ impl ScheduledTasksDynamodb {
     }
 
     pub async fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, AppError> {
-        let all_items: Vec<_> = self.client
+        let all_items: Vec<_> = self
+            .client
             .scan()
             .table_name(&self.table_name)
             .into_paginator()

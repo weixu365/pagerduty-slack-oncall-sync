@@ -4,8 +4,9 @@ use super::scheduled_tasks_dynamodb::ScheduledTasksDynamodb;
 use chrono::Utc;
 
 async fn create_db() -> Result<ScheduledTasksDynamodb, AppError> {
-    let config = Config::new("dev").await?;
-    let encryptor = Encryptor::from_key(&config.secrets.encryption_key)?;
+    let config = Config::get_or_init("dev").await?;
+    let secrets = config.secrets().await?;
+    let encryptor = Encryptor::from_key(&secrets.encryption_key)?;
     let db = ScheduledTasksDynamodb::new(&config, encryptor);
 
     Ok(db)

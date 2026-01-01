@@ -215,7 +215,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_next_schedule() -> Result<(), AppError> {
-        let config = Config::new("dev").await?;
+        let config = Config::get_or_init("dev").await?;
         let lambda_arn = "arn:aws:lambda:ap-southeast-2:807579936170:function:on-call-support-dev-UpdateUserGroups";
         let lambda_role_arn = "arn:aws:iam::807579936170:role/on-call-support-dev-ap-southeast-2-lambdaRole";
         let scheduler = EventBridgeScheduler::new(&config, lambda_arn.to_string(), lambda_role_arn.to_string());
@@ -273,7 +273,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_schedules() -> Result<(), AppError> {
-        let config = Config::new("dev").await?;
+        let config = Config::get_or_init("dev").await?;
         let lambda_arn = "arn:aws:lambda:ap-southeast-2:807579936170:function:on-call-support-dev-UpdateUserGroups";
         let lambda_role_arn = "arn:aws:iam::807579936170:role/on-call-support-dev-ap-southeast-2-lambdaRole";
         let scheduler = EventBridgeScheduler::new(&config, lambda_arn.to_string(), lambda_role_arn.to_string());

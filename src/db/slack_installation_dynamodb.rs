@@ -88,7 +88,8 @@ impl SlackInstallationsDynamoDb {
     }
 
     pub async fn list_installations(&self) -> Result<Vec<SlackInstallation>, AppError> {
-        let all_items: Vec<_> = self.client
+        let all_items: Vec<_> = self
+            .client
             .scan()
             .table_name(&self.table_name)
             .into_paginator()

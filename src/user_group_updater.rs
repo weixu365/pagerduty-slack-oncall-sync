@@ -155,10 +155,11 @@ async fn run_task(
 pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
     let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
     let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
-    let config = Config::new(env).await?;
+    let config = Config::get_or_init(env).await?;
     let http_client = Arc::new(Box::new(build_http_client()?));
     let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
-    let encryptor = Encryptor::from_key(&config.secrets.encryption_key)?;
+    let secrets = config.secrets().await?;
+    let encryptor = Encryptor::from_key(&secrets.encryption_key)?;
 
     let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
     let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor.clone());

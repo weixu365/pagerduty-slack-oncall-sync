@@ -34,7 +34,7 @@ async fn main() -> Result<(), Error> {
 
 async fn func(request: Request) -> Result<Response<Body>, Error> {
     let env = env::var("ENV").unwrap_or("dev".to_string());
-    let config = Config::new(&env).await?;
+    let config = Config::get_or_init(&env).await?;
 
     let request_path = request.uri().path();
     let method = request.method().as_str();

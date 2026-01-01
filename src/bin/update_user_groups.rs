@@ -12,7 +12,7 @@ use tokio;
 async fn main() -> Result<(), AppError> {
     init_logging();
     let env = env::var("ENV").unwrap_or("dev".to_string());
-    let config = Config::new(&env).await?;
+    let config = Config::get_or_init(&env).await?;
 
     let cloudformation_client = CloudformationClient::new(&config.aws_config);
     let stack_details = cloudformation_client

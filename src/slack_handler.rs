@@ -95,12 +95,13 @@ pub async fn handle_slack_oauth(config: &Config, query_map: QueryMap) -> Result<
     match code_parameter {
         Some(temporary_code) => {
             let http_client = build_http_client()?;
-            let encryptor = Encryptor::from_key(&config.secrets.encryption_key)?;
+            let secrets = config.secrets().await?;
+            let encryptor = Encryptor::from_key(&secrets.encryption_key)?;
             let oauth_response = swap_slack_access_token(
                 &http_client,
                 temporary_code,
-                &config.secrets.slack_client_id,
-                &config.secrets.slack_client_secret,
+                &secrets.slack_client_id,
+                &secrets.slack_client_secret,
             )
             .await?;
 
@@ -175,7 +176,8 @@ pub async fn handle_slack_command(
     let sig_basestring = format!("v0:{}:{}", slack_request_timestamp, request_body);
     tracing::debug!(sig_basestring, "Slack Request to sign");
 
-    let verification_key = hmac::Key::new(hmac::HMAC_SHA256, config.secrets.slack_signing_secret.as_bytes());
+    let secrets = config.secrets().await?;
+    let verification_key = hmac::Key::new(hmac::HMAC_SHA256, secrets.slack_signing_secret.as_bytes());
     let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
 
     let expected_signature = format!("v0={}", signature);
@@ -190,7 +192,7 @@ pub async fn handle_slack_command(
         None => None,
     };
 
-    let encryptor = Encryptor::from_key(&config.secrets.encryption_key)?;
+    let encryptor = Encryptor::from_key(&secrets.encryption_key)?;
 
     let arg = arg.ok_or_else(|| AppError::InvalidData("Failed to parse command arguments".to_string()))?;
 
