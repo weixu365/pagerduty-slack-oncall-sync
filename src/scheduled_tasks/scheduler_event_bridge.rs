@@ -216,7 +216,8 @@ mod tests {
         let timezone = Tz::from_str(&task.timezone).unwrap();
         let from = Utc::now().with_timezone(&timezone);
 
-        let next_schedule = get_next_schedule_from(&task.cron, &from).expect("The cron has no future scheduled time from now");
+        let next_schedule = get_next_schedule_from(&task.cron, &from)
+            .ok_or_else(|| AppError::InvalidData("The cron has no future scheduled time from now".to_string()))?;
         
         scheduler.update_next_schedule(&next_schedule).await?;
 

@@ -31,8 +31,9 @@ impl SecretsClient {
             .send()
             .await?;
 
-        let secrets_value = result.secret_string().expect(format!("Couldn't get secret value for {}", name).as_str());
-        let secrets: Secrets = serde_json::from_str(&secrets_value).expect("couldn't parse json");
+        let secrets_value = result.secret_string()
+            .ok_or_else(|| AppError::InvalidSecret(format!("secret {} doesn't exist", name)))?;
+        let secrets: Secrets = serde_json::from_str(&secrets_value)?;
         Ok(secrets)
     }
 }

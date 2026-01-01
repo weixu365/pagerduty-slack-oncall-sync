@@ -3,7 +3,7 @@ use chrono::Utc;
 
 use crate::config::Config;
 use crate::{encryptor::Encryptor, errors::AppError};
-use super::dynamodb_client::{get_attribute, get_optional_attribute};
+use super::dynamodb_client::{get_attribute, get_encrypted_attribute, get_optional_encrypted_attribute};
 
 use super::SlackInstallation;
 
@@ -89,41 +89,39 @@ impl SlackInstallationsDynamoDb {
             .table_name(&self.table_name)
             .send()
             .await?;
-        
-        let items: Vec<SlackInstallation> = scan_output.items.unwrap_or_else(Vec::new)
+
+        let installations: Vec<SlackInstallation> = scan_output.items.unwrap_or_default()
             .into_iter()
-            .map(|item| {
-                let team_id = get_attribute(&item, "team_id");
-                let encrypted_token_json = get_attribute(&item, "access_token");
-                let encrypted_token = serde_json::from_str(&encrypted_token_json).unwrap();
-                let access_token = self.encryptor.decrypt(&encrypted_token)
-                    .expect(format!("Couldn't decrypt slack token for installation {}", team_id).as_str());
-
-                let pagerduty_token = get_optional_attribute(&item, "pagerduty_token")
-                    .map(|json| serde_json::from_str(&json).unwrap())
-                    .map(|encrypted| self.encryptor.decrypt(&encrypted))
-                    .map(|token| token.expect(format!("Couldn't decrypt pagerduty token for installation {}", team_id).as_str()))
-                ;
-
-                SlackInstallation {
-                    team_id,
-                    team_name: get_attribute(&item, "team_name"),
-                    enterprise_id: get_attribute(&item, "enterprise_id"),
-                    enterprise_name: get_attribute(&item, "enterprise_name"),
-                    is_enterprise_install: get_attribute(&item, "is_enterprise_install").eq_ignore_ascii_case("true"),
-                    
-                    access_token,
-                    token_type: get_attribute(&item, "token_type"),
-                    scope: get_attribute(&item, "scope"),
-                    authed_user_id: get_attribute(&item, "authed_user_id"),
-                    app_id: get_attribute(&item, "app_id"),
-                    bot_user_id: get_attribute(&item, "bot_user_id"),
-
-                    pager_duty_token: pagerduty_token,
+            .filter_map(|item| {
+                match self.parse_installation(&item) {
+                    Ok(installation) => Some(installation),
+                    Err(err) => {
+                        tracing::error!(%err, item = ?item, "Failed to parse Slack installation, skipping");
+                        None
+                    }
                 }
             })
             .collect();
 
-        Ok(items)
+        Ok(installations)
+    }
+
+    fn parse_installation(&self, item: &std::collections::HashMap<String, AttributeValue>) -> Result<SlackInstallation, AppError> {
+        Ok(SlackInstallation {
+            team_id: get_attribute(item, "team_id")?,
+            team_name: get_attribute(item, "team_name")?,
+            enterprise_id: get_attribute(item, "enterprise_id")?,
+            enterprise_name: get_attribute(item, "enterprise_name")?,
+            is_enterprise_install: get_attribute(item, "is_enterprise_install")?.eq_ignore_ascii_case("true"),
+
+            access_token: get_encrypted_attribute(item, "access_token", &self.encryptor)?,
+            token_type: get_attribute(item, "token_type")?,
+            scope: get_attribute(item, "scope")?,
+            authed_user_id: get_attribute(item, "authed_user_id")?,
+            app_id: get_attribute(item, "app_id")?,
+            bot_user_id: get_attribute(item, "bot_user_id")?,
+
+            pager_duty_token: get_optional_encrypted_attribute(item, "pagerduty_token", &self.encryptor)?,
+        })
     }
 }

@@ -1,7 +1,7 @@
 use aws_sdk_dynamodb::{Client, types::AttributeValue};
 
-use crate::{config::Config, encryptor::{EncryptedData, Encryptor}, errors::AppError};
-use crate::db::dynamodb_client::{get_attribute, get_optional_attribute};
+use crate::{config::Config, db::dynamodb_client::get_optional_encrypted_attribute, encryptor::Encryptor, errors::AppError};
+use crate::db::dynamodb_client::get_attribute;
 
 use super::scheduled_task::ScheduledTask;
 
@@ -28,10 +28,14 @@ impl ScheduledTasksDynamodb {
         let t = task.clone();
 
         let encrypted_pagerduty_token_json = t.pager_duty_token
-            .map(|token| self.encryptor.encrypt(&token).expect("Failed to encrypt PagerDuty api key"))
-            .map(|encrypted| serde_json::to_string(&encrypted).unwrap())
-            .unwrap_or_default()
-        ;
+            .map(|token| -> Result<String, AppError> {
+                let encrypted = self.encryptor.encrypt(&token)?;
+                let json = serde_json::to_string(&encrypted)
+                    .map_err(|e| AppError::UnexpectedError(format!("Failed to serialize encrypted PagerDuty token: {}", e)))?;
+                Ok(json)
+            })
+            .transpose()?
+            .unwrap_or_default();
 
         let builder = self.client
             .put_item()
@@ -120,52 +124,51 @@ impl ScheduledTasksDynamodb {
             .send()
             .await?;
 
-        let items: Vec<ScheduledTask> = scan_output.items.unwrap_or_else(Vec::new)
+        let scheduled_tasks: Vec<ScheduledTask> = scan_output.items.unwrap_or_default()
             .into_iter()
-            .map(|item| {
-                let pager_duty_token = get_optional_attribute(&item, "pager_duty_token").map(|encrypted_token_json| 
-                    if encrypted_token_json.is_empty() {
+            .filter_map(|item| {
+                match self.parse_scheduled_task(&item) {
+                    Ok(task) => Some(task),
+                    Err(err) => {
+                        tracing::error!(%err, item = ?item, "Failed to parse scheduled task, skipping");
                         None
-                    } else {
-                        let encrypted_token: EncryptedData = serde_json::from_str(&encrypted_token_json).expect("couldn't parse encrypted pagerduty token json");
-
-                        Some(self.encryptor.decrypt(&encrypted_token).expect("failed to decrypt pagerduty token"))
                     }
-                ).flatten();
-
-                // let encrypted_pagerduty_token: EncryptedData = serde_json::from_str(&pagerduty_token_json).expect("couldn't parse encrypted pagerduty token json");
-                // let pager_duty_token = self.encryptor.decrypt(&encrypted_pagerduty_token).expect("failed to decrypt pagerduty token");
-
-                ScheduledTask {
-                    team: get_attribute(&item, "team"),
-                    task_id: get_attribute(&item, "task_id"),
-                    next_update_timestamp_utc: get_attribute(&item, "next_update_timestamp_utc").parse::<i64>().unwrap(),
-                    next_update_time: get_attribute(&item, "next_update_time"),
-
-                    team_id: get_attribute(&item, "team_id"),
-                    team_domain: get_attribute(&item, "team_domain"),
-                    channel_id: get_attribute(&item, "channel_id"),
-                    channel_name: get_attribute(&item, "channel_name"),
-                    enterprise_id: get_attribute(&item, "enterprise_id"),
-                    enterprise_name: get_attribute(&item, "enterprise_name"),
-                    is_enterprise_install: get_attribute(&item, "is_enterprise_install").eq_ignore_ascii_case("true"),
-
-                    user_group_id: get_attribute(&item, "user_group_id"),
-                    user_group_handle: get_attribute(&item, "user_group_handle"),
-                    pager_duty_schedule_id: get_attribute(&item, "pager_duty_schedule_id"),
-                    pager_duty_token,
-                    cron: get_attribute(&item, "cron"),
-                    timezone: get_attribute(&item, "timezone"),
-
-                    created_by_user_id: get_attribute(&item, "created_by_user_id"),
-                    created_by_user_name: get_attribute(&item, "created_by_user_name"),
-                    created_at: get_attribute(&item, "created_at"),
-                    last_updated_at: get_attribute(&item, "last_updated_at"),
                 }
             })
             .collect();
 
-        Ok(items)
+        Ok(scheduled_tasks)
+    }
+
+    fn parse_scheduled_task(&self, item: &std::collections::HashMap<String, AttributeValue>) -> Result<ScheduledTask, AppError> {
+        Ok(ScheduledTask {
+            team: get_attribute(item, "team")?,
+            task_id: get_attribute(item, "task_id")?,
+            next_update_timestamp_utc: get_attribute(item, "next_update_timestamp_utc")?
+                .parse::<i64>()
+                .map_err(|e| AppError::InvalidData(format!("Invalid next_update_timestamp_utc: {}", e)))?,
+            next_update_time: get_attribute(item, "next_update_time")?,
+
+            team_id: get_attribute(item, "team_id")?,
+            team_domain: get_attribute(item, "team_domain")?,
+            channel_id: get_attribute(item, "channel_id")?,
+            channel_name: get_attribute(item, "channel_name")?,
+            enterprise_id: get_attribute(item, "enterprise_id")?,
+            enterprise_name: get_attribute(item, "enterprise_name")?,
+            is_enterprise_install: get_attribute(item, "is_enterprise_install")?.eq_ignore_ascii_case("true"),
+
+            user_group_id: get_attribute(item, "user_group_id")?,
+            user_group_handle: get_attribute(item, "user_group_handle")?,
+            pager_duty_schedule_id: get_attribute(item, "pager_duty_schedule_id")?,
+            pager_duty_token: get_optional_encrypted_attribute(item, "pager_duty_token", &self.encryptor)?,
+            cron: get_attribute(item, "cron")?,
+            timezone: get_attribute(item, "timezone")?,
+
+            created_by_user_id: get_attribute(item, "created_by_user_id")?,
+            created_by_user_name: get_attribute(item, "created_by_user_name")?,
+            created_at: get_attribute(item, "created_at")?,
+            last_updated_at: get_attribute(item, "last_updated_at")?,
+        })
     }
 
     pub async fn delete_scheduled_task(&self, team_id: &str, workspace_id: &str, task_id: &str) -> Result<(), AppError> {

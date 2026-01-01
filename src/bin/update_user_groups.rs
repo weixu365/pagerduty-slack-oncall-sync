@@ -26,9 +26,9 @@ async fn main() -> Result<(), AppError> {
     }).collect();
 
     let lambda_arn = output_map.get("UpdateUserGroupsLambdaArn")
-        .expect("UpdateUserGroupsLambdaArn not found");
+        .ok_or_else(||AppError::UnexpectedError("UpdateUserGroupsLambdaArn not found".to_string()))?;
     let lambda_role_arn = output_map.get("UpdateUserGroupsLambdaRoleArn")
-        .expect("UpdateUserGroupsLambdaRoleArn not found");
+        .ok_or_else(||AppError::UnexpectedError("UpdateUserGroupsLambdaRoleArn not found".to_string()))?;
 
     env::set_var("UPDATE_USER_GROUP_LAMBDA", lambda_arn);
     env::set_var("UPDATE_USER_GROUP_LAMBDA_ROLE", lambda_role_arn);

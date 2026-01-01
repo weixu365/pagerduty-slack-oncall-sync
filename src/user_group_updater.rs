@@ -1,6 +1,6 @@
 use std::{sync::Arc, collections::HashMap, env};
 
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use tracing::{self, instrument};
 use crate::{config::Config, db::{SlackInstallation, SlackInstallationsDynamoDb}, encryptor::Encryptor, scheduled_tasks::{EventBridgeScheduler, ScheduledTask, ScheduledTasksDynamodb}};
 
@@ -36,19 +36,25 @@ pub async fn update_user_group(
     let user_group = slack.get_user_group(&slack_user_group_name).await?;
     tracing::info!(?user_group, "Found the user group from Slack");
 
-    let slack_user_ids: Vec<String> = futures::stream::iter(&oncall_users).then(|user| async {
-        let slack_user = slack.get_user_by_email(&user.email).await
-            .expect(format!("Couldn't find user in Slack by email: {:?}", user.email).as_str());
-        slack_user.expect(format!("Couldn't find user in Slack by email: {:?}", user.email).as_str()).id
-    }).collect().await;
-    
+    let slack_user_ids: Vec<String> = futures::stream::iter(&oncall_users)
+        .then(|user| async {
+            slack.get_user_by_email(&user.email).await?
+                .map(|u| u.id)
+                .ok_or_else(|| AppError::UnexpectedError(format!("Couldn't find user in Slack by email: {:?}", user.email)))
+        })
+        .try_collect()
+        .await?;
+
     let current_users = slack.get_user_group_users(&user_group.id).await?;
-    let current_user_names: Vec<String> = futures::stream::iter(&current_users).then(|user_id| async {
-        let id = user_id.clone();
-        let slack_user = slack.get_user_by_id(&id).await
-            .expect(format!("Couldn't find user in Slack by id: {:?}", id).as_str());
-        slack_user.expect(format!("Couldn't find user in Slack by id: {:?}", id).as_str()).name
-    }).collect().await;
+    let current_user_names: Vec<String> = futures::stream::iter(&current_users)
+        .then(|user_id| async {
+            let id = user_id.clone();
+            slack.get_user_by_id(&id).await?
+                .map(|u| u.name)
+                .ok_or_else(|| AppError::UnexpectedError(format!("Couldn't find user in Slack by id: {:?}", id)))
+        })
+        .try_collect()
+        .await?;
     
     if current_users.len() > slack_user_ids.len() + 2 {
         // send message to channel with message: failed to update user group due to too many users 

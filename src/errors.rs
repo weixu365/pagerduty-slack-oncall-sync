@@ -16,6 +16,9 @@ pub enum AppError {
     #[error("IO error")]
     IOError(#[from] std::io::Error),
 
+    #[error("Invalid UTF-8 sequence")]
+    FromUtf8Error(#[from] std::string::FromUtf8Error),
+
     #[error("Failed to get header from request: `{0:?}`")]
     ToStrError(#[from] reqwest::header::ToStrError),
 
@@ -30,6 +33,9 @@ pub enum AppError {
 
     #[error("Reqwest error")]
     ReqwestError(#[from] reqwest::Error),
+
+    #[error("Invalid Slack request: `{0:?}`")]
+    InvalidSlackRequest(String),
 
     #[error("Slack App not installed, error: `{0:?}`")]
     SlackInstallationNotFoundError(String),
@@ -67,8 +73,17 @@ pub enum AppError {
     #[error("Failed to delete schedule in AWS Scheduler: `{0:?}`")]
     DeleteScheduleError(#[from] SdkError<DeleteScheduleError>),
 
+    #[error("Invalid json: `{0:?}`")]
+    InvalidJsonError(#[from] serde_json::Error),
+
     #[error("Invalid key length: expected 32 bytes, got {0} bytes.")]
     InvalidKeyLength(usize),
+
+    #[error("Invalid data: {0:?}")]
+    InvalidData(String),
+
+    #[error("Invalid secret: {0:?}")]
+    InvalidSecret(String),
 
     #[error("Failed to encrypt/decrypt: `{0:?}`")]
     Chacha20poly1305Error(#[from] chacha20poly1305::Error),

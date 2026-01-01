@@ -2,7 +2,7 @@ use std::{collections::HashMap, env};
 use aws_lambda_events::{encodings::Body, http::{HeaderMap, HeaderValue}, query_map::QueryMap};
 use lambda_http::Response;
 
-use chrono::{Local, Utc};
+use chrono::Utc;
 use chrono_tz::Tz;
 use std::str::FromStr;
 use crate::{
@@ -143,35 +143,28 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
     let command = get_param(&params, "command");
     let text = get_param(&params, "text");
     let _response_url = get_param(&params, "response_url");
-    let slack_request_timestamp_str = request_header.get("X-Slack-Request-Timestamp").map(|v| v.to_str())
-        .expect("Missing X-Slack-Request-Timestamp")?;
-    let slack_request_signature = request_header.get("X-Slack-Signature").map(|v| v.to_str())
-        .expect("Missing X-Slack-Signature")?;
-    let now = Local::now().timestamp();
 
-    // tracing::debug!("parsed parameter: {}", json!({
-    //     "team_id": team_id,
-    //     "team_domain": team_domain,
-    //     "channel_id": channel_id,
-    //     "channel_name": channel_name,
-    //     "user_id": user_id,
-    //     "user_name": user_name,
-    //     "command": command,
-    //     "text": text,
-    //     "response_url": response_url,
-    //     "X-Slack-Request-Timestamp": slack_request_timestamp_str,
-    //     "X-Slack-Signature": slack_request_signature,
-    //     "current timestamp": now,
-    // }));
-    
-    let slack_request_timestamp: i64 = slack_request_timestamp_str.parse::<i64>().expect("failed to parse timestamp");
-        
+    let slack_request_timestamp = request_header
+        .get("X-Slack-Request-Timestamp")
+        .ok_or_else(|| AppError::InvalidSlackRequest("Missing X-Slack-Request-Timestamp header".to_string()))?
+        .to_str()
+        .map_err(|_| AppError::InvalidSlackRequest("Invalid X-Slack-Request-Timestamp encoding".to_string()))?
+        .parse::<i64>()
+        .map_err(|_| AppError::InvalidSlackRequest("Invalid X-Slack-Request-Timestamp value".to_string()))?;
+
+    let slack_request_signature = request_header
+        .get("X-Slack-Signature")
+        .ok_or_else(|| AppError::InvalidSlackRequest("Missing X-Slack-Signature header".to_string()))?
+        .to_str()
+        .map_err(|_| AppError::InvalidSlackRequest("Invalid X-Slack-Signature encoding".to_string()))?;
+
+    let now = chrono::Utc::now().timestamp();
     if (now - slack_request_timestamp).abs() > 60 * 5 {
         return Ok(response(400, format!("Invalid slack command due to invalid timestamp: {} {}", command, text)))
     }
     
     let sig_basestring = format!("v0:{}:{}", slack_request_timestamp, request_body);
-    tracing::debug!(sig_basestring, "string to sign");
+    tracing::debug!(sig_basestring, "Slack Request to sign");
 
     let verification_key = hmac::Key::new(hmac::HMAC_SHA256, config.secrets.slack_signing_secret.as_bytes());
     let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
@@ -215,7 +208,8 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
             let timezone = Tz::from_str(&arg.timezone.unwrap_or("UTC".to_string())).unwrap();
             let from = Utc::now().with_timezone(&timezone);
 
-            let next_schedule = get_next_schedule_from(&arg.cron, &from).expect("The cron has no future scheduled time from now");
+            let next_schedule = get_next_schedule_from(&arg.cron, &from)
+                .ok_or_else(|| AppError::InvalidSlackRequest("Invalid cron expression".to_string()))?;
 
             let task_id = format!("{}:{}:{}:{}:{}", channel_name, channel_id, user_group_handle, user_group_id, arg.pagerduty_schedule);
 

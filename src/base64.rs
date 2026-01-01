@@ -19,14 +19,15 @@ mod tests {
     use crate::base64::{encode_no_pad, decode_no_pad};
 
     #[test]
-    fn base64_encode_decode() {
+    fn base64_encode_decode() -> Result<(), Box<dyn std::error::Error>> {
         let original = "plain text string";
         let encoded = encode_no_pad(original.as_bytes());
         assert_eq!(encoded, "cGxhaW4gdGV4dCBzdHJpbmc");
 
-        let decoded_bytes = decode_no_pad(encoded.as_bytes()).expect("failed to decode base64 encoded string");
-        let decoded = String::from_utf8(decoded_bytes).expect("Failed to get string back from decoded bytes");
+        let decoded_bytes = decode_no_pad(encoded.as_bytes())?;
+        let decoded = String::from_utf8(decoded_bytes)?;
 
         assert_eq!(decoded, original);
+        Ok(())
     }
 }

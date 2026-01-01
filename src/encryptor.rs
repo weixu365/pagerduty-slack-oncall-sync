@@ -47,9 +47,10 @@ impl Encryptor {
 
         let nonce = XNonce::from_slice(nonce_bytes.as_slice());
         let plaintext = self.cipher.decrypt(&nonce, encrypted.as_slice())?;
-    
-        Ok(String::from_utf8(plaintext).expect("Invalid UTF-8 sequence"))
-    }    
+        let decrypted = String::from_utf8(plaintext)?;
+
+        Ok(decrypted)
+    } 
 }
 
 #[cfg(test)]
