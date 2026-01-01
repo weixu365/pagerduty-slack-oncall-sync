@@ -19,17 +19,16 @@ pub struct Encryptor {
 }
 
 impl Encryptor {
-    pub fn new(key: &str) -> Encryptor {
+    pub fn from_key(key: &str) -> Result<Encryptor, AppError> {
         let key_bytes = key.as_bytes();
+
         if key_bytes.len() != 32 {
-            panic!("Invalid key length: expected 32 bytes, got {} bytes.", key_bytes.len());
+            return Err(AppError::InvalidKeyLength(key_bytes.len()));
         }
 
         let cipher = XChaCha20Poly1305::new(key_bytes.into());
     
-        Encryptor {
-            cipher,
-        }
+        Ok(Encryptor { cipher })
     }
 
     pub fn encrypt(&self, plaintext: &str) -> Result<EncryptedData, AppError> {
@@ -58,19 +57,20 @@ mod tests {
     use crate::encryptor::{Encryptor, EncryptedData};
 
     #[test]
-    fn encrypt_decrypt_string() {
+    fn encrypt_decrypt_string() -> Result<(), Box<dyn std::error::Error>> {
         let key_plaintext = "plain text key which should be s";
         
-        let encryptor = Encryptor::new(&key_plaintext);
+        let encryptor = Encryptor::from_key(&key_plaintext)?;
         
         let original = "plain text string";
-        let encrypted = encryptor.encrypt(original).expect("Failed to encrypt text");
+        let encrypted = encryptor.encrypt(original)?;
 
-        let encrypted_json = serde_json::to_string(&encrypted).unwrap();
+        let encrypted_json = serde_json::to_string(&encrypted)?;
 
-        let deserialized_from_json: EncryptedData = serde_json::from_str(&encrypted_json).expect("couldn't parse json");
-        let decrypted = encryptor.decrypt(&deserialized_from_json).expect("failed to decrypt encrypted data");
+        let deserialized_from_json: EncryptedData = serde_json::from_str(&encrypted_json)?;
+        let decrypted = encryptor.decrypt(&deserialized_from_json)?;
         
         assert_eq!(decrypted, original);
+        Ok(())
     }
 }

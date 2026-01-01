@@ -116,7 +116,7 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
     let config = Config::new(env).await?;
     let http_client = Arc::new(Box::new(build_http_client()?));
     let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
-    let encryptor = Encryptor::new(&config.secrets.encryption_key);
+    let encryptor = Encryptor::from_key(&config.secrets.encryption_key)?;
     
     let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
     let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor.clone());

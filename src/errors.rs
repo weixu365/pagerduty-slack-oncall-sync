@@ -67,6 +67,9 @@ pub enum AppError {
     #[error("Failed to delete schedule in AWS Scheduler: `{0:?}`")]
     DeleteScheduleError(#[from] SdkError<DeleteScheduleError>),
 
+    #[error("Invalid key length: expected 32 bytes, got {0} bytes.")]
+    InvalidKeyLength(usize),
+
     #[error("Failed to encrypt/decrypt: `{0:?}`")]
     Chacha20poly1305Error(#[from] chacha20poly1305::Error),
 

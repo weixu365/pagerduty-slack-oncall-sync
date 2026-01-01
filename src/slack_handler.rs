@@ -91,7 +91,7 @@ pub async fn handle_slack_oauth(config: &Config, query_map: QueryMap) -> Result<
     match code_parameter {
         Some(temporary_code) => {
             let http_client = build_http_client()?;
-            let encryptor = Encryptor::new(&config.secrets.encryption_key);
+            let encryptor = Encryptor::from_key(&config.secrets.encryption_key)?;
             let oauth_response = swap_slack_access_token(
                 &http_client, 
                 temporary_code,
@@ -188,7 +188,7 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
         None => None
     };
 
-    let encryptor = Encryptor::new(&config.secrets.encryption_key);
+    let encryptor = Encryptor::from_key(&config.secrets.encryption_key)?;
 
     let response_body = match arg.unwrap().command {
         Some(Command::Schedule(arg)) => {
