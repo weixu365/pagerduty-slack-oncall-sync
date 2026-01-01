@@ -1,21 +1,23 @@
 use chrono::{Utc, DateTime};
 use chrono_tz::Tz;
 use std::str::FromStr;
+use crate::errors::AppError;
 
 pub fn get_current_timestamp_utc() -> DateTime<Utc> {
     Utc::now()
 }
 
-pub fn get_current_timestamp_tz(tz: String) -> DateTime<Tz> {
-    let timezone = Tz::from_str(&tz).unwrap();
+pub fn get_current_timestamp_tz(tz: String) -> Result<DateTime<Tz>, AppError> {
+    let timezone = Tz::from_str(&tz)?;
 
-    get_current_timestamp(timezone)
+    Ok(get_current_timestamp(timezone))
 }
 
 pub fn get_current_timestamp(tz: Tz) -> DateTime<Tz> {
     Utc::now().with_timezone(&tz)
 }
 
-pub fn get_timezone(tz: &str) -> Tz {
-    Tz::from_str(&tz).unwrap()
+pub fn get_timezone(tz: &str) -> Result<Tz, AppError> {
+    let timezone = Tz::from_str(tz)?;
+    Ok(timezone)
 }

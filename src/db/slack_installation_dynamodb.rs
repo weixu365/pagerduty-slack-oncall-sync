@@ -31,7 +31,7 @@ impl SlackInstallationsDynamoDb {
 
         let t = installation.clone();
         let encrypted_token = self.encryptor.encrypt(&t.access_token)?;
-        let encrypted_token_json = serde_json::to_string(&encrypted_token).unwrap();
+        let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
 
         let builder = self.client
             .put_item()
@@ -64,7 +64,7 @@ impl SlackInstallationsDynamoDb {
         let now = Utc::now();
         let installation_id = self.installation_id(&slack_team_id, &slack_enterprise_id);
         let encrypted_token = self.encryptor.encrypt(pagerduty_token)?;
-        let encrypted_token_json = serde_json::to_string(&encrypted_token).unwrap();
+        let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
 
         let request = self.client
             .update_item()

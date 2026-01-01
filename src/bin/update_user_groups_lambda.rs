@@ -18,7 +18,10 @@ async fn func(_request: Request) -> Result<Response<Body>, Error> {
     let result = update_user_groups(&env).await;
 
     match result {
-        Ok(()) => Ok(response(200, json!({ "message": "Updated user groups" }).to_string())),
+        Ok(()) => {
+            response(200, json!({ "message": "Updated user groups" }).to_string())
+                .map_err(|err| err.into())
+        },
         Err(err) => {
             tracing::error!(%err, "Failed to update user groups");
             Err(err.into())

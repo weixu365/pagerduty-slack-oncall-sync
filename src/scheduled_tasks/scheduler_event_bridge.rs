@@ -54,20 +54,39 @@ impl EventBridgeScheduler {
         if next_task_schedule.next_timestamp_utc < next_schedule_timestamp {
             let next_schedule = next_task_schedule.next_datetime.format("%FT%T");
             tracing::info!(%next_schedule, "Updating schedule");
+            let flexible_time_window = FlexibleTimeWindow::builder()
+                .mode(aws_sdk_scheduler::types::FlexibleTimeWindowMode::Off)
+                .build()
+                .map_err(|e| AppError::UnexpectedError(format!("Failed to build flexible time window: {}", e)))?;
+
+            let target = Target::builder()
+                .arn(&self.lambda_arn)
+                .role_arn(&self.lambda_role)
+                .build()
+                .map_err(|e| AppError::UnexpectedError(format!("Failed to build target: {}", e)))?;
+
             self.client
                 .create_schedule()
                 .name(format!("{}{}", self.name_prefix, next_task_schedule.next_timestamp_utc))
                 .description("{datetime: <readable date time using original timezone>, datetime_utc, original_cron }")
                 .schedule_expression(format!("at({})", next_schedule))
                 .schedule_expression_timezone(format!("{}", next_task_schedule.timezone))
-                .flexible_time_window(FlexibleTimeWindow::builder().mode(aws_sdk_scheduler::types::FlexibleTimeWindowMode::Off).build().unwrap())
-                .target(Target::builder().arn(&self.lambda_arn).role_arn(&self.lambda_role).build().unwrap())
+                .flexible_time_window(flexible_time_window)
+                .target(target)
                 .send()
                 .await?;
             next_schedule_timestamp = next_task_schedule.next_timestamp_utc;
         } else {
+            let next_schedule_info = next_schedule
+                .and_then(|s| {
+                    let expression = s.expression?;
+                    let timestamp = s.next_scheduled_timestamp_utc?;
+                    Some(format!("{} {}", expression, timestamp))
+                })
+                .unwrap_or_else(|| "None".to_string());
+
             tracing::info!(
-                next_schedule = next_schedule.map(|s| format!("{} {}", s.expression.unwrap(), s.next_scheduled_timestamp_utc.unwrap())).unwrap(),
+                next_schedule = next_schedule_info,
                 "Keep the next schedule unchanged",
             );
         }
@@ -114,7 +133,9 @@ impl EventBridgeScheduler {
         for schedule in current_schedules {
             if let Some(schedule_timestamp_utc) = schedule.next_scheduled_timestamp_utc {
                 if schedule_timestamp_utc > next_scheduled_timestamp_utc || schedule_timestamp_utc <= clear_outdated_schedules_after {
-                    self.delete_schedules(&schedule.name.unwrap()).await?;
+                    if let Some(name) = schedule.name {
+                        self.delete_schedules(&name).await?;
+                    }
                 }
             }
         }
@@ -213,11 +234,11 @@ mod tests {
             last_updated_at: Utc::now().to_rfc3339(),
         };
 
-        let timezone = Tz::from_str(&task.timezone).unwrap();
+        let timezone = Tz::from_str(&task.timezone)
+            .map_err(|e| AppError::InvalidData(format!("Invalid timezone: {}", e)))?;
         let from = Utc::now().with_timezone(&timezone);
 
-        let next_schedule = get_next_schedule_from(&task.cron, &from)
-            .ok_or_else(|| AppError::InvalidData("The cron has no future scheduled time from now".to_string()))?;
+        let next_schedule = get_next_schedule_from(&task.cron, &from)?;
         
         scheduler.update_next_schedule(&next_schedule).await?;
 

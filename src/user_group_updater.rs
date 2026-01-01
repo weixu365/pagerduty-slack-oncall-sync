@@ -25,7 +25,6 @@ pub async fn update_user_group(
 
     let from = pager_duty_schedule_from;
     let until = from + Duration::minutes(10);
-    // let now = Utc.with_ymd_and_hms(2023, 5, 18, 23, 0, 0).unwrap();
 
     let pager_duty = PagerDuty::new(http_client.clone(), pager_duty_api_key.to_string(), pager_duty_schedule_id.to_string());
     let oncall_users = pager_duty.get_on_call_users(from).await?;
@@ -103,12 +102,16 @@ async fn run_task(task: &ScheduledTask, slack_tokens: &HashMap<String, SlackInst
     let mut updated_task = task.clone();
     updated_task.last_updated_at = Utc::now().to_rfc3339();
 
-    if let Some(task_next_schedule) = updated_task.calculate_next_schedule(&Utc::now()) {
-        updated_task.next_update_timestamp_utc = task_next_schedule.next_timestamp_utc;
-        updated_task.next_update_time = task_next_schedule.next_datetime.to_rfc3339();
-    } else {
-        updated_task.next_update_timestamp_utc = -1;
-        updated_task.next_update_time = "".to_string();
+    match updated_task.calculate_next_schedule(&Utc::now()) {
+        Ok(task_next_schedule) => {
+            updated_task.next_update_timestamp_utc = task_next_schedule.next_timestamp_utc;
+            updated_task.next_update_time = task_next_schedule.next_datetime.to_rfc3339();
+        },
+        Err(err) => {
+            updated_task.next_update_timestamp_utc = -1;
+            updated_task.next_update_time = "".to_string();
+            tracing::info!(task_id = task.task_id, cron = task.cron, %err, "Failed to calculate next schedule");
+        }
     }
 
     scheduled_tasks_db.update_next_schedule(&updated_task).await?;
@@ -163,9 +166,14 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
     // at least re-run daily
     // (Utc::now() + Duration::days(1)).timestamp()
     if let Some(next) = next_task {
-        if let Some(next_schedule) = next.calculate_next_schedule(&start_of_the_update) {
+        match next.calculate_next_schedule(&start_of_the_update) {
             //TODO: if next schedule is earlier than now, re-run the above loop
-            scheduler.update_next_schedule(&next_schedule).await?;
+            Ok(next_schedule) => {
+                scheduler.update_next_schedule(&next_schedule).await?;
+            },
+            Err(err) => {
+                tracing::error!(task_id = next.task_id, cron = next.cron, %err, "Failed to calculate next schedule");
+            }
         }
     }
 

@@ -73,8 +73,8 @@ pub enum AppError {
     #[error("Failed to delete schedule in AWS Scheduler: `{0:?}`")]
     DeleteScheduleError(#[from] SdkError<DeleteScheduleError>),
 
-    #[error("Invalid json: `{0:?}`")]
-    InvalidJsonError(#[from] serde_json::Error),
+    #[error("Failed to serialize/deserialize json: `{0:?}`")]
+    JsonError(#[from] serde_json::Error),
 
     #[error("Invalid key length: expected 32 bytes, got {0} bytes.")]
     InvalidKeyLength(usize),
@@ -87,6 +87,15 @@ pub enum AppError {
 
     #[error("Failed to encrypt/decrypt: `{0:?}`")]
     Chacha20poly1305Error(#[from] chacha20poly1305::Error),
+
+    #[error("{0:?}")]
+    HttpError(String),
+
+    #[error("Invalid regex: `{0:?}`")]
+    RegexError(#[from] regex::Error),
+
+    #[error("Invalid timezone: `{0:?}`")]
+    TimeZoneError(#[from] chrono_tz::ParseError),
 
     #[error("Failed to load enviroment variable: `{0:?}`")]
     VarError(#[from] VarError),

@@ -74,7 +74,8 @@ async fn func(request: Request) -> Result<Response<Body>, Error> {
         }
         _ => {
             warn!(method, request_path, "Received request for unknown path");
-            Ok(response(400, format!("Invalid request")))
+            response(400, format!("Invalid request"))
+                .map_err(|err| err.into())
         }
     }
 }

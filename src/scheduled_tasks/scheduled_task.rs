@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use clap::Args;
 
-use crate::{cron::{get_next_schedule_from, CronSchedule}, timestamp::get_timezone};
+use crate::{cron::{CronSchedule, get_next_schedule_from}, errors::AppError, timestamp::get_timezone};
 
 #[derive(Debug, Args, Clone)]
 pub struct ScheduledTask {
@@ -33,8 +33,9 @@ pub struct ScheduledTask {
 }
 
 impl ScheduledTask {
-    pub fn calculate_next_schedule(&self, from_utc: &DateTime<Utc>) -> Option<CronSchedule> {
-        let timezone = get_timezone(&self.timezone);
-        get_next_schedule_from(&self.cron, &from_utc.with_timezone(&timezone))
+    pub fn calculate_next_schedule(&self, from_utc: &DateTime<Utc>) -> Result<CronSchedule, AppError> {
+        let timezone = get_timezone(&self.timezone)?;
+        let next_schedule = get_next_schedule_from(&self.cron, &from_utc.with_timezone(&timezone))?;
+        Ok(next_schedule)
     }
 }

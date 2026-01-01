@@ -120,9 +120,9 @@ pub async fn handle_slack_oauth(config: &Config, query_map: QueryMap) -> Result<
             };
 
             db.save_slack_installation(&installation).await?;
-            Ok(response(200, format!("Received slack oauth callback.")))
+            response(200, format!("Received slack oauth callback."))
         },
-        None => Ok(response(400, format!("Invalid request"))),
+        None => response(400, format!("Invalid request"))
     }
 }
 
@@ -160,7 +160,7 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
 
     let now = chrono::Utc::now().timestamp();
     if (now - slack_request_timestamp).abs() > 60 * 5 {
-        return Ok(response(400, format!("Invalid slack command due to invalid timestamp: {} {}", command, text)))
+        return response(400, format!("Invalid slack command due to invalid timestamp: {} {}", command, text))
     }
     
     let sig_basestring = format!("v0:{}:{}", slack_request_timestamp, request_body);
@@ -173,7 +173,7 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
 
     if !constant_time_compare_str(&expected_signature, slack_request_signature) {
         tracing::error!(slack_request_signature, "Signature verification failed");
-        return Ok(response(400, format!("Invalid slack command signature: {} {}", command, text)))
+        return response(400, format!("Invalid slack command signature: {} {}", command, text))
     }
     
     let arg = match shlex::split(cleanse(format!("{} {}", command, text).as_str()).as_str()) {
@@ -183,20 +183,28 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
 
     let encryptor = Encryptor::from_key(&config.secrets.encryption_key)?;
 
-    let response_body = match arg.unwrap().command {
+    let arg = arg.ok_or_else(|| AppError::InvalidData("Failed to parse command arguments".to_string()))?;
+
+    let response_body = match arg.command {
         Some(Command::Schedule(arg)) => {
-            // 
+            //
             let user_group_id: String;
             let user_group_handle: String;
 
-            let re = Regex::new(r"<!subteam\^(\w+)\|@([^>]+)>").unwrap();
+            let re = Regex::new(r"<!subteam\^(\w+)\|@([^>]+)>")?;
             if let Some(captures) = re.captures(arg.user_group.as_str()) {
-                user_group_id = captures.get(1).unwrap().as_str().to_string();
-                user_group_handle = captures.get(2).unwrap().as_str().to_string();
+                user_group_id = captures.get(1)
+                    .ok_or_else(|| AppError::InvalidData("Missing user group ID in capture".to_string()))?
+                    .as_str()
+                    .to_string();
+                user_group_handle = captures.get(2)
+                    .ok_or_else(|| AppError::InvalidData("Missing user group handle in capture".to_string()))?
+                    .as_str()
+                    .to_string();
             } else {
                 tracing::error!(user_group = %arg.user_group, "Invalid user group");
 
-                return Ok(response(400, format!("Invalid user group: {}", arg.user_group)))
+                return response(400, format!("Invalid user group: {}", arg.user_group))
             }
             
             let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
@@ -205,11 +213,11 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
             let db = ScheduledTasksDynamodb::new(&config, encryptor);
             let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
 
-            let timezone = Tz::from_str(&arg.timezone.unwrap_or("UTC".to_string())).unwrap();
+            let timezone = Tz::from_str(&arg.timezone.unwrap_or("UTC".to_string()))
+                .map_err(|e| AppError::InvalidData(format!("Invalid timezone: {}", e)))?;
             let from = Utc::now().with_timezone(&timezone);
 
-            let next_schedule = get_next_schedule_from(&arg.cron, &from)
-                .ok_or_else(|| AppError::InvalidSlackRequest("Invalid cron expression".to_string()))?;
+            let next_schedule = get_next_schedule_from(&arg.cron, &from)?;
 
             let task_id = format!("{}:{}:{}:{}:{}", channel_name, channel_id, user_group_handle, user_group_id, arg.pagerduty_schedule);
 
@@ -242,12 +250,12 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
             
             if let Err(err) = db.save_scheduled_task(&task).await {
                 tracing::error!(%err, "Failed to save to dynamodb");
-                return Ok(response(500, format!("Can't process slack command due to save to dynamodb failed\nCommand: {} {}", command, text)))
+                return response(500, format!("Can't process slack command due to save to dynamodb failed\nCommand: {} {}", command, text))
             }
 
             if let Err(err) = scheduler.update_next_schedule(&next_schedule).await {
                 tracing::error!(%err, "Failed to update scheduler");
-                return Ok(response(500, format!("Can't process slack command due to save to update scheduler\nCommand: {} {}", command, text)))
+                return response(500, format!("Can't process slack command due to save to update scheduler\nCommand: {} {}", command, text))
             }
             
             vec!(format!("Update user group: {}|{} based on pagerduty schedule: {}, at: {}", task.user_group_id, task.user_group_handle, &task.pager_duty_schedule_id, &task.cron))
@@ -280,5 +288,5 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
         .join(",\n")
     ;
 
-    Ok(response(200, format!(r#"{{ "blocks": [{}] }}"#, sections)))
+    response(200, format!(r#"{{ "blocks": [{}] }}"#, sections))
 }
