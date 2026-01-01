@@ -1,7 +1,9 @@
-use aws_sdk_dynamodb::{Client, types::AttributeValue};
+use aws_sdk_dynamodb::{types::AttributeValue, Client};
 
-use crate::{config::Config, db::dynamodb_client::get_optional_encrypted_attribute, encryptor::Encryptor, errors::AppError};
 use crate::db::dynamodb_client::get_attribute;
+use crate::{
+    config::Config, db::dynamodb_client::get_optional_encrypted_attribute, encryptor::Encryptor, errors::AppError,
+};
 
 use super::scheduled_task::ScheduledTask;
 
@@ -13,13 +15,13 @@ pub struct ScheduledTasksDynamodb {
 
 impl ScheduledTasksDynamodb {
     pub fn new(config: &Config, encryptor: Encryptor) -> ScheduledTasksDynamodb {
-        ScheduledTasksDynamodb{ 
+        ScheduledTasksDynamodb {
             client: Client::new(&config.aws_config),
-            table_name: config.schedules_table_name.to_string(), 
+            table_name: config.schedules_table_name.to_string(),
             encryptor,
         }
     }
-   
+
     fn team(&self, team_id: &str, workspace_id: &str) -> String {
         format!("{}:{}", team_id, workspace_id)
     }
@@ -27,24 +29,26 @@ impl ScheduledTasksDynamodb {
     pub async fn save_scheduled_task(&self, task: &ScheduledTask) -> Result<(), AppError> {
         let t = task.clone();
 
-        let encrypted_pagerduty_token_json = t.pager_duty_token
+        let encrypted_pagerduty_token_json = t
+            .pager_duty_token
             .map(|token| -> Result<String, AppError> {
                 let encrypted = self.encryptor.encrypt(&token)?;
-                let json = serde_json::to_string(&encrypted)
-                    .map_err(|e| AppError::UnexpectedError(format!("Failed to serialize encrypted PagerDuty token: {}", e)))?;
+                let json = serde_json::to_string(&encrypted).map_err(|e| {
+                    AppError::UnexpectedError(format!("Failed to serialize encrypted PagerDuty token: {}", e))
+                })?;
                 Ok(json)
             })
             .transpose()?
             .unwrap_or_default();
 
-        let builder = self.client
+        let builder = self
+            .client
             .put_item()
             .table_name(&self.table_name)
             .item("team", AttributeValue::S(t.team))
             .item("task_id", AttributeValue::S(t.task_id))
             .item("next_update_timestamp_utc", AttributeValue::N(t.next_update_timestamp_utc.to_string()))
             .item("next_update_time", AttributeValue::S(t.next_update_time))
-
             .item("team_id", AttributeValue::S(t.team_id))
             .item("team_domain", AttributeValue::S(t.team_domain))
             .item("channel_id", AttributeValue::S(t.channel_id))
@@ -52,23 +56,20 @@ impl ScheduledTasksDynamodb {
             .item("enterprise_id", AttributeValue::S(t.enterprise_id))
             .item("enterprise_name", AttributeValue::S(t.enterprise_name))
             .item("is_enterprise_install", AttributeValue::S(t.is_enterprise_install.to_string()))
-
             .item("user_group_id", AttributeValue::S(t.user_group_id))
             .item("user_group_handle", AttributeValue::S(t.user_group_handle))
             .item("pager_duty_schedule_id", AttributeValue::S(t.pager_duty_schedule_id))
             .item("pager_duty_token", AttributeValue::S(encrypted_pagerduty_token_json))
             .item("cron", AttributeValue::S(t.cron))
             .item("timezone", AttributeValue::S(t.timezone))
-
             .item("created_by_user_id", AttributeValue::S(t.created_by_user_id))
             .item("created_by_user_name", AttributeValue::S(t.created_by_user_name))
             .item("created_at", AttributeValue::S(t.created_at))
-            .item("last_updated_at", AttributeValue::S(t.last_updated_at))
-        ;
+            .item("last_updated_at", AttributeValue::S(t.last_updated_at));
 
         tracing::info!(task_id = task.task_id, next_update_time = task.next_update_time, "Saving task");
         builder.send().await?;
-        
+
         Ok(())
     }
 
@@ -82,17 +83,23 @@ impl ScheduledTasksDynamodb {
             .update_expression("SET last_updated_at=:last_updated_at, next_update_time=:next_update_time, next_update_timestamp_utc=:next_update_timestamp_utc")
             .expression_attribute_values(":last_updated_at", AttributeValue::S(t.last_updated_at))
             .expression_attribute_values(":next_update_time", AttributeValue::S(t.next_update_time))
-            .expression_attribute_values(":next_update_timestamp_utc", AttributeValue::N(t.next_update_timestamp_utc.to_string()))
-            
-        ;
+            .expression_attribute_values(":next_update_timestamp_utc", AttributeValue::N(t.next_update_timestamp_utc.to_string()));
 
-        tracing::info!(task_id = task.task_id, next_update_time = task.next_update_time, "Updating next schedule of task");
+        tracing::info!(
+            task_id = task.task_id,
+            next_update_time = task.next_update_time,
+            "Updating next schedule of task"
+        );
         builder.send().await?;
-        
+
         Ok(())
     }
-   
-    pub async fn list_scheduled_tasks_in_workspace(&self, _workspace_id: &String, _workspace_name: &String) -> Result<(), AppError> {
+
+    pub async fn list_scheduled_tasks_in_workspace(
+        &self,
+        _workspace_id: &String,
+        _workspace_name: &String,
+    ) -> Result<(), AppError> {
         // let stream = self.client
         //     .query()
         //     .table_name(&self.table_name)
@@ -108,31 +115,27 @@ impl ScheduledTasksDynamodb {
         //                     .unwrap_or_default();
 
         //         // ScheduledTask {
-                
+
         //         // }
         //     })
         //     .collect()
         //     .await?;
-            
+
         Ok(())
     }
 
     pub async fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, AppError> {
-        let scan_output = self.client
-            .scan()
-            .table_name(&self.table_name)
-            .send()
-            .await?;
+        let scan_output = self.client.scan().table_name(&self.table_name).send().await?;
 
-        let scheduled_tasks: Vec<ScheduledTask> = scan_output.items.unwrap_or_default()
+        let scheduled_tasks: Vec<ScheduledTask> = scan_output
+            .items
+            .unwrap_or_default()
             .into_iter()
-            .filter_map(|item| {
-                match self.parse_scheduled_task(&item) {
-                    Ok(task) => Some(task),
-                    Err(err) => {
-                        tracing::error!(%err, item = ?item, "Failed to parse scheduled task, skipping");
-                        None
-                    }
+            .filter_map(|item| match self.parse_scheduled_task(&item) {
+                Ok(task) => Some(task),
+                Err(err) => {
+                    tracing::error!(%err, item = ?item, "Failed to parse scheduled task, skipping");
+                    None
                 }
             })
             .collect();
@@ -140,7 +143,10 @@ impl ScheduledTasksDynamodb {
         Ok(scheduled_tasks)
     }
 
-    fn parse_scheduled_task(&self, item: &std::collections::HashMap<String, AttributeValue>) -> Result<ScheduledTask, AppError> {
+    fn parse_scheduled_task(
+        &self,
+        item: &std::collections::HashMap<String, AttributeValue>,
+    ) -> Result<ScheduledTask, AppError> {
         Ok(ScheduledTask {
             team: get_attribute(item, "team")?,
             task_id: get_attribute(item, "task_id")?,
@@ -171,8 +177,14 @@ impl ScheduledTasksDynamodb {
         })
     }
 
-    pub async fn delete_scheduled_task(&self, team_id: &str, workspace_id: &str, task_id: &str) -> Result<(), AppError> {
-        let request = self.client
+    pub async fn delete_scheduled_task(
+        &self,
+        team_id: &str,
+        workspace_id: &str,
+        task_id: &str,
+    ) -> Result<(), AppError> {
+        let request = self
+            .client
             .delete_item()
             .key("team", AttributeValue::S(self.team(team_id, workspace_id)))
             .key("task_id", AttributeValue::S(task_id.to_string()))

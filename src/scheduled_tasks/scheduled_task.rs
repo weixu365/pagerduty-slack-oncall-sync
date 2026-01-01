@@ -1,11 +1,15 @@
 use chrono::{DateTime, Utc};
 use clap::Args;
 
-use crate::{cron::{CronSchedule, get_next_schedule_from}, errors::AppError, timestamp::get_timezone};
+use crate::{
+    cron::{get_next_schedule_from, CronSchedule},
+    errors::AppError,
+    timestamp::get_timezone,
+};
 
 #[derive(Debug, Args, Clone)]
 pub struct ScheduledTask {
-    pub team: String, // Partition Key
+    pub team: String,    // Partition Key
     pub task_id: String, // Sort Key
 
     pub next_update_timestamp_utc: i64,
@@ -25,7 +29,7 @@ pub struct ScheduledTask {
     pub pager_duty_token: Option<String>,
     pub cron: String,
     pub timezone: String,
-    
+
     pub created_by_user_id: String,
     pub created_by_user_name: String,
     pub created_at: String,

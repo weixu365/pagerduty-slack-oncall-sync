@@ -1,8 +1,13 @@
 use std::env;
 
-use on_call_support::{config::Config, http_util::response, logging, slack_handler::{handle_slack_command, handle_slack_oauth}};
+use lambda_http::{service_fn, Body, Error, Request, RequestExt, Response};
+use on_call_support::{
+    config::Config,
+    http_util::response,
+    logging,
+    slack_handler::{handle_slack_command, handle_slack_oauth},
+};
 use tokio;
-use lambda_http::{Body, Error, Request, RequestExt, Response, service_fn};
 use tracing::{error, info, warn};
 
 #[tokio::main]
@@ -53,11 +58,10 @@ async fn func(request: Request) -> Result<Response<Body>, Error> {
             }
         }
         "/slack/command" => {
-            let request_body = std::str::from_utf8(request.body().as_ref())
-                .map_err(|e| {
-                    error!(error = %e, "Request body is not valid UTF-8");
-                    Error::from(format!("Request body is not valid UTF-8: {}", e))
-                })?;
+            let request_body = std::str::from_utf8(request.body().as_ref()).map_err(|e| {
+                error!(error = %e, "Request body is not valid UTF-8");
+                Error::from(format!("Request body is not valid UTF-8: {}", e))
+            })?;
 
             info!("Processing Slack command");
 
@@ -74,8 +78,7 @@ async fn func(request: Request) -> Result<Response<Body>, Error> {
         }
         _ => {
             warn!(method, request_path, "Received request for unknown path");
-            response(400, format!("Invalid request"))
-                .map_err(|err| err.into())
+            response(400, format!("Invalid request")).map_err(|err| err.into())
         }
     }
 }

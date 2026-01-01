@@ -1,9 +1,9 @@
-use aws_sdk_dynamodb::{Client, types::AttributeValue};
+use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::Utc;
 
+use super::dynamodb_client::{get_attribute, get_encrypted_attribute, get_optional_encrypted_attribute};
 use crate::config::Config;
 use crate::{encryptor::Encryptor, errors::AppError};
-use super::dynamodb_client::{get_attribute, get_encrypted_attribute, get_optional_encrypted_attribute};
 
 use super::SlackInstallation;
 
@@ -15,13 +15,13 @@ pub struct SlackInstallationsDynamoDb {
 
 impl SlackInstallationsDynamoDb {
     pub fn new(config: &Config, encryptor: Encryptor) -> SlackInstallationsDynamoDb {
-        SlackInstallationsDynamoDb{ 
+        SlackInstallationsDynamoDb {
             client: Client::new(&config.aws_config),
             table_name: config.installations_table_name.to_string(),
-            encryptor
+            encryptor,
         }
     }
-   
+
     pub fn installation_id(&self, slack_team_id: &str, slack_enterprise_id: &str) -> String {
         format!("{}:{}", slack_team_id, slack_enterprise_id)
     }
@@ -33,7 +33,8 @@ impl SlackInstallationsDynamoDb {
         let encrypted_token = self.encryptor.encrypt(&t.access_token)?;
         let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
 
-        let builder = self.client
+        let builder = self
+            .client
             .put_item()
             .item("id", AttributeValue::S(self.installation_id(&installation.team_id, &installation.enterprise_id)))
             .item("team_id", AttributeValue::S(t.team_id))
@@ -44,29 +45,33 @@ impl SlackInstallationsDynamoDb {
             .item("access_token", AttributeValue::S(encrypted_token_json))
             .item("token_type", AttributeValue::S(t.token_type))
             .item("scope", AttributeValue::S(t.scope))
-
             .item("authed_user_id", AttributeValue::S(t.authed_user_id))
             .item("app_id", AttributeValue::S(t.app_id))
             .item("bot_user_id", AttributeValue::S(t.bot_user_id))
             .item("created_at", AttributeValue::S(now.to_rfc3339()))
-            .item("last_updated_at", AttributeValue::S(now.to_rfc3339()))
-        ;
+            .item("last_updated_at", AttributeValue::S(now.to_rfc3339()));
 
         let request = builder.table_name(&self.table_name);
 
         tracing::info!(?request, "Save slack installation to DynamoDB");
         request.send().await?;
-        
+
         Ok(())
     }
 
-    pub async fn update_pagerduty_token(&self, slack_team_id: String, slack_enterprise_id: String, pagerduty_token: &str) -> Result<(), AppError> {
+    pub async fn update_pagerduty_token(
+        &self,
+        slack_team_id: String,
+        slack_enterprise_id: String,
+        pagerduty_token: &str,
+    ) -> Result<(), AppError> {
         let now = Utc::now();
         let installation_id = self.installation_id(&slack_team_id, &slack_enterprise_id);
         let encrypted_token = self.encryptor.encrypt(pagerduty_token)?;
         let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
 
-        let request = self.client
+        let request = self
+            .client
             .update_item()
             .table_name(&self.table_name)
             .key("id", AttributeValue::S(installation_id.to_string()))
@@ -74,31 +79,26 @@ impl SlackInstallationsDynamoDb {
             .condition_expression("id = :id")
             .expression_attribute_values(":pagerduty_token", AttributeValue::S(encrypted_token_json))
             .expression_attribute_values(":last_updated_at", AttributeValue::S(now.to_rfc3339()))
-            .expression_attribute_values(":id", AttributeValue::S(installation_id.to_string()))
-        ;
+            .expression_attribute_values(":id", AttributeValue::S(installation_id.to_string()));
 
         tracing::info!(slack_team_id, slack_enterprise_id, "Update pagerduty token for slack installation in DynamoDB");
         request.send().await?;
-        
+
         Ok(())
     }
 
     pub async fn list_installations(&self) -> Result<Vec<SlackInstallation>, AppError> {
-        let scan_output = self.client
-            .scan()
-            .table_name(&self.table_name)
-            .send()
-            .await?;
+        let scan_output = self.client.scan().table_name(&self.table_name).send().await?;
 
-        let installations: Vec<SlackInstallation> = scan_output.items.unwrap_or_default()
+        let installations: Vec<SlackInstallation> = scan_output
+            .items
+            .unwrap_or_default()
             .into_iter()
-            .filter_map(|item| {
-                match self.parse_installation(&item) {
-                    Ok(installation) => Some(installation),
-                    Err(err) => {
-                        tracing::error!(%err, item = ?item, "Failed to parse Slack installation, skipping");
-                        None
-                    }
+            .filter_map(|item| match self.parse_installation(&item) {
+                Ok(installation) => Some(installation),
+                Err(err) => {
+                    tracing::error!(%err, item = ?item, "Failed to parse Slack installation, skipping");
+                    None
                 }
             })
             .collect();
@@ -106,7 +106,10 @@ impl SlackInstallationsDynamoDb {
         Ok(installations)
     }
 
-    fn parse_installation(&self, item: &std::collections::HashMap<String, AttributeValue>) -> Result<SlackInstallation, AppError> {
+    fn parse_installation(
+        &self,
+        item: &std::collections::HashMap<String, AttributeValue>,
+    ) -> Result<SlackInstallation, AppError> {
         Ok(SlackInstallation {
             team_id: get_attribute(item, "team_id")?,
             team_name: get_attribute(item, "team_name")?,

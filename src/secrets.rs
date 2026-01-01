@@ -1,7 +1,6 @@
-
 use aws_config::SdkConfig;
 use aws_sdk_secretsmanager::Client;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::AppError;
 
@@ -19,19 +18,18 @@ pub struct SecretsClient {
 
 impl SecretsClient {
     pub fn new(config: &SdkConfig) -> SecretsClient {
-        SecretsClient{ client: Client::new(&config) }
+        SecretsClient {
+            client: Client::new(&config),
+        }
     }
-   
+
     pub async fn get_secret(&self, name: &str) -> Result<Secrets, AppError> {
         tracing::debug!(name, "Getting secret value");
 
-        let result = self.client
-            .get_secret_value()
-            .secret_id(name)
-            .send()
-            .await?;
+        let result = self.client.get_secret_value().secret_id(name).send().await?;
 
-        let secrets_value = result.secret_string()
+        let secrets_value = result
+            .secret_string()
             .ok_or_else(|| AppError::InvalidSecret(format!("secret {} doesn't exist", name)))?;
         let secrets: Secrets = serde_json::from_str(&secrets_value)?;
         Ok(secrets)
@@ -42,14 +40,14 @@ impl SecretsClient {
 mod tests {
     use aws_config::BehaviorVersion;
 
-    use crate::{secrets::SecretsClient, errors::AppError};
+    use crate::{errors::AppError, secrets::SecretsClient};
 
     #[tokio::test]
-    async fn encrypt_decrypt_string() -> Result<(), AppError>{
+    async fn encrypt_decrypt_string() -> Result<(), AppError> {
         let config = ::aws_config::load_defaults(BehaviorVersion::latest()).await;
         let client = SecretsClient::new(&config);
         let encryption_key = client.get_secret("on-call-support/secrets").await?;
-        
+
         assert_eq!(encryption_key.encryption_key.len(), 32);
         Ok(())
     }

@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use derive_more::Display;
-use reqwest::{Method, Client};
+use reqwest::{Client, Method};
 use serde_derive::Deserialize;
-use serde_json::{json, Value, Error};
+use serde_json::{json, Error, Value};
 
-use crate::{errors::AppError, base64::encode_with_pad};
-
+use crate::{base64::encode_with_pad, errors::AppError};
 
 #[derive(Deserialize, Debug)]
 struct EmptyResponse;
@@ -15,7 +14,7 @@ struct EmptyResponse;
 struct SlackResponse<T> {
     ok: bool,
     error: Option<String>,
-    
+
     #[serde(flatten)]
     data: T,
 }
@@ -72,33 +71,38 @@ pub struct Slack {
 
 impl Slack {
     pub fn new(http_client: Arc<Box<Client>>, api_token: String) -> Slack {
-        Slack{ http_client, api_token}
+        Slack { http_client, api_token }
     }
-    
+
     pub async fn send_message(&self, channel_id: &str, message: &str) -> Result<(), AppError> {
         let payload = json!({
             "channel": channel_id,
             "text": message,
         });
 
-        self.send_request::<_, ()>("chat.postMessage", Method::POST, None, Some(&payload)).await
+        self.send_request::<_, ()>("chat.postMessage", Method::POST, None, Some(&payload))
+            .await
     }
-    
+
     pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>, AppError> {
         let params = json!({
             "email": email,
         });
 
-        let response: UserLookupResponse = self.send_request("users.lookupByEmail", Method::GET, Some(&params), None).await?;
+        let response: UserLookupResponse = self
+            .send_request("users.lookupByEmail", Method::GET, Some(&params), None)
+            .await?;
         Ok(response.user)
     }
-    
+
     pub async fn get_user_by_id(&self, id: &str) -> Result<Option<User>, AppError> {
         let params = json!({
             "user": id,
         });
 
-        let response: UserLookupResponse = self.send_request("users.info", Method::GET, Some(&params), None).await?;
+        let response: UserLookupResponse = self
+            .send_request("users.info", Method::GET, Some(&params), None)
+            .await?;
         Ok(response.user)
     }
 
@@ -115,7 +119,9 @@ impl Slack {
     }
 
     pub async fn list_user_groups(&self) -> Result<Vec<UserGroup>, AppError> {
-        let response: UserGroupsResponse = self.send_request::<_, ()>("usergroups.list", Method::GET, None, None).await?;
+        let response: UserGroupsResponse = self
+            .send_request::<_, ()>("usergroups.list", Method::GET, None, None)
+            .await?;
 
         Ok(response.usergroups.unwrap_or_default())
     }
@@ -125,7 +131,9 @@ impl Slack {
             "usergroup": user_group,
         });
 
-        let response: UserGroupUsersResponse = self.send_request("usergroups.users.list", Method::GET, Some(&params), None).await?;
+        let response: UserGroupUsersResponse = self
+            .send_request("usergroups.users.list", Method::GET, Some(&params), None)
+            .await?;
 
         Ok(response.users.unwrap_or_default())
     }
@@ -136,7 +144,8 @@ impl Slack {
             "users": users,
         });
 
-        self.send_request::<EmptyResponse, ()>("usergroups.users.update", Method::POST, None, Some(&payload)).await?;
+        self.send_request::<EmptyResponse, ()>("usergroups.users.update", Method::POST, None, Some(&payload))
+            .await?;
 
         Ok(())
     }
@@ -147,19 +156,29 @@ impl Slack {
             "topic": topic,
         });
 
-        let response: ChannelResponse = self.send_request::<_, ()>("conversations.setTopic", Method::POST, None, Some(&payload)).await?;
+        let response: ChannelResponse = self
+            .send_request::<_, ()>("conversations.setTopic", Method::POST, None, Some(&payload))
+            .await?;
 
         Ok(response.channel)
     }
 
-    async fn send_request<T, Q>(&self, endpoint: &str, method: Method, params: Option<&Q>, payload: Option<&Value>) -> Result<T, AppError>
-    where 
+    async fn send_request<T, Q>(
+        &self,
+        endpoint: &str,
+        method: Method,
+        params: Option<&Q>,
+        payload: Option<&Value>,
+    ) -> Result<T, AppError>
+    where
         T: for<'a> serde::Deserialize<'a>,
         Q: serde::Serialize,
     {
         let url = format!("https://slack.com/api/{}", endpoint);
 
-        let mut request_builder = self.http_client.request(method.clone(), url)
+        let mut request_builder = self
+            .http_client
+            .request(method.clone(), url)
             .bearer_auth(&self.api_token)
             .header("Content-Type", "application/json");
 
@@ -173,9 +192,7 @@ impl Slack {
             request_builder = request_builder.body(body);
         }
 
-        let response = request_builder
-            .send()
-            .await?;
+        let response = request_builder.send().await?;
 
         if response.status().is_success() {
             let json_response: SlackResponse<T> = response.json().await?;
@@ -193,10 +210,9 @@ impl Slack {
         } else {
             tracing::error!(status = response.status().as_u16(), "Failed sending request to Slack");
             Err(AppError::SlackError(format!("Failed sending request to Slack, status: {}", response.status())))
-        }        
+        }
     }
 }
-
 
 #[derive(Deserialize, Debug)]
 pub struct SlackTeam {
@@ -229,15 +245,21 @@ pub struct SlackOauthResponse {
     pub is_enterprise_install: bool,
 }
 
-pub async fn swap_slack_access_token(http_client: &Client, temp_token: &str, slack_client_id: &str, slack_client_secret: &str) -> Result<SlackOauthResponse, AppError> {
+pub async fn swap_slack_access_token(
+    http_client: &Client,
+    temp_token: &str,
+    slack_client_id: &str,
+    slack_client_secret: &str,
+) -> Result<SlackOauthResponse, AppError> {
     tracing::info!("Swap slack access token");
     let params = json!({
         "code": temp_token,
     });
 
+    let auth = format!("Basic {}", encode_with_pad(format!("{}:{}", slack_client_id, slack_client_secret).as_bytes()));
     let response = http_client
         .request(Method::POST, "https://slack.com/api/oauth.v2.access")
-        .header("Authorization", format!("Basic {}", encode_with_pad(format!("{}:{}", slack_client_id, slack_client_secret).as_bytes())))
+        .header("Authorization", auth)
         .query(&params)
         .send()
         .await?;
@@ -245,13 +267,14 @@ pub async fn swap_slack_access_token(http_client: &Client, temp_token: &str, sla
     if response.status().is_success() {
         let response_body = response.text().await?;
 
-        let json_response_result: Result<SlackResponse<SlackOauthResponse>, Error> = serde_json::from_str(&response_body);
+        let json_response_result: Result<SlackResponse<SlackOauthResponse>, Error> =
+            serde_json::from_str(&response_body);
 
         match json_response_result {
             Err(err) => {
                 tracing::info!(response_body, "Failed to parse json response");
                 Err(AppError::SlackError(err.to_string()))
-            },
+            }
             Ok(json_response) => {
                 if json_response.ok {
                     tracing::debug!("Slack request finished successfully");
@@ -268,5 +291,5 @@ pub async fn swap_slack_access_token(http_client: &Client, temp_token: &str, sla
     } else {
         tracing::error!(status = response.status().as_u16(), "Failed sending request to Slack");
         Err(AppError::SlackError(format!("Failed sending request to Slack, status: {}", response.status())))
-    }        
+    }
 }

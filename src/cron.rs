@@ -1,7 +1,7 @@
-use std::str::FromStr;
+use chrono::{DateTime, Datelike, Timelike};
 use chrono_tz::Tz;
-use chrono::{DateTime, Timelike, Datelike};
 use cron::Schedule;
+use std::str::FromStr;
 
 use crate::errors::AppError;
 
@@ -19,7 +19,7 @@ fn one_off_cron(at: &DateTime<Tz>) -> String {
 }
 
 /**
-  * Return the next schedule by a given cron expression and from time 
+ * Return the next schedule by a given cron expression and from time
  */
 pub fn get_next_schedule_from(cron_expression: &str, from: &DateTime<Tz>) -> Result<CronSchedule, AppError> {
     let cron_parts: Vec<_> = cron_expression.split(" ").collect();
@@ -41,13 +41,13 @@ pub fn get_next_schedule_from(cron_expression: &str, from: &DateTime<Tz>) -> Res
     };
 
     if let Some(next) = schedule.after(from).next() {
-        return Ok(CronSchedule { 
+        return Ok(CronSchedule {
             cron: expression_without_seconds,
             timezone: from.timezone(),
             next_oneoff_cron: one_off_cron(&next),
             next_timestamp_utc: next.timestamp(),
-            next_datetime: next
-        })
+            next_datetime: next,
+        });
     }
 
     Err(AppError::UnexpectedError("Failed to get next schedule from cron expression".to_string()))
@@ -55,10 +55,10 @@ pub fn get_next_schedule_from(cron_expression: &str, from: &DateTime<Tz>) -> Res
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use chrono_tz::Tz;
     use crate::cron::get_next_schedule_from;
     use chrono::prelude::*;
+    use chrono_tz::Tz;
+    use std::str::FromStr;
 
     #[test]
     fn test_get_next_schedule_from_sunday() -> Result<(), Box<dyn std::error::Error>> {

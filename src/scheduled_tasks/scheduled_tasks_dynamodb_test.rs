@@ -39,10 +39,10 @@ async fn save_scheduled_task_with_pagerduty_token_to_db() -> Result<(), AppError
         created_at: Utc::now().to_rfc3339(),
         last_updated_at: Utc::now().to_rfc3339(),
     };
-    
+
     let db = create_db().await?;
     db.save_scheduled_task(&task).await?;
-    
+
     Ok(())
 }
 
@@ -74,10 +74,10 @@ async fn save_scheduled_task_without_pagerduty_token_to_db() -> Result<(), AppEr
         created_at: Utc::now().to_rfc3339(),
         last_updated_at: Utc::now().to_rfc3339(),
     };
-    
+
     let db = create_db().await?;
     db.save_scheduled_task(&task).await?;
-    
+
     Ok(())
 }
 
@@ -90,6 +90,6 @@ async fn list_scheduled_task_to_db() -> Result<(), AppError> {
     for item in tasks {
         println!("   {:?}", item);
     }
-    
+
     Ok(())
 }

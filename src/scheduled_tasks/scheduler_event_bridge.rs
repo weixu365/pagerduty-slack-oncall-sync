@@ -1,7 +1,11 @@
+use crate::{config::Config, cron::CronSchedule, errors::AppError};
+use aws_sdk_scheduler::{
+    operation::get_schedule::GetScheduleOutput,
+    types::{FlexibleTimeWindow, Target},
+    Client,
+};
 use chrono::Utc;
 use futures::{stream, StreamExt, TryStreamExt};
-use crate::{config::Config, cron::CronSchedule, errors::AppError};
-use aws_sdk_scheduler::{Client, types::{FlexibleTimeWindow, Target}, operation::get_schedule::GetScheduleOutput};
 
 pub struct EventBridgeScheduler {
     client: Client,
@@ -31,24 +35,29 @@ impl EventBridgeScheduler {
             lambda_role,
         }
     }
-    
+
     pub async fn update_next_schedule(&self, next_task_schedule: &CronSchedule) -> Result<(), AppError> {
         tracing::info!(?next_task_schedule, "Updating next schedule in EventBridge Scheduler");
 
-        let mut current_schedules: Vec<_> = self.list_schedules()
+        let mut current_schedules: Vec<_> = self
+            .list_schedules()
             .await?
             .iter()
-            .map(|s| self.convert_to_schedule(s)).collect();
+            .map(|s| self.convert_to_schedule(s))
+            .collect();
 
         current_schedules.sort_by(|a, b| a.next_scheduled_timestamp_utc.cmp(&b.next_scheduled_timestamp_utc));
 
         tracing::info!(?current_schedules, "Found existing schedules");
-        
+
         let next_schedule = self.get_next_schedule(&current_schedules, next_task_schedule.next_timestamp_utc);
-        let mut next_schedule_timestamp = next_schedule.as_ref().and_then(|s| s.next_scheduled_timestamp_utc).unwrap_or(i64::MAX);
+        let mut next_schedule_timestamp = next_schedule
+            .as_ref()
+            .and_then(|s| s.next_scheduled_timestamp_utc)
+            .unwrap_or(i64::MAX);
         tracing::info!(
             existing_scheduled_time = next_schedule_timestamp,
-            next_schedule=next_task_schedule.next_timestamp_utc,
+            next_schedule = next_task_schedule.next_timestamp_utc,
             "Found the current schedule",
         );
         if next_task_schedule.next_timestamp_utc < next_schedule_timestamp {
@@ -85,28 +94,25 @@ impl EventBridgeScheduler {
                 })
                 .unwrap_or_else(|| "None".to_string());
 
-            tracing::info!(
-                next_schedule = next_schedule_info,
-                "Keep the next schedule unchanged",
-            );
+            tracing::info!(next_schedule = next_schedule_info, "Keep the next schedule unchanged",);
         }
 
         // clean up schedules to keep only the earliest
-        self.cleanup_schedules(current_schedules, next_schedule_timestamp).await?;
-        
+        self.cleanup_schedules(current_schedules, next_schedule_timestamp)
+            .await?;
+
         Ok(())
     }
-    
-    fn get_next_schedule(&self, schedules: &Vec<EventBridgeSchedule>, before: i64) -> Option<EventBridgeSchedule>
-    {
+
+    fn get_next_schedule(&self, schedules: &Vec<EventBridgeSchedule>, before: i64) -> Option<EventBridgeSchedule> {
         let now = Utc::now().timestamp();
         for schedule in schedules {
             let scheduled_timestamp = schedule.next_scheduled_timestamp_utc.unwrap_or_default();
             if scheduled_timestamp > now && scheduled_timestamp <= before {
-                return Some(schedule.clone())
+                return Some(schedule.clone());
             }
         }
-        
+
         None
     }
 
@@ -127,12 +133,18 @@ impl EventBridgeScheduler {
         }
     }
 
-    async fn cleanup_schedules(&self, current_schedules: Vec<EventBridgeSchedule>, next_scheduled_timestamp_utc: i64) -> Result<(), AppError> {
+    async fn cleanup_schedules(
+        &self,
+        current_schedules: Vec<EventBridgeSchedule>,
+        next_scheduled_timestamp_utc: i64,
+    ) -> Result<(), AppError> {
         let clear_outdated_schedules_after = Utc::now().timestamp() - 300;
 
         for schedule in current_schedules {
             if let Some(schedule_timestamp_utc) = schedule.next_scheduled_timestamp_utc {
-                if schedule_timestamp_utc > next_scheduled_timestamp_utc || schedule_timestamp_utc <= clear_outdated_schedules_after {
+                if schedule_timestamp_utc > next_scheduled_timestamp_utc
+                    || schedule_timestamp_utc <= clear_outdated_schedules_after
+                {
                     if let Some(name) = schedule.name {
                         self.delete_schedules(&name).await?;
                     }
@@ -146,11 +158,7 @@ impl EventBridgeScheduler {
     async fn delete_schedules(&self, name: &str) -> Result<(), AppError> {
         tracing::info!(name, "delete schedule");
 
-        self.client
-            .delete_schedule()
-            .name(name)
-            .send()
-            .await?;
+        self.client.delete_schedule().name(name).send().await?;
 
         Ok(())
     }
@@ -158,7 +166,8 @@ impl EventBridgeScheduler {
     async fn list_schedules(&self) -> Result<Vec<GetScheduleOutput>, AppError> {
         tracing::info!("list schedules in aws eventbridge scheduler");
 
-        let schedule_summaries: Vec<_> = self.client
+        let schedule_summaries: Vec<_> = self
+            .client
             .list_schedules()
             .name_prefix(&self.name_prefix)
             .into_paginator()
@@ -173,7 +182,7 @@ impl EventBridgeScheduler {
                 async move {
                     let name = schedule
                         .name()
-                        .ok_or_else(|| {AppError::UnexpectedError("Schedule name doesn't exist".to_string())})?;
+                        .ok_or_else(|| AppError::UnexpectedError("Schedule name doesn't exist".to_string()))?;
 
                     client
                         .get_schedule()
@@ -191,17 +200,21 @@ impl EventBridgeScheduler {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
     use chrono_tz::Tz;
     use std::str::FromStr;
 
-    use crate::{config::Config, cron::get_next_schedule_from, errors::AppError, scheduled_tasks::{ScheduledTask, scheduler_event_bridge::EventBridgeScheduler}};
+    use crate::{
+        config::Config,
+        cron::get_next_schedule_from,
+        errors::AppError,
+        scheduled_tasks::{scheduler_event_bridge::EventBridgeScheduler, ScheduledTask},
+    };
 
     #[tokio::test]
-    async fn test_update_next_schedule() -> Result<(), AppError>{
+    async fn test_update_next_schedule() -> Result<(), AppError> {
         let config = Config::new("dev").await?;
         let lambda_arn = "arn:aws:lambda:ap-southeast-2:807579936170:function:on-call-support-dev-UpdateUserGroups";
         let lambda_role_arn = "arn:aws:iam::807579936170:role/on-call-support-dev-ap-southeast-2-lambdaRole";
@@ -234,16 +247,15 @@ mod tests {
             last_updated_at: Utc::now().to_rfc3339(),
         };
 
-        let timezone = Tz::from_str(&task.timezone)
-            .map_err(|e| AppError::InvalidData(format!("Invalid timezone: {}", e)))?;
+        let timezone = Tz::from_str(&task.timezone)?;
         let from = Utc::now().with_timezone(&timezone);
 
         let next_schedule = get_next_schedule_from(&task.cron, &from)?;
-        
+
         scheduler.update_next_schedule(&next_schedule).await?;
 
         let schedules = scheduler.list_schedules().await?;
-        
+
         for item in &schedules {
             println!("Schedule\n  - name: {:?}\n  - cron: {:?} {:?}\n  - target: {:?} {:?}\n  - flexible window mode: {:?}\n  - description: {:?}\n",
                 item.name,
@@ -266,7 +278,7 @@ mod tests {
         let lambda_role_arn = "arn:aws:iam::807579936170:role/on-call-support-dev-ap-southeast-2-lambdaRole";
         let scheduler = EventBridgeScheduler::new(&config, lambda_arn.to_string(), lambda_role_arn.to_string());
         let schedules = scheduler.list_schedules().await?;
-        
+
         for item in &schedules {
             println!("Schedule\n  - name: {:?}\n  - cron: {:?} {:?}\n  - target: {:?} {:?}\n  - flexible window mode: {:?}\n  - description: {:?}\n",
                 item.name,

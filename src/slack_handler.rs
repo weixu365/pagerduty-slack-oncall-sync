@@ -1,14 +1,15 @@
-use std::{collections::HashMap, env};
-use aws_lambda_events::{encodings::Body, http::{HeaderMap, HeaderValue}, query_map::QueryMap};
+use aws_lambda_events::{
+    encodings::Body,
+    http::{HeaderMap, HeaderValue},
+    query_map::QueryMap,
+};
 use lambda_http::Response;
+use std::{collections::HashMap, env};
 
-use chrono::Utc;
-use chrono_tz::Tz;
-use std::str::FromStr;
 use crate::{
     config::Config,
     constant_time::constant_time_compare_str,
-    cron::get_next_schedule_from, 
+    cron::get_next_schedule_from,
     db::{SlackInstallation, SlackInstallationsDynamoDb},
     encryptor::Encryptor,
     errors::AppError,
@@ -17,12 +18,15 @@ use crate::{
     scheduled_tasks::{EventBridgeScheduler, ScheduledTask, ScheduledTasksDynamodb},
     service_provider::slack::swap_slack_access_token,
 };
-use form_urlencoded;
-use ring::hmac;
-use clap::{Args, Subcommand};
+use chrono::Utc;
+use chrono_tz::Tz;
 use clap::Parser;
+use clap::{Args, Subcommand};
+use form_urlencoded;
 use lazy_static::lazy_static;
 use regex::Regex;
+use ring::hmac;
+use std::str::FromStr;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -74,10 +78,10 @@ fn cleanse(text: &str) -> String {
         static ref DOUBLE_QUOTES: Regex = Regex::new("[“”]").unwrap();
         static ref SINGLE_QUOTES: Regex = Regex::new("[‘’]").unwrap();
     }
-    
+
     let cleansed_double_quote = DOUBLE_QUOTES.replace_all(text, "\"");
     let cleansed = SINGLE_QUOTES.replace_all(&cleansed_double_quote, "'");
-    
+
     cleansed.to_string()
 }
 
@@ -93,12 +97,13 @@ pub async fn handle_slack_oauth(config: &Config, query_map: QueryMap) -> Result<
             let http_client = build_http_client()?;
             let encryptor = Encryptor::from_key(&config.secrets.encryption_key)?;
             let oauth_response = swap_slack_access_token(
-                &http_client, 
+                &http_client,
                 temporary_code,
                 &config.secrets.slack_client_id,
                 &config.secrets.slack_client_secret,
-            ).await?;
-            
+            )
+            .await?;
+
             // Save to dynamodb
             let db = SlackInstallationsDynamoDb::new(&config, encryptor);
             let installation = SlackInstallation {
@@ -107,11 +112,11 @@ pub async fn handle_slack_oauth(config: &Config, query_map: QueryMap) -> Result<
                 enterprise_id: oauth_response.enterprise.id,
                 enterprise_name: oauth_response.enterprise.name,
                 is_enterprise_install: oauth_response.is_enterprise_install,
-            
+
                 access_token: oauth_response.access_token,
                 token_type: oauth_response.token_type,
                 scope: oauth_response.scope,
-            
+
                 authed_user_id: oauth_response.authed_user.id,
                 app_id: oauth_response.app_id,
                 bot_user_id: oauth_response.bot_user_id,
@@ -121,12 +126,16 @@ pub async fn handle_slack_oauth(config: &Config, query_map: QueryMap) -> Result<
 
             db.save_slack_installation(&installation).await?;
             response(200, format!("Received slack oauth callback."))
-        },
-        None => response(400, format!("Invalid request"))
+        }
+        None => response(400, format!("Invalid request")),
     }
 }
 
-pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<HeaderValue>, request_body: &str) -> Result<Response<Body>, AppError> {
+pub async fn handle_slack_command(
+    config: &Config,
+    request_header: &HeaderMap<HeaderValue>,
+    request_body: &str,
+) -> Result<Response<Body>, AppError> {
     let params: HashMap<String, String> = form_urlencoded::parse(request_body.as_bytes()).into_owned().collect();
     tracing::debug!(?params, "params in request body");
 
@@ -160,9 +169,9 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
 
     let now = chrono::Utc::now().timestamp();
     if (now - slack_request_timestamp).abs() > 60 * 5 {
-        return response(400, format!("Invalid slack command due to invalid timestamp: {} {}", command, text))
+        return response(400, format!("Invalid slack command due to invalid timestamp: {} {}", command, text));
     }
-    
+
     let sig_basestring = format!("v0:{}:{}", slack_request_timestamp, request_body);
     tracing::debug!(sig_basestring, "Slack Request to sign");
 
@@ -173,12 +182,12 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
 
     if !constant_time_compare_str(&expected_signature, slack_request_signature) {
         tracing::error!(slack_request_signature, "Signature verification failed");
-        return response(400, format!("Invalid slack command signature: {} {}", command, text))
+        return response(400, format!("Invalid slack command signature: {} {}", command, text));
     }
-    
+
     let arg = match shlex::split(cleanse(format!("{} {}", command, text).as_str()).as_str()) {
         Some(args) => Some(App::parse_from(args.iter())),
-        None => None
+        None => None,
     };
 
     let encryptor = Encryptor::from_key(&config.secrets.encryption_key)?;
@@ -193,20 +202,22 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
 
             let re = Regex::new(r"<!subteam\^(\w+)\|@([^>]+)>")?;
             if let Some(captures) = re.captures(arg.user_group.as_str()) {
-                user_group_id = captures.get(1)
+                user_group_id = captures
+                    .get(1)
                     .ok_or_else(|| AppError::InvalidData("Missing user group ID in capture".to_string()))?
                     .as_str()
                     .to_string();
-                user_group_handle = captures.get(2)
+                user_group_handle = captures
+                    .get(2)
                     .ok_or_else(|| AppError::InvalidData("Missing user group handle in capture".to_string()))?
                     .as_str()
                     .to_string();
             } else {
                 tracing::error!(user_group = %arg.user_group, "Invalid user group");
 
-                return response(400, format!("Invalid user group: {}", arg.user_group))
+                return response(400, format!("Invalid user group: {}", arg.user_group));
             }
-            
+
             let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
             let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
 
@@ -219,7 +230,10 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
 
             let next_schedule = get_next_schedule_from(&arg.cron, &from)?;
 
-            let task_id = format!("{}:{}:{}:{}:{}", channel_name, channel_id, user_group_handle, user_group_id, arg.pagerduty_schedule);
+            let task_id = format!(
+                "{}:{}:{}:{}:{}",
+                channel_name, channel_id, user_group_handle, user_group_id, arg.pagerduty_schedule
+            );
 
             let task = ScheduledTask {
                 team: format!("{}:{}", &team_id, &enterprise_id),
@@ -247,46 +261,57 @@ pub async fn handle_slack_command(config: &Config, request_header: &HeaderMap<He
                 created_at: Utc::now().to_rfc3339(),
                 last_updated_at: Utc::now().to_rfc3339(),
             };
-            
+
             if let Err(err) = db.save_scheduled_task(&task).await {
                 tracing::error!(%err, "Failed to save to dynamodb");
-                return response(500, format!("Can't process slack command due to save to dynamodb failed\nCommand: {} {}", command, text))
+                return response(500, format!("Failed to save schedule task to db\nCommand: {} {}", command, text));
             }
 
             if let Err(err) = scheduler.update_next_schedule(&next_schedule).await {
                 tracing::error!(%err, "Failed to update scheduler");
-                return response(500, format!("Can't process slack command due to save to update scheduler\nCommand: {} {}", command, text))
+                return response(500, format!("Failed to update scheduler\nCommand: {} {}", command, text));
             }
-            
-            vec!(format!("Update user group: {}|{} based on pagerduty schedule: {}, at: {}", task.user_group_id, task.user_group_handle, &task.pager_duty_schedule_id, &task.cron))
-        },
+
+            vec![format!(
+                "Update user group: {}|{} based on pagerduty schedule: {}, at: {}",
+                task.user_group_id, task.user_group_handle, &task.pager_duty_schedule_id, &task.cron
+            )]
+        }
         Some(Command::SetupPagerduty(args)) => {
             let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
 
             //TODO: validate if the installation exists
             //TODO: validate if the pagerduty token valid
 
-            slack_installations_db.update_pagerduty_token(team_id, enterprise_id, &args.pagerduty_api_key).await?;
+            slack_installations_db
+                .update_pagerduty_token(team_id, enterprise_id, &args.pagerduty_api_key)
+                .await?;
 
-            vec!(format!("Setup pagerduty with api key"))
-        },
+            vec![format!("Setup pagerduty with api key")]
+        }
         Some(Command::ListSchedules(_args)) => {
             let db = ScheduledTasksDynamodb::new(&config, encryptor);
             let tasks = db.list_scheduled_tasks().await?;
 
-            tasks.into_iter()
-                .map(|t| format!("## {}\nUpdate {} on {}\nNext schedule: {}", t.channel_name, t.user_group_handle, t.cron, t.next_update_time))
+            tasks
+                .into_iter()
+                .map(|t| {
+                    format!(
+                        "## {}\nUpdate {} on {}\nNext schedule: {}",
+                        t.channel_name, t.user_group_handle, t.cron, t.next_update_time
+                    )
+                })
                 .collect()
-        },
-        Some(Command::New) => vec!(format!("Show wizard to add new schedule")),
-        None => vec!(format!("default command"))
+        }
+        Some(Command::New) => vec![format!("Show wizard to add new schedule")],
+        None => vec![format!("default command")],
     };
-    
-    let sections = response_body.into_iter()
+
+    let sections = response_body
+        .into_iter()
         .map(|p| format!(r#"{{"type": "section", "text": {{ "type": "mrkdwn", "text": "{}" }} }}"#, p))
         .collect::<Vec<String>>()
-        .join(",\n")
-    ;
+        .join(",\n");
 
     response(200, format!(r#"{{ "blocks": [{}] }}"#, sections))
 }

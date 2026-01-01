@@ -1,7 +1,10 @@
 use std::env;
 
+use crate::{
+    errors::AppError,
+    secrets::{Secrets, SecretsClient},
+};
 use aws_config::{BehaviorVersion, SdkConfig};
-use crate::{errors::AppError, secrets::{Secrets, SecretsClient}};
 
 pub struct Config {
     pub env: String,
@@ -12,7 +15,7 @@ pub struct Config {
 
     pub schedules_table_name: String,
     pub installations_table_name: String,
-    
+
     pub schedule_name_prefix: String,
 
     pub aws_config: SdkConfig,

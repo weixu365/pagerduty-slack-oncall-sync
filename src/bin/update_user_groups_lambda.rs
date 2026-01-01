@@ -1,8 +1,8 @@
 use std::env;
 
-use on_call_support::{user_group_updater::update_user_groups, http_util::response};
+use lambda_http::{service_fn, Body, Error, Request, Response};
+use on_call_support::{http_util::response, user_group_updater::update_user_groups};
 use tokio;
-use lambda_http::{Body, Error, Request, Response, service_fn};
 
 use serde_json::json;
 
@@ -18,10 +18,7 @@ async fn func(_request: Request) -> Result<Response<Body>, Error> {
     let result = update_user_groups(&env).await;
 
     match result {
-        Ok(()) => {
-            response(200, json!({ "message": "Updated user groups" }).to_string())
-                .map_err(|err| err.into())
-        },
+        Ok(()) => response(200, json!({ "message": "Updated user groups" }).to_string()).map_err(|err| err.into()),
         Err(err) => {
             tracing::error!(%err, "Failed to update user groups");
             Err(err.into())

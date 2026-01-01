@@ -1,9 +1,12 @@
-use std::{num::ParseIntError, env::VarError};
+use std::{env::VarError, num::ParseIntError};
 
 use aws_sdk_cloudformation::operation::describe_stacks::DescribeStacksError;
-use aws_sdk_dynamodb::{operation::{put_item::PutItemError, delete_item::DeleteItemError, scan::ScanError, update_item::UpdateItemError}, error::SdkError};
-use aws_sdk_scheduler::operation::{create_schedule::CreateScheduleError, delete_schedule::DeleteScheduleError};
+use aws_sdk_dynamodb::{
+    error::SdkError,
+    operation::{delete_item::DeleteItemError, put_item::PutItemError, scan::ScanError, update_item::UpdateItemError},
+};
 use aws_sdk_scheduler::operation::list_schedules::ListSchedulesError;
+use aws_sdk_scheduler::operation::{create_schedule::CreateScheduleError, delete_schedule::DeleteScheduleError};
 use aws_sdk_secretsmanager::operation::get_secret_value::GetSecretValueError;
 use lambda_runtime::Diagnostic;
 use thiserror::Error;

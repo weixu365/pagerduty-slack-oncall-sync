@@ -1,7 +1,7 @@
-use chrono::{Utc, DateTime};
+use crate::errors::AppError;
+use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 use std::str::FromStr;
-use crate::errors::AppError;
 
 pub fn get_current_timestamp_utc() -> DateTime<Utc> {
     Utc::now()
