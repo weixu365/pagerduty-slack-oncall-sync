@@ -88,11 +88,18 @@ impl SlackInstallationsDynamoDb {
     }
 
     pub async fn list_installations(&self) -> Result<Vec<SlackInstallation>, AppError> {
-        let scan_output = self.client.scan().table_name(&self.table_name).send().await?;
+        let all_items: Vec<_> = self.client
+            .scan()
+            .table_name(&self.table_name)
+            .into_paginator()
+            .items()
+            .send()
+            .collect::<Result<Vec<_>, _>>()
+            .await?;
 
-        let installations: Vec<SlackInstallation> = scan_output
-            .items
-            .unwrap_or_default()
+        tracing::debug!(count = all_items.len(), "Retrieved all Slack installation items from DynamoDB");
+
+        let installations: Vec<SlackInstallation> = all_items
             .into_iter()
             .filter_map(|item| match self.parse_installation(&item) {
                 Ok(installation) => Some(installation),

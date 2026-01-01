@@ -125,11 +125,18 @@ impl ScheduledTasksDynamodb {
     }
 
     pub async fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, AppError> {
-        let scan_output = self.client.scan().table_name(&self.table_name).send().await?;
+        let all_items: Vec<_> = self.client
+            .scan()
+            .table_name(&self.table_name)
+            .into_paginator()
+            .items()
+            .send()
+            .collect::<Result<Vec<_>, _>>()
+            .await?;
 
-        let scheduled_tasks: Vec<ScheduledTask> = scan_output
-            .items
-            .unwrap_or_default()
+        tracing::debug!(count = all_items.len(), "Retrieved all scheduled task items from DynamoDB");
+
+        let scheduled_tasks: Vec<ScheduledTask> = all_items
             .into_iter()
             .filter_map(|item| match self.parse_scheduled_task(&item) {
                 Ok(task) => Some(task),
