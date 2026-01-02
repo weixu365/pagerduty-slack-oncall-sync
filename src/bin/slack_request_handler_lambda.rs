@@ -12,10 +12,8 @@ use tracing::{error, info, warn};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // Initialize logging based on LOG_FORMAT environment variable
     logging::init_logging();
-
-    info!("Starting Slack request handler Lambda");
+    info!("Start handling Slack request");
 
     let service_func = service_fn(func);
     let result = lambda_http::run(service_func).await;

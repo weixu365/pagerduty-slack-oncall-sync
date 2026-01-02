@@ -11,6 +11,7 @@ use tokio;
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
     init_logging();
+    
     let env = env::var("ENV").unwrap_or("dev".to_string());
     let config = Config::get_or_init(&env).await?;
 
