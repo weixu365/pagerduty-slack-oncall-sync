@@ -29,19 +29,14 @@ impl ScheduledTasksDynamodb {
     pub async fn save_scheduled_task(&self, task: &ScheduledTask) -> Result<(), AppError> {
         let t = task.clone();
 
-        let encrypted_pagerduty_token_json = t
-            .pager_duty_token
-            .map(|token| -> Result<String, AppError> {
-                let encrypted = self.encryptor.encrypt(&token)?;
-                let json = serde_json::to_string(&encrypted).map_err(|e| {
-                    AppError::UnexpectedError(format!("Failed to serialize encrypted PagerDuty token: {}", e))
-                })?;
-                Ok(json)
-            })
-            .transpose()?
-            .unwrap_or_default();
+        let encrypted_pagerduty_token_json = t.pager_duty_token.as_deref().map(|token| -> Result<String, AppError> {
+            let encrypted = self.encryptor.encrypt(token)?;
+            let json = serde_json::to_string(&encrypted)
+                .map_err(|e| AppError::UnexpectedError(format!("Failed to serialize encrypted PagerDuty token: {}", e)))?;
+            Ok(json)
+        }).transpose()?;
 
-        let builder = self
+        let mut builder = self
             .client
             .put_item()
             .table_name(&self.table_name)
@@ -59,13 +54,16 @@ impl ScheduledTasksDynamodb {
             .item("user_group_id", AttributeValue::S(t.user_group_id))
             .item("user_group_handle", AttributeValue::S(t.user_group_handle))
             .item("pager_duty_schedule_id", AttributeValue::S(t.pager_duty_schedule_id))
-            .item("pager_duty_token", AttributeValue::S(encrypted_pagerduty_token_json))
             .item("cron", AttributeValue::S(t.cron))
             .item("timezone", AttributeValue::S(t.timezone))
             .item("created_by_user_id", AttributeValue::S(t.created_by_user_id))
             .item("created_by_user_name", AttributeValue::S(t.created_by_user_name))
             .item("created_at", AttributeValue::S(t.created_at))
             .item("last_updated_at", AttributeValue::S(t.last_updated_at));
+
+        if let Some(json) = encrypted_pagerduty_token_json {
+            builder = builder.item("pager_duty_token", AttributeValue::S(json));
+        }
 
         tracing::info!(task_id = task.task_id, next_update_time = task.next_update_time, "Saving task");
         builder.send().await?;

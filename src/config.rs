@@ -50,7 +50,7 @@ impl Config {
             schedules_table_name: format!("on-call-support-schedules-{}", env),
             installations_table_name: format!("on-call-support-installations-{}", env),
 
-            schedule_name_prefix: "on-call-support-dev_UpdateUserGroupSchedule_".to_string(),
+            schedule_name_prefix: format!("on-call-support-{}_UpdateUserGroupSchedule_", env),
 
             aws_config,
             secrets_cache: OnceCell::new(),
