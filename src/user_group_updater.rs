@@ -35,21 +35,25 @@ pub async fn update_user_group(
     let oncall_users = pager_duty.get_on_call_users(from).await?;
     tracing::info!(?oncall_users, %from, %until, "Found users on call from PagerDuty");
 
-    let slack = Slack::new(http_client.clone(), slack_api_key.to_string());
+    let slack = Arc::new(Slack::new(http_client.clone(), slack_api_key.to_string()));
 
     let user_group = slack.get_user_group(&slack_user_group_name).await?;
     tracing::info!(?user_group, "Found the user group from Slack");
 
-    let slack_user_ids: Vec<String> = futures::stream::iter(&oncall_users)
-        .then(|user| async {
-            slack
-                .get_user_by_email(&user.email)
-                .await?
-                .map(|u| u.id)
-                .ok_or_else(|| AppError::UnexpectedError(format!("Can't find Slack user by email: {:?}", user.email)))
-        })
-        .try_collect()
-        .await?;
+    let slack_user_ids: Vec<String> =
+        futures::stream::iter(oncall_users.into_iter())
+            .map(|user| {
+                let slack = slack.clone();
+                let email = user.email;
+                async move {
+                    slack.get_user_by_email(&email).await?.map(|u| u.id).ok_or_else(|| {
+                        AppError::UnexpectedError(format!("Can't find Slack user by email: {:?}", email))
+                    })
+                }
+            })
+            .buffer_unordered(5)
+            .try_collect()
+            .await?;
 
     let current_users = slack.get_user_group_users(&user_group.id).await?;
     let current_user_names: Vec<String> = futures::stream::iter(&current_users)
