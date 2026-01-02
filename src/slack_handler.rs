@@ -16,7 +16,7 @@ use crate::{
     http_client::build_http_client,
     http_util::response,
     scheduled_tasks::{EventBridgeScheduler, ScheduledTask, ScheduledTasksDynamodb},
-    service_provider::slack::swap_slack_access_token,
+    service_provider::{pager_duty::PagerDuty, slack::swap_slack_access_token},
 };
 use chrono::Utc;
 use chrono_tz::Tz;
@@ -282,14 +282,15 @@ pub async fn handle_slack_command(
         Some(Command::SetupPagerduty(args)) => {
             let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
 
-            //TODO: validate if the installation exists
-            //TODO: validate if the pagerduty token valid
+            let http_client = std::sync::Arc::new(Box::new(build_http_client()?));
+            let pager_duty = PagerDuty::new(http_client.clone(), args.pagerduty_api_key.clone(), "".into());
+            pager_duty.validate_token().await?;
 
             slack_installations_db
                 .update_pagerduty_token(team_id, enterprise_id, &args.pagerduty_api_key)
                 .await?;
 
-            vec![format!("Setup pagerduty with api key")]
+            vec![format!("PagerDuty API key validated and saved successfully")]
         }
         Some(Command::ListSchedules(_args)) => {
             let db = ScheduledTasksDynamodb::new(&config, encryptor);

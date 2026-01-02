@@ -21,6 +21,7 @@ pub struct PagerDuty {
     http_client: Arc<Box<Client>>,
     api_token: String,
     schedule_id: String,
+    base_url: String,
 }
 
 impl PagerDuty {
@@ -29,7 +30,27 @@ impl PagerDuty {
             http_client,
             api_token,
             schedule_id,
+            base_url: "https://api.pagerduty.com".to_string(),
         }
+    }
+
+    pub async fn validate_token(&self) -> Result<(), AppError> {
+        tracing::info!("Validating PagerDuty API token");
+
+        let response = self
+            .http_client
+            .get(&format!("{}/users/me", self.base_url))
+            .header("Authorization", format!("Token token={}", self.api_token))
+            // .header("Accept", "application/vnd.pagerduty+json;version=2")
+            .send()
+            .await?;
+
+        response.error_for_status().map_err(|err| {
+            tracing::error!(%err, "Error validating PagerDuty API token");
+            AppError::PagerDutyError("Invalid PagerDuty API token".to_string())
+        })?;
+
+        Ok(())
     }
 
     fn format_datetime(&self, date_time: &DateTime<Utc>) -> String {
@@ -37,14 +58,12 @@ impl PagerDuty {
     }
 
     pub async fn get_on_call_users(&self, from: DateTime<Utc>) -> Result<Vec<PagerDutyUser>, AppError> {
-        let url = format!("https://api.pagerduty.com/schedules/{}/users", &self.schedule_id);
-
         let since = self.format_datetime(&from);
         let until = self.format_datetime(&(from + Duration::minutes(10)));
 
         let response = self
             .http_client
-            .get(&url)
+            .get(&format!("{}/schedules/{}/users", self.base_url, &self.schedule_id))
             .header("Authorization", format!("Token token={}", &self.api_token))
             // .query(&[("time_zone", "Australia/Melbourne"), ("since", "2023-05-19 09:00"), ("until", "2023-05-20 09:00")])
             .query(&[
