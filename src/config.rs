@@ -52,7 +52,7 @@ impl Config {
 
             schedule_name_prefix: "on-call-support-dev_UpdateUserGroupSchedule_".to_string(),
 
-            aws_config: aws_config.clone(),
+            aws_config,
             secrets_cache: OnceCell::new(),
             secret_name,
         })

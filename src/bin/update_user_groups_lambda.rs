@@ -11,7 +11,7 @@ use tracing::info;
 async fn main() -> Result<(), Error> {
     logging::init_logging();
     info!("Start updating Slack user groups based on PagerDuty on-call schedule");
-    
+
     let func = service_fn(func);
     lambda_http::run(func).await?;
     Ok(())

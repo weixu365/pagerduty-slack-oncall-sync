@@ -116,10 +116,10 @@ async fn run_task(
             task.team, task.task_id
         )))?;
 
-    let pagerduty_token = &task
+    let pagerduty_token = task
         .pager_duty_token
-        .clone()
-        .or(slack_installation.pager_duty_token.clone())
+        .as_deref()
+        .or(slack_installation.pager_duty_token.as_deref())
         .ok_or(AppError::SlackInstallationNotFoundError(format!(
             "No PagerDuty token setup for the current Slack installation, team: {}, task: {}",
             task.team, task.task_id
@@ -127,7 +127,7 @@ async fn run_task(
 
     update_user_group(
         http_client.clone(),
-        &pagerduty_token,
+        pagerduty_token,
         &task.pager_duty_schedule_id,
         Utc::now(),
         &slack_installation.access_token,
@@ -199,7 +199,7 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
 
         if task.next_update_timestamp_utc > 0 && task.next_update_timestamp_utc < timestamp_of_next_trigger {
             timestamp_of_next_trigger = task.next_update_timestamp_utc;
-            next_task = Some(task.clone());
+            next_task = Some(task);
         }
     }
 
