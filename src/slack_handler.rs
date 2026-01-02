@@ -199,7 +199,7 @@ pub async fn handle_slack_command(
     let response_body = match arg.command {
         Some(Command::Schedule(arg)) => {
             if let Some(pagerduty_token) = &arg.pagerduty_api_key {
-                let http_client = std::sync::Arc::new(Box::new(build_http_client()?));
+                let http_client = std::sync::Arc::new(build_http_client()?);
                 let pager_duty =
                     PagerDuty::new(http_client.clone(), pagerduty_token.clone(), arg.pagerduty_schedule.clone());
                 pager_duty.get_on_call_users(Utc::now()).await?;
@@ -288,7 +288,7 @@ pub async fn handle_slack_command(
         Some(Command::SetupPagerduty(args)) => {
             let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
 
-            let http_client = std::sync::Arc::new(Box::new(build_http_client()?));
+            let http_client = std::sync::Arc::new(build_http_client()?);
             let pager_duty = PagerDuty::new(http_client.clone(), args.pagerduty_api_key.clone(), "".into());
             pager_duty.validate_token().await?;
 

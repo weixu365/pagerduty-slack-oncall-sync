@@ -65,12 +65,12 @@ pub struct UserGroup {
 }
 
 pub struct Slack {
-    http_client: Arc<Box<Client>>,
+    http_client: Arc<Client>,
     api_token: String,
 }
 
 impl Slack {
-    pub fn new(http_client: Arc<Box<Client>>, api_token: String) -> Slack {
+    pub fn new(http_client: Arc<Client>, api_token: String) -> Slack {
         Slack { http_client, api_token }
     }
 

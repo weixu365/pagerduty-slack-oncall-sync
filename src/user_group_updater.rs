@@ -18,7 +18,7 @@ use chrono::{DateTime, Duration, Utc};
 use reqwest::Client;
 
 pub async fn update_user_group(
-    http_client: Arc<Box<Client>>,
+    http_client: Arc<Client>,
     pager_duty_api_key: &str,
     pager_duty_schedule_id: &str,
     pager_duty_schedule_from: DateTime<Utc>,
@@ -104,7 +104,7 @@ pub async fn update_user_group(
 async fn run_task(
     task: &ScheduledTask,
     slack_tokens: &HashMap<String, SlackInstallation>,
-    http_client: Arc<Box<Client>>,
+    http_client: Arc<Client>,
     scheduled_tasks_db: &ScheduledTasksDynamodb,
 ) -> Result<(), AppError> {
     tracing::info!(task_id = task.task_id, cron = task.cron, "Updating user group");
@@ -160,7 +160,7 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
     let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
     let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
     let config = Config::get_or_init(env).await?;
-    let http_client = Arc::new(Box::new(build_http_client()?));
+    let http_client = Arc::new(build_http_client()?);
     let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
     let secrets = config.secrets().await?;
     let encryptor = Encryptor::from_key(&secrets.encryption_key)?;

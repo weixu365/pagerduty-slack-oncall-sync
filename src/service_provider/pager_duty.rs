@@ -18,14 +18,14 @@ pub struct PagerDutyUsersResponse {
 }
 
 pub struct PagerDuty {
-    http_client: Arc<Box<Client>>,
+    http_client: Arc<Client>,
     api_token: String,
     schedule_id: String,
     base_url: String,
 }
 
 impl PagerDuty {
-    pub fn new(http_client: Arc<Box<Client>>, api_token: String, schedule_id: String) -> PagerDuty {
+    pub fn new(http_client: Arc<Client>, api_token: String, schedule_id: String) -> PagerDuty {
         PagerDuty {
             http_client,
             api_token,
