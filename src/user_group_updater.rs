@@ -75,11 +75,18 @@ pub async fn update_user_group(
 
     tracing::info!(user_ids=?current_users, user_names=?current_user_names, "Current users in Slack User Group");
     tracing::info!(user_ids=?slack_user_ids, "On-call users in PagerDuty");
-    tracing::info!(changed = slack_user_ids != current_users, "Does users changed");
 
-    slack.update_user_group_users(&user_group.id, &slack_user_ids).await?;
+    let mut desired_users = slack_user_ids.clone();
+    let mut existing_users = current_users.clone();
+    desired_users.sort();
+    existing_users.sort();
 
-    if slack_user_ids != current_users {
+    let changed = desired_users != existing_users;
+    tracing::info!(changed, "Does users changed");
+
+    if changed {
+        slack.update_user_group_users(&user_group.id, &slack_user_ids).await?;
+
         tracing::info!("Send message to Slack channel");
         let slack_users = slack_user_ids
             .iter()
