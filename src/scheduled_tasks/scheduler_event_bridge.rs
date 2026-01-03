@@ -1,4 +1,4 @@
-use crate::{config::Config, cron::CronSchedule, errors::AppError};
+use crate::{config::Config, errors::AppError, utils::cron::CronSchedule};
 use aws_sdk_scheduler::{
     operation::get_schedule::GetScheduleOutput,
     types::{FlexibleTimeWindow, Target},
@@ -208,9 +208,9 @@ mod tests {
 
     use crate::{
         config::Config,
-        cron::get_next_schedule_from,
         errors::AppError,
         scheduled_tasks::{scheduler_event_bridge::EventBridgeScheduler, ScheduledTask},
+        utils::cron::get_next_schedule_from,
     };
 
     #[tokio::test]

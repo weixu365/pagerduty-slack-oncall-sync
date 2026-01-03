@@ -8,15 +8,15 @@ use std::{collections::HashMap, env};
 
 use crate::{
     config::Config,
-    constant_time::constant_time_compare_str,
-    cron::get_next_schedule_from,
     db::{SlackInstallation, SlackInstallationsDynamoDb},
     encryptor::Encryptor,
     errors::AppError,
-    http_client::build_http_client,
-    http_util::response,
     scheduled_tasks::{EventBridgeScheduler, ScheduledTask, ScheduledTasksDynamodb},
     service_provider::{pager_duty::PagerDuty, slack::swap_slack_access_token},
+    utils::constant_time::constant_time_compare_str,
+    utils::cron::get_next_schedule_from,
+    utils::http_client::build_http_client,
+    utils::http_util::response,
 };
 use chrono::Utc;
 use chrono_tz::Tz;
@@ -236,10 +236,11 @@ pub async fn handle_slack_command(
             };
 
             // Validate PagerDuty token and schedule by making a test API call
-            let pager_duty = PagerDuty::new(http_client.clone(), pagerduty_token.clone(), arg.pagerduty_schedule.clone());
+            let pager_duty =
+                PagerDuty::new(http_client.clone(), pagerduty_token.clone(), arg.pagerduty_schedule.clone());
             pager_duty.validate_token().await?;
             pager_duty.get_on_call_users(Utc::now()).await?;
-            
+
             let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
             let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
 

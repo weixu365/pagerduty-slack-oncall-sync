@@ -16,7 +16,7 @@ pub fn decode_no_pad(encoded: &[u8]) -> Result<Vec<u8>, AppError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::base64::{decode_no_pad, encode_no_pad};
+    use crate::utils::base64::{decode_no_pad, encode_no_pad};
 
     #[test]
     fn base64_encode_decode() -> Result<(), Box<dyn std::error::Error>> {

@@ -3,9 +3,9 @@ use std::env;
 use lambda_http::{service_fn, Body, Error, Request, RequestExt, Response};
 use on_call_support::{
     config::Config,
-    http_util::response,
-    logging,
     slack_handler::{handle_slack_command, handle_slack_oauth},
+    utils::http_util::response,
+    utils::logging,
 };
 use tokio;
 use tracing::{error, info, warn};

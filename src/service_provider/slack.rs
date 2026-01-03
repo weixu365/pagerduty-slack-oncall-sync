@@ -5,7 +5,7 @@ use reqwest::{Client, Method};
 use serde_derive::Deserialize;
 use serde_json::{json, Error, Value};
 
-use crate::{base64::encode_with_pad, errors::AppError};
+use crate::{errors::AppError, utils::base64::encode_with_pad};
 
 #[derive(Deserialize, Debug)]
 struct EmptyResponse;

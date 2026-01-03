@@ -1,8 +1,8 @@
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 
-use crate::db::dynamodb_client::get_attribute;
+use crate::utils::dynamodb_client::get_attribute;
 use crate::{
-    config::Config, db::dynamodb_client::get_optional_encrypted_attribute, encryptor::Encryptor, errors::AppError,
+    config::Config, encryptor::Encryptor, errors::AppError, utils::dynamodb_client::get_optional_encrypted_attribute,
 };
 
 use super::scheduled_task::ScheduledTask;
@@ -29,12 +29,17 @@ impl ScheduledTasksDynamodb {
     pub async fn save_scheduled_task(&self, task: &ScheduledTask) -> Result<(), AppError> {
         let t = task.clone();
 
-        let encrypted_pagerduty_token_json = t.pager_duty_token.as_deref().map(|token| -> Result<String, AppError> {
-            let encrypted = self.encryptor.encrypt(token)?;
-            let json = serde_json::to_string(&encrypted)
-                .map_err(|e| AppError::UnexpectedError(format!("Failed to serialize encrypted PagerDuty token: {}", e)))?;
-            Ok(json)
-        }).transpose()?;
+        let encrypted_pagerduty_token_json = t
+            .pager_duty_token
+            .as_deref()
+            .map(|token| -> Result<String, AppError> {
+                let encrypted = self.encryptor.encrypt(token)?;
+                let json = serde_json::to_string(&encrypted).map_err(|e| {
+                    AppError::UnexpectedError(format!("Failed to serialize encrypted PagerDuty token: {}", e))
+                })?;
+                Ok(json)
+            })
+            .transpose()?;
 
         let mut builder = self
             .client

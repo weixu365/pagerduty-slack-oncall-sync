@@ -11,8 +11,8 @@ use tracing::{self, instrument};
 
 use crate::{
     errors::AppError,
-    http_client::build_http_client,
     service_provider::{pager_duty::PagerDuty, slack::Slack},
+    utils::http_client::build_http_client,
 };
 use chrono::{DateTime, Duration, Utc};
 use reqwest::Client;

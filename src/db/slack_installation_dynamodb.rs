@@ -1,8 +1,8 @@
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::Utc;
 
-use super::dynamodb_client::{get_attribute, get_encrypted_attribute, get_optional_encrypted_attribute};
 use crate::config::Config;
+use crate::utils::dynamodb_client::{get_attribute, get_encrypted_attribute, get_optional_encrypted_attribute};
 use crate::{encryptor::Encryptor, errors::AppError};
 
 use super::SlackInstallation;
@@ -102,14 +102,12 @@ impl SlackInstallationsDynamoDb {
             .send()
             .await?;
 
-        let item = result
-            .item
-            .ok_or_else(|| {
-                AppError::SlackInstallationNotFoundError(format!(
-                    "Slack installation not found for team: {}, enterprise: {}",
-                    slack_team_id, slack_enterprise_id
-                ))
-            })?;
+        let item = result.item.ok_or_else(|| {
+            AppError::SlackInstallationNotFoundError(format!(
+                "Slack installation not found for team: {}, enterprise: {}",
+                slack_team_id, slack_enterprise_id
+            ))
+        })?;
 
         self.parse_installation(&item)
     }

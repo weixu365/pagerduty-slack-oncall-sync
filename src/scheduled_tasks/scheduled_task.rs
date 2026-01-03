@@ -2,9 +2,9 @@ use chrono::{DateTime, Utc};
 use clap::Args;
 
 use crate::{
-    cron::{get_next_schedule_from, CronSchedule},
     errors::AppError,
-    timestamp::get_timezone,
+    utils::cron::{get_next_schedule_from, CronSchedule},
+    utils::timestamp::get_timezone,
 };
 
 #[derive(Debug, Args, Clone)]

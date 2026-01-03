@@ -1,4 +1,3 @@
-pub mod dynamodb_client;
 mod slack_installation;
 mod slack_installation_dynamodb;
 

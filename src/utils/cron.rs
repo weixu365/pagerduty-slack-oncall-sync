@@ -55,7 +55,7 @@ pub fn get_next_schedule_from(cron_expression: &str, from: &DateTime<Tz>) -> Res
 
 #[cfg(test)]
 mod tests {
-    use crate::cron::get_next_schedule_from;
+    use crate::utils::cron::get_next_schedule_from;
     use chrono::prelude::*;
     use chrono_tz::Tz;
     use std::str::FromStr;

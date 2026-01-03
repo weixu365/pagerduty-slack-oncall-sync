@@ -4,8 +4,8 @@ use std::env;
 use aws_sdk_cloudformation::Client as CloudformationClient;
 use on_call_support::config::Config;
 use on_call_support::errors::AppError;
-use on_call_support::logging::init_logging;
 use on_call_support::user_group_updater::update_user_groups;
+use on_call_support::utils::logging::init_logging;
 use tokio;
 
 #[tokio::main]

@@ -1,7 +1,7 @@
 use std::env;
 
 use lambda_http::{service_fn, Body, Error, Request, Response};
-use on_call_support::{http_util::response, logging, user_group_updater::update_user_groups};
+use on_call_support::{user_group_updater::update_user_groups, utils::http_util::response, utils::logging};
 use tokio;
 
 use serde_json::json;
