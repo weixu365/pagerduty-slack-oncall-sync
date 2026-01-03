@@ -87,6 +87,33 @@ impl SlackInstallationsDynamoDb {
         Ok(())
     }
 
+    pub async fn get_slack_installation(
+        &self,
+        slack_team_id: &str,
+        slack_enterprise_id: &str,
+    ) -> Result<SlackInstallation, AppError> {
+        let installation_id = self.installation_id(slack_team_id, slack_enterprise_id);
+
+        let result = self
+            .client
+            .get_item()
+            .table_name(&self.table_name)
+            .key("id", AttributeValue::S(installation_id.clone()))
+            .send()
+            .await?;
+
+        let item = result
+            .item
+            .ok_or_else(|| {
+                AppError::SlackInstallationNotFoundError(format!(
+                    "Slack installation not found for team: {}, enterprise: {}",
+                    slack_team_id, slack_enterprise_id
+                ))
+            })?;
+
+        self.parse_installation(&item)
+    }
+
     pub async fn list_installations(&self) -> Result<Vec<SlackInstallation>, AppError> {
         let all_items: Vec<_> = self
             .client

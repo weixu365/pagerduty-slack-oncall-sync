@@ -198,13 +198,6 @@ pub async fn handle_slack_command(
 
     let response_body = match arg.command {
         Some(Command::Schedule(arg)) => {
-            if let Some(pagerduty_token) = &arg.pagerduty_api_key {
-                let http_client = std::sync::Arc::new(build_http_client()?);
-                let pager_duty =
-                    PagerDuty::new(http_client.clone(), pagerduty_token.clone(), arg.pagerduty_schedule.clone());
-                pager_duty.get_on_call_users(Utc::now()).await?;
-            }
-
             let user_group_id: String;
             let user_group_handle: String;
 
@@ -226,6 +219,27 @@ pub async fn handle_slack_command(
                 return response(400, format!("Invalid user group: {}", arg.user_group));
             }
 
+            let http_client = std::sync::Arc::new(build_http_client()?);
+
+            let pagerduty_token = if let Some(ref token) = arg.pagerduty_api_key {
+                token.clone()
+            } else {
+                let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
+                slack_installations_db
+                    .get_slack_installation(&team_id, &enterprise_id)
+                    .await?
+                    .pager_duty_token
+                    .ok_or(AppError::SlackInstallationNotFoundError(format!(
+                        "No PagerDuty token setup for the current Slack installation, team: {}",
+                        team_id
+                    )))?
+            };
+
+            // Validate PagerDuty token and schedule by making a test API call
+            let pager_duty = PagerDuty::new(http_client.clone(), pagerduty_token.clone(), arg.pagerduty_schedule.clone());
+            pager_duty.validate_token().await?;
+            pager_duty.get_on_call_users(Utc::now()).await?;
+            
             let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
             let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
 
