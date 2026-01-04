@@ -1,11 +1,11 @@
+use async_trait::async_trait;
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 
+use crate::db::scheduled_task::{ScheduledTask, ScheduledTaskRepository};
 use crate::utils::dynamodb_client::get_attribute;
 use crate::{
     config::Config, encryptor::Encryptor, errors::AppError, utils::dynamodb_client::get_optional_encrypted_attribute,
 };
-
-use super::scheduled_task::ScheduledTask;
 
 pub struct ScheduledTasksDynamodb {
     client: Client,
@@ -26,7 +26,44 @@ impl ScheduledTasksDynamodb {
         format!("{}:{}", team_id, workspace_id)
     }
 
-    pub async fn save_scheduled_task(&self, task: &ScheduledTask) -> Result<(), AppError> {
+    fn parse_scheduled_task(
+        &self,
+        item: &std::collections::HashMap<String, AttributeValue>,
+    ) -> Result<ScheduledTask, AppError> {
+        Ok(ScheduledTask {
+            team: get_attribute(item, "team")?,
+            task_id: get_attribute(item, "task_id")?,
+            next_update_timestamp_utc: get_attribute(item, "next_update_timestamp_utc")?
+                .parse::<i64>()
+                .map_err(|e| AppError::InvalidData(format!("Invalid next_update_timestamp_utc: {}", e)))?,
+            next_update_time: get_attribute(item, "next_update_time")?,
+
+            team_id: get_attribute(item, "team_id")?,
+            team_domain: get_attribute(item, "team_domain")?,
+            channel_id: get_attribute(item, "channel_id")?,
+            channel_name: get_attribute(item, "channel_name")?,
+            enterprise_id: get_attribute(item, "enterprise_id")?,
+            enterprise_name: get_attribute(item, "enterprise_name")?,
+            is_enterprise_install: get_attribute(item, "is_enterprise_install")?.eq_ignore_ascii_case("true"),
+
+            user_group_id: get_attribute(item, "user_group_id")?,
+            user_group_handle: get_attribute(item, "user_group_handle")?,
+            pager_duty_schedule_id: get_attribute(item, "pager_duty_schedule_id")?,
+            pager_duty_token: get_optional_encrypted_attribute(item, "pager_duty_token", &self.encryptor)?,
+            cron: get_attribute(item, "cron")?,
+            timezone: get_attribute(item, "timezone")?,
+
+            created_by_user_id: get_attribute(item, "created_by_user_id")?,
+            created_by_user_name: get_attribute(item, "created_by_user_name")?,
+            created_at: get_attribute(item, "created_at")?,
+            last_updated_at: get_attribute(item, "last_updated_at")?,
+        })
+    }
+}
+
+#[async_trait]
+impl ScheduledTaskRepository for ScheduledTasksDynamodb {
+    async fn save_scheduled_task(&self, task: &ScheduledTask) -> Result<(), AppError> {
         let t = task.clone();
 
         let encrypted_pagerduty_token_json = t
@@ -76,7 +113,7 @@ impl ScheduledTasksDynamodb {
         Ok(())
     }
 
-    pub async fn update_next_schedule(&self, task: &ScheduledTask) -> Result<(), AppError> {
+    async fn update_next_schedule(&self, task: &ScheduledTask) -> Result<(), AppError> {
         let t = task.clone();
         let builder = self.client
             .update_item()
@@ -98,7 +135,7 @@ impl ScheduledTasksDynamodb {
         Ok(())
     }
 
-    pub async fn list_scheduled_tasks_in_workspace(
+    async fn list_scheduled_tasks_in_workspace(
         &self,
         _workspace_id: &String,
         _workspace_name: &String,
@@ -127,7 +164,7 @@ impl ScheduledTasksDynamodb {
         Ok(())
     }
 
-    pub async fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, AppError> {
+    async fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, AppError> {
         let all_items: Vec<_> = self
             .client
             .scan()
@@ -154,46 +191,7 @@ impl ScheduledTasksDynamodb {
         Ok(scheduled_tasks)
     }
 
-    fn parse_scheduled_task(
-        &self,
-        item: &std::collections::HashMap<String, AttributeValue>,
-    ) -> Result<ScheduledTask, AppError> {
-        Ok(ScheduledTask {
-            team: get_attribute(item, "team")?,
-            task_id: get_attribute(item, "task_id")?,
-            next_update_timestamp_utc: get_attribute(item, "next_update_timestamp_utc")?
-                .parse::<i64>()
-                .map_err(|e| AppError::InvalidData(format!("Invalid next_update_timestamp_utc: {}", e)))?,
-            next_update_time: get_attribute(item, "next_update_time")?,
-
-            team_id: get_attribute(item, "team_id")?,
-            team_domain: get_attribute(item, "team_domain")?,
-            channel_id: get_attribute(item, "channel_id")?,
-            channel_name: get_attribute(item, "channel_name")?,
-            enterprise_id: get_attribute(item, "enterprise_id")?,
-            enterprise_name: get_attribute(item, "enterprise_name")?,
-            is_enterprise_install: get_attribute(item, "is_enterprise_install")?.eq_ignore_ascii_case("true"),
-
-            user_group_id: get_attribute(item, "user_group_id")?,
-            user_group_handle: get_attribute(item, "user_group_handle")?,
-            pager_duty_schedule_id: get_attribute(item, "pager_duty_schedule_id")?,
-            pager_duty_token: get_optional_encrypted_attribute(item, "pager_duty_token", &self.encryptor)?,
-            cron: get_attribute(item, "cron")?,
-            timezone: get_attribute(item, "timezone")?,
-
-            created_by_user_id: get_attribute(item, "created_by_user_id")?,
-            created_by_user_name: get_attribute(item, "created_by_user_name")?,
-            created_at: get_attribute(item, "created_at")?,
-            last_updated_at: get_attribute(item, "last_updated_at")?,
-        })
-    }
-
-    pub async fn delete_scheduled_task(
-        &self,
-        team_id: &str,
-        workspace_id: &str,
-        task_id: &str,
-    ) -> Result<(), AppError> {
+    async fn delete_scheduled_task(&self, team_id: &str, workspace_id: &str, task_id: &str) -> Result<(), AppError> {
         let request = self
             .client
             .delete_item()

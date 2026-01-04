@@ -1,4 +1,9 @@
-use crate::{config::Config, encryptor::Encryptor, errors::AppError, scheduled_tasks::ScheduledTask};
+use crate::{
+    config::Config,
+    db::scheduled_task::{ScheduledTask, ScheduledTaskRepository},
+    encryptor::Encryptor,
+    errors::AppError,
+};
 
 use super::scheduled_tasks_dynamodb::ScheduledTasksDynamodb;
 use chrono::Utc;

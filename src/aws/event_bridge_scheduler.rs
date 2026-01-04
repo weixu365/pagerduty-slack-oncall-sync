@@ -207,10 +207,8 @@ mod tests {
     use std::str::FromStr;
 
     use crate::{
-        config::Config,
-        errors::AppError,
-        scheduled_tasks::{scheduler_event_bridge::EventBridgeScheduler, ScheduledTask},
-        utils::cron::get_next_schedule_from,
+        aws::event_bridge_scheduler::EventBridgeScheduler, config::Config, db::scheduled_task::ScheduledTask,
+        errors::AppError, utils::cron::get_next_schedule_from,
     };
 
     #[tokio::test]

@@ -7,11 +7,14 @@ use lambda_http::Response;
 use std::{collections::HashMap, env};
 
 use crate::{
+    aws::event_bridge_scheduler::EventBridgeScheduler,
     config::Config,
-    db::{SlackInstallation, SlackInstallationsDynamoDb},
+    db::{
+        dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb},
+        ScheduledTask, ScheduledTaskRepository, SlackInstallation, SlackInstallationRepository,
+    },
     encryptor::Encryptor,
     errors::AppError,
-    scheduled_tasks::{EventBridgeScheduler, ScheduledTask, ScheduledTasksDynamodb},
     service_provider::{pager_duty::PagerDuty, slack::swap_slack_access_token},
     utils::constant_time::constant_time_compare_str,
     utils::cron::get_next_schedule_from,

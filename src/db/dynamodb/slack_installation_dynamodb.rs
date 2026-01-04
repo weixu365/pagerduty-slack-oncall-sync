@@ -1,11 +1,11 @@
+use async_trait::async_trait;
 use aws_sdk_dynamodb::{types::AttributeValue, Client};
 use chrono::Utc;
 
 use crate::config::Config;
+use crate::db::slack_installation::{SlackInstallation, SlackInstallationRepository};
 use crate::utils::dynamodb_client::{get_attribute, get_encrypted_attribute, get_optional_encrypted_attribute};
 use crate::{encryptor::Encryptor, errors::AppError};
-
-use super::SlackInstallation;
 
 pub struct SlackInstallationsDynamoDb {
     client: Client,
@@ -22,11 +22,36 @@ impl SlackInstallationsDynamoDb {
         }
     }
 
-    pub fn installation_id(&self, slack_team_id: &str, slack_enterprise_id: &str) -> String {
+    fn installation_id(&self, slack_team_id: &str, slack_enterprise_id: &str) -> String {
         format!("{}:{}", slack_team_id, slack_enterprise_id)
     }
 
-    pub async fn save_slack_installation(&self, installation: &SlackInstallation) -> Result<(), AppError> {
+    fn parse_installation(
+        &self,
+        item: &std::collections::HashMap<String, AttributeValue>,
+    ) -> Result<SlackInstallation, AppError> {
+        Ok(SlackInstallation {
+            team_id: get_attribute(item, "team_id")?,
+            team_name: get_attribute(item, "team_name")?,
+            enterprise_id: get_attribute(item, "enterprise_id")?,
+            enterprise_name: get_attribute(item, "enterprise_name")?,
+            is_enterprise_install: get_attribute(item, "is_enterprise_install")?.eq_ignore_ascii_case("true"),
+
+            access_token: get_encrypted_attribute(item, "access_token", &self.encryptor)?,
+            token_type: get_attribute(item, "token_type")?,
+            scope: get_attribute(item, "scope")?,
+            authed_user_id: get_attribute(item, "authed_user_id")?,
+            app_id: get_attribute(item, "app_id")?,
+            bot_user_id: get_attribute(item, "bot_user_id")?,
+
+            pager_duty_token: get_optional_encrypted_attribute(item, "pagerduty_token", &self.encryptor)?,
+        })
+    }
+}
+
+#[async_trait]
+impl SlackInstallationRepository for SlackInstallationsDynamoDb {
+    async fn save_slack_installation(&self, installation: &SlackInstallation) -> Result<(), AppError> {
         let now = Utc::now();
 
         let t = installation.clone();
@@ -59,7 +84,7 @@ impl SlackInstallationsDynamoDb {
         Ok(())
     }
 
-    pub async fn update_pagerduty_token(
+    async fn update_pagerduty_token(
         &self,
         slack_team_id: String,
         slack_enterprise_id: String,
@@ -87,7 +112,7 @@ impl SlackInstallationsDynamoDb {
         Ok(())
     }
 
-    pub async fn get_slack_installation(
+    async fn get_slack_installation(
         &self,
         slack_team_id: &str,
         slack_enterprise_id: &str,
@@ -112,7 +137,7 @@ impl SlackInstallationsDynamoDb {
         self.parse_installation(&item)
     }
 
-    pub async fn list_installations(&self) -> Result<Vec<SlackInstallation>, AppError> {
+    async fn list_installations(&self) -> Result<Vec<SlackInstallation>, AppError> {
         let all_items: Vec<_> = self
             .client
             .scan()
@@ -137,27 +162,5 @@ impl SlackInstallationsDynamoDb {
             .collect();
 
         Ok(installations)
-    }
-
-    fn parse_installation(
-        &self,
-        item: &std::collections::HashMap<String, AttributeValue>,
-    ) -> Result<SlackInstallation, AppError> {
-        Ok(SlackInstallation {
-            team_id: get_attribute(item, "team_id")?,
-            team_name: get_attribute(item, "team_name")?,
-            enterprise_id: get_attribute(item, "enterprise_id")?,
-            enterprise_name: get_attribute(item, "enterprise_name")?,
-            is_enterprise_install: get_attribute(item, "is_enterprise_install")?.eq_ignore_ascii_case("true"),
-
-            access_token: get_encrypted_attribute(item, "access_token", &self.encryptor)?,
-            token_type: get_attribute(item, "token_type")?,
-            scope: get_attribute(item, "scope")?,
-            authed_user_id: get_attribute(item, "authed_user_id")?,
-            app_id: get_attribute(item, "app_id")?,
-            bot_user_id: get_attribute(item, "bot_user_id")?,
-
-            pager_duty_token: get_optional_encrypted_attribute(item, "pagerduty_token", &self.encryptor)?,
-        })
     }
 }

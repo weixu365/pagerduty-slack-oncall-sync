@@ -1,5 +1,6 @@
-mod slack_installation;
-mod slack_installation_dynamodb;
+pub mod dynamodb;
+pub mod scheduled_task;
+pub mod slack_installation;
 
-pub use slack_installation::SlackInstallation;
-pub use slack_installation_dynamodb::SlackInstallationsDynamoDb;
+pub use scheduled_task::{ScheduledTask, ScheduledTaskRepository};
+pub use slack_installation::{SlackInstallation, SlackInstallationRepository};

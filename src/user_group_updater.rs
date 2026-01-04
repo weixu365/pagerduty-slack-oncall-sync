@@ -1,19 +1,20 @@
 use std::{collections::HashMap, env, sync::Arc};
 
 use crate::{
+    aws::event_bridge_scheduler::EventBridgeScheduler,
     config::Config,
-    db::{SlackInstallation, SlackInstallationsDynamoDb},
+    db::{
+        dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb},
+        ScheduledTask, ScheduledTaskRepository, SlackInstallation, SlackInstallationRepository,
+    },
     encryptor::Encryptor,
-    scheduled_tasks::{EventBridgeScheduler, ScheduledTask, ScheduledTasksDynamodb},
-};
-use futures::{StreamExt, TryStreamExt};
-use tracing::{self, instrument};
-
-use crate::{
     errors::AppError,
     service_provider::{pager_duty::PagerDuty, slack::Slack},
     utils::http_client::build_http_client,
 };
+use futures::{StreamExt, TryStreamExt};
+use tracing::{self, instrument};
+
 use chrono::{DateTime, Duration, Utc};
 use reqwest::Client;
 

@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use clap::Args;
 
@@ -42,4 +43,21 @@ impl ScheduledTask {
         let next_schedule = get_next_schedule_from(&self.cron, &from_utc.with_timezone(&timezone))?;
         Ok(next_schedule)
     }
+}
+
+#[async_trait]
+pub trait ScheduledTaskRepository: Send + Sync {
+    async fn save_scheduled_task(&self, task: &ScheduledTask) -> Result<(), AppError>;
+
+    async fn update_next_schedule(&self, task: &ScheduledTask) -> Result<(), AppError>;
+
+    async fn list_scheduled_tasks_in_workspace(
+        &self,
+        workspace_id: &String,
+        workspace_name: &String,
+    ) -> Result<(), AppError>;
+
+    async fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, AppError>;
+
+    async fn delete_scheduled_task(&self, team_id: &str, workspace_id: &str, task_id: &str) -> Result<(), AppError>;
 }

@@ -40,7 +40,7 @@ impl SecretsClient {
 mod tests {
     use aws_config::BehaviorVersion;
 
-    use crate::{errors::AppError, secrets::SecretsClient};
+    use crate::{aws::secrets_client::SecretsClient, errors::AppError};
 
     #[tokio::test]
     async fn encrypt_decrypt_string() -> Result<(), AppError> {

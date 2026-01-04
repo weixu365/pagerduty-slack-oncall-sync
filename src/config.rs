@@ -3,8 +3,8 @@ use std::sync::Arc;
 use tokio::sync::OnceCell;
 
 use crate::{
+    aws::secrets_client::{Secrets, SecretsClient},
     errors::AppError,
-    secrets::{Secrets, SecretsClient},
 };
 use aws_config::{BehaviorVersion, SdkConfig};
 
