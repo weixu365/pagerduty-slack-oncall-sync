@@ -4,7 +4,7 @@ use aws_lambda_events::{
     query_map::QueryMap,
 };
 use lambda_http::Response;
-use std::{collections::HashMap, env};
+use std::env;
 
 use crate::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
@@ -25,10 +25,10 @@ use chrono::Utc;
 use chrono_tz::Tz;
 use clap::Parser;
 use clap::{Args, Subcommand};
-use form_urlencoded;
 use lazy_static::lazy_static;
 use regex::Regex;
 use ring::hmac;
+use serde::Deserialize;
 use std::str::FromStr;
 
 #[derive(Parser, Debug)]
@@ -76,10 +76,36 @@ enum Command {
     New,
 }
 
+#[derive(Debug, Deserialize)]
+struct SlackCommandRequest {
+    team_id: String,
+    team_domain: String,
+    channel_id: String,
+    channel_name: String,
+    #[serde(default)]
+    enterprise_id: String,
+    #[serde(default)]
+    enterprise_name: String,
+    #[serde(default)]
+    is_enterprise_install: String,
+    user_id: String,
+    user_name: String,
+    command: String,
+    #[serde(default)]
+    text: String,
+    // #[serde(default)]
+    // response_url: String,
+}
+
+fn parse_slack_command_request(request_body: &str) -> Result<SlackCommandRequest, AppError> {
+    serde_urlencoded::from_str(request_body)
+        .map_err(|e| AppError::InvalidData(format!("Failed to parse request body: {}", e)))
+}
+
 fn cleanse(text: &str) -> String {
     lazy_static! {
-        static ref DOUBLE_QUOTES: Regex = Regex::new("[“”]").unwrap();
-        static ref SINGLE_QUOTES: Regex = Regex::new("[‘’]").unwrap();
+        static ref DOUBLE_QUOTES: Regex = Regex::new(r"[\u{201C}\u{201D}]").unwrap();
+        static ref SINGLE_QUOTES: Regex = Regex::new(r"[\u{2018}\u{2019}]").unwrap();
     }
 
     let cleansed_double_quote = DOUBLE_QUOTES.replace_all(text, "\"");
@@ -88,8 +114,49 @@ fn cleanse(text: &str) -> String {
     cleansed.to_string()
 }
 
-fn get_param(params: &HashMap<String, String>, name: &str) -> String {
-    params.get(&name.to_string()).unwrap_or(&"".to_string()).to_string()
+fn build_task_id(
+    channel_name: &str,
+    channel_id: &str,
+    user_group_handle: &str,
+    user_group_id: &str,
+    pagerduty_schedule: &str,
+) -> String {
+    format!("{}:{}:{}:{}:{}", channel_name, channel_id, user_group_handle, user_group_id, pagerduty_schedule)
+}
+
+fn validate_request(request_header: &HeaderMap<HeaderValue>, request_body: &str, slack_signing_secret: &str) -> Result<(), AppError> {
+    let slack_request_timestamp = request_header
+        .get("X-Slack-Request-Timestamp")
+        .ok_or_else(|| AppError::InvalidSlackRequest("Missing X-Slack-Request-Timestamp header".to_string()))?
+        .to_str()
+        .map_err(|_| AppError::InvalidSlackRequest("Invalid X-Slack-Request-Timestamp encoding".to_string()))?
+        .parse::<i64>()
+        .map_err(|_| AppError::InvalidSlackRequest("Invalid X-Slack-Request-Timestamp value".to_string()))?;
+
+    let slack_request_signature = request_header
+        .get("X-Slack-Signature")
+        .ok_or_else(|| AppError::InvalidSlackRequest("Missing X-Slack-Signature header".to_string()))?
+        .to_str()
+        .map_err(|_| AppError::InvalidSlackRequest("Invalid X-Slack-Signature encoding".to_string()))?;
+
+    let now = chrono::Utc::now().timestamp();
+    if (now - slack_request_timestamp).abs() > 60 * 5 {
+        return Err(AppError::InvalidSlackRequest(format!("Invalid slack command: wrong timestamp")));
+    }
+
+    let sig_basestring = format!("v0:{}:{}", slack_request_timestamp, request_body);
+    tracing::debug!(sig_basestring, "Slack Request to sign");
+    
+    let verification_key = hmac::Key::new(hmac::HMAC_SHA256, slack_signing_secret.as_bytes());
+    let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
+    let expected_signature = format!("v0={}", signature);
+
+    if !constant_time_compare_str(&expected_signature, slack_request_signature) {
+        tracing::error!(slack_request_signature, "Signature verification failed");
+        return Err(AppError::InvalidSlackRequest(format!("Invalid slack command signature")));
+    }
+
+    Ok(())
 }
 
 pub async fn handle_slack_oauth(config: &Config, query_map: QueryMap) -> Result<Response<Body>, AppError> {
@@ -140,57 +207,15 @@ pub async fn handle_slack_command(
     request_header: &HeaderMap<HeaderValue>,
     request_body: &str,
 ) -> Result<Response<Body>, AppError> {
-    let params: HashMap<String, String> = form_urlencoded::parse(request_body.as_bytes()).into_owned().collect();
+    let params = parse_slack_command_request(request_body)?;
     tracing::debug!(?params, "params in request body");
 
-    let team_id = get_param(&params, "team_id");
-    let team_domain = get_param(&params, "team_domain");
-    let channel_id = get_param(&params, "channel_id");
-    let channel_name = get_param(&params, "channel_name");
-    let enterprise_id = get_param(&params, "enterprise_id");
-    let enterprise_name = get_param(&params, "enterprise_name");
-    let is_enterprise_install = get_param(&params, "is_enterprise_install").eq_ignore_ascii_case("true");
-
-    let user_id = get_param(&params, "user_id");
-    let user_name = get_param(&params, "user_name");
-    let command = get_param(&params, "command");
-    let text = get_param(&params, "text");
-    let _response_url = get_param(&params, "response_url");
-
-    let slack_request_timestamp = request_header
-        .get("X-Slack-Request-Timestamp")
-        .ok_or_else(|| AppError::InvalidSlackRequest("Missing X-Slack-Request-Timestamp header".to_string()))?
-        .to_str()
-        .map_err(|_| AppError::InvalidSlackRequest("Invalid X-Slack-Request-Timestamp encoding".to_string()))?
-        .parse::<i64>()
-        .map_err(|_| AppError::InvalidSlackRequest("Invalid X-Slack-Request-Timestamp value".to_string()))?;
-
-    let slack_request_signature = request_header
-        .get("X-Slack-Signature")
-        .ok_or_else(|| AppError::InvalidSlackRequest("Missing X-Slack-Signature header".to_string()))?
-        .to_str()
-        .map_err(|_| AppError::InvalidSlackRequest("Invalid X-Slack-Signature encoding".to_string()))?;
-
-    let now = chrono::Utc::now().timestamp();
-    if (now - slack_request_timestamp).abs() > 60 * 5 {
-        return response(400, format!("Invalid slack command due to invalid timestamp: {} {}", command, text));
-    }
-
-    let sig_basestring = format!("v0:{}:{}", slack_request_timestamp, request_body);
-    tracing::debug!(sig_basestring, "Slack Request to sign");
-
     let secrets = config.secrets().await?;
-    let verification_key = hmac::Key::new(hmac::HMAC_SHA256, secrets.slack_signing_secret.as_bytes());
-    let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
+    validate_request(request_header, request_body, &secrets.slack_signing_secret)?;
 
-    let expected_signature = format!("v0={}", signature);
+    let is_enterprise_install = params.is_enterprise_install.eq_ignore_ascii_case("true");
 
-    if !constant_time_compare_str(&expected_signature, slack_request_signature) {
-        tracing::error!(slack_request_signature, "Signature verification failed");
-        return response(400, format!("Invalid slack command signature: {} {}", command, text));
-    }
-
-    let arg = match shlex::split(cleanse(format!("{} {}", command, text).as_str()).as_str()) {
+    let arg = match shlex::split(cleanse(format!("{} {}", &params.command, &params.text).as_str()).as_str()) {
         Some(args) => Some(App::parse_from(args.iter())),
         None => None,
     };
@@ -229,12 +254,12 @@ pub async fn handle_slack_command(
             } else {
                 let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
                 slack_installations_db
-                    .get_slack_installation(&team_id, &enterprise_id)
+                    .get_slack_installation(&params.team_id, &params.enterprise_id)
                     .await?
                     .pager_duty_token
                     .ok_or(AppError::SlackInstallationNotFoundError(format!(
                         "No PagerDuty token setup for the current Slack installation, team: {}",
-                        team_id
+                        params.team_id
                     )))?
             };
 
@@ -256,23 +281,26 @@ pub async fn handle_slack_command(
 
             let next_schedule = get_next_schedule_from(&arg.cron, &from)?;
 
-            let task_id = format!(
-                "{}:{}:{}:{}:{}",
-                channel_name, channel_id, user_group_handle, user_group_id, arg.pagerduty_schedule
+            let task_id = build_task_id(
+                &params.channel_name,
+                &params.channel_id,
+                &user_group_handle,
+                &user_group_id,
+                &arg.pagerduty_schedule,
             );
 
             let task = ScheduledTask {
-                team: format!("{}:{}", &team_id, &enterprise_id),
+                team: format!("{}:{}", &params.team_id, &params.enterprise_id),
                 task_id,
                 next_update_timestamp_utc: next_schedule.next_timestamp_utc,
                 next_update_time: next_schedule.next_datetime.to_rfc3339(),
 
-                team_id,
-                team_domain,
-                channel_id,
-                channel_name,
-                enterprise_id,
-                enterprise_name,
+                team_id: params.team_id,
+                team_domain: params.team_domain,
+                channel_id: params.channel_id,
+                channel_name: params.channel_name,
+                enterprise_id: params.enterprise_id,
+                enterprise_name: params.enterprise_name,
                 is_enterprise_install,
 
                 user_group_id,
@@ -282,20 +310,20 @@ pub async fn handle_slack_command(
                 cron: arg.cron,
                 timezone: timezone.to_string(),
 
-                created_by_user_id: user_id,
-                created_by_user_name: user_name,
+                created_by_user_id: params.user_id,
+                created_by_user_name: params.user_name,
                 created_at: Utc::now().to_rfc3339(),
                 last_updated_at: Utc::now().to_rfc3339(),
             };
 
             if let Err(err) = db.save_scheduled_task(&task).await {
                 tracing::error!(%err, "Failed to save to dynamodb");
-                return response(500, format!("Failed to save schedule task to db\nCommand: {} {}", command, text));
+                return response(500, format!("Failed to save schedule task\n{} {}", &params.command, &params.text));
             }
 
             if let Err(err) = scheduler.update_next_schedule(&next_schedule).await {
                 tracing::error!(%err, "Failed to update scheduler");
-                return response(500, format!("Failed to update scheduler\nCommand: {} {}", command, text));
+                return response(500, format!("Failed to update scheduler\n{} {}", &params.command, &params.text));
             }
 
             vec![format!(
@@ -311,7 +339,7 @@ pub async fn handle_slack_command(
             pager_duty.validate_token().await?;
 
             slack_installations_db
-                .update_pagerduty_token(team_id, enterprise_id, &args.pagerduty_api_key)
+                .update_pagerduty_token(params.team_id, params.enterprise_id, &args.pagerduty_api_key)
                 .await?;
 
             vec![format!("PagerDuty API key validated and saved successfully")]
@@ -341,4 +369,139 @@ pub async fn handle_slack_command(
         .join(",\n");
 
     response(200, format!(r#"{{ "blocks": [{}] }}"#, sections))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_slack_command_request_valid_full() {
+        let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&enterprise_id=E1234&enterprise_name=Acme&is_enterprise_install=true&user_id=U1234&user_name=john&command=/oncall&text=schedule&response_url=https://example.com/response";
+
+        let result = parse_slack_command_request(request_body);
+        assert!(result.is_ok());
+
+        let params = result.unwrap();
+        assert_eq!(params.team_id, "T1234");
+        assert_eq!(params.team_domain, "example");
+        assert_eq!(params.channel_id, "C1234");
+        assert_eq!(params.channel_name, "general");
+        assert_eq!(params.enterprise_id, "E1234");
+        assert_eq!(params.enterprise_name, "Acme");
+        assert_eq!(params.is_enterprise_install, "true");
+        assert_eq!(params.user_id, "U1234");
+        assert_eq!(params.user_name, "john");
+        assert_eq!(params.command, "/oncall");
+        assert_eq!(params.text, "schedule");
+    }
+
+    #[test]
+    fn test_parse_slack_command_request_valid_minimal() {
+        let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&user_id=U1234&user_name=john&command=/oncall";
+
+        let result = parse_slack_command_request(request_body);
+        assert!(result.is_ok());
+
+        let params = result.unwrap();
+        assert_eq!(params.team_id, "T1234");
+        assert_eq!(params.team_domain, "example");
+        assert_eq!(params.channel_id, "C1234");
+        assert_eq!(params.channel_name, "general");
+        assert_eq!(params.enterprise_id, ""); // default value
+        assert_eq!(params.enterprise_name, ""); // default value
+        assert_eq!(params.is_enterprise_install, ""); // default value
+        assert_eq!(params.user_id, "U1234");
+        assert_eq!(params.user_name, "john");
+        assert_eq!(params.command, "/oncall");
+        assert_eq!(params.text, ""); // default value
+    }
+
+    #[test]
+    fn test_parse_slack_command_request_with_empty_optional_fields() {
+        let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&enterprise_id=&enterprise_name=&is_enterprise_install=&user_id=U1234&user_name=john&command=/oncall&text=&response_url=";
+
+        let result = parse_slack_command_request(request_body);
+        assert!(result.is_ok());
+
+        let params = result.unwrap();
+        assert_eq!(params.team_id, "T1234");
+        assert_eq!(params.enterprise_id, "");
+        assert_eq!(params.enterprise_name, "");
+        assert_eq!(params.is_enterprise_install, "");
+        assert_eq!(params.text, "");
+    }
+
+    #[test]
+    fn test_parse_slack_command_request_with_url_encoded_values() {
+        let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&user_id=U1234&user_name=john+doe&command=/oncall&text=schedule+--user-group+test";
+
+        let result = parse_slack_command_request(request_body);
+        assert!(result.is_ok());
+
+        let params = result.unwrap();
+        assert_eq!(params.user_name, "john doe");
+        assert_eq!(params.text, "schedule --user-group test");
+    }
+
+    #[test]
+    fn test_parse_slack_command_request_missing_required_field() {
+        let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&user_id=U1234";
+        // Missing required fields: user_name, command
+
+        let result = parse_slack_command_request(request_body);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidData(msg)) = result {
+            assert!(msg.contains("Failed to parse request body"));
+        } else {
+            panic!("Expected InvalidData error");
+        }
+    }
+
+    #[test]
+    fn test_parse_slack_command_request_empty_body() {
+        let request_body = "";
+
+        let result = parse_slack_command_request(request_body);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidData(msg)) = result {
+            assert!(msg.contains("Failed to parse request body"));
+        } else {
+            panic!("Expected InvalidData error");
+        }
+    }
+
+    #[test]
+    fn test_parse_slack_command_request_invalid_format() {
+        let request_body = "not a valid urlencoded string!!!";
+
+        let result = parse_slack_command_request(request_body);
+        // This should actually succeed because serde_urlencoded is lenient
+        // It will treat the whole string as a key with no value
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_slack_command_request_with_special_characters() {
+        let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&user_id=U1234&user_name=john&command=/oncall&text=%3C!subteam%5ES123%7C%40oncall%3E";
+
+        let result = parse_slack_command_request(request_body);
+        assert!(result.is_ok());
+
+        let params = result.unwrap();
+        assert_eq!(params.text, "<!subteam^S123|@oncall>");
+    }
+
+    #[test]
+    fn test_parse_slack_command_request_enterprise_install_false() {
+        let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&is_enterprise_install=false&user_id=U1234&user_name=john&command=/oncall";
+
+        let result = parse_slack_command_request(request_body);
+        assert!(result.is_ok());
+
+        let params = result.unwrap();
+        assert_eq!(params.is_enterprise_install, "false");
+    }
 }
