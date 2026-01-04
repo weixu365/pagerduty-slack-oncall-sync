@@ -14,11 +14,12 @@ async fn main() -> Result<(), AppError> {
 
     let env = env::var("ENV").unwrap_or("dev".to_string());
     let config = Config::get_or_init(&env).await?;
+    let cloudformation_stack_name = format!("on-call-support-{}", env);
 
     let cloudformation_client = CloudformationClient::new(&config.aws_config);
     let stack_details = cloudformation_client
         .describe_stacks()
-        .stack_name(&config.cloudformation_stack_name)
+        .stack_name(&cloudformation_stack_name)
         .send()
         .await?;
     let stack_outputs = &stack_details.stacks()[0].outputs.clone().unwrap_or(vec![]);
