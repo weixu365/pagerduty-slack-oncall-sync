@@ -70,8 +70,13 @@ pub async fn update_user_group(
         .await?;
 
     if current_users.len() > slack_user_ids.len() + 2 {
-        // send message to channel with message: failed to update user group due to too many users
-        // return Err(AppError::SlackUpdateUserGroupError("Too many users in the current group, is the group correct?".to_string()));
+        tracing::error!(
+            current_count = current_users.len(),
+            desired_count = slack_user_ids.len(),
+            slack_user_group = %slack_user_group_name,
+            "Skipped: Too many users in the current Slack User Group"
+        );
+        return Err(AppError::SlackUpdateUserGroupError("Too many users in the current group, is the group correct?".to_string()));
     }
 
     tracing::info!(user_ids=?current_users, user_names=?current_user_names, "Current users in Slack User Group");
