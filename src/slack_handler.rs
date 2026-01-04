@@ -226,27 +226,7 @@ pub async fn handle_slack_command(
 
     let response_body = match arg.command {
         Some(Command::Schedule(arg)) => {
-            let user_group_id: String;
-            let user_group_handle: String;
-
-            let re = Regex::new(r"<!subteam\^(\w+)\|@([^>]+)>")?;
-            if let Some(captures) = re.captures(arg.user_group.as_str()) {
-                user_group_id = captures
-                    .get(1)
-                    .ok_or_else(|| AppError::InvalidData("Missing user group ID in capture".to_string()))?
-                    .as_str()
-                    .to_string();
-                user_group_handle = captures
-                    .get(2)
-                    .ok_or_else(|| AppError::InvalidData("Missing user group handle in capture".to_string()))?
-                    .as_str()
-                    .to_string();
-            } else {
-                tracing::error!(user_group = %arg.user_group, "Invalid user group");
-
-                return response(400, format!("Invalid user group: {}", arg.user_group));
-            }
-
+            let (user_group_id, user_group_handle) = parse_user_group(&arg.user_group)?;
             let http_client = std::sync::Arc::new(build_http_client()?);
 
             let pagerduty_token = if let Some(ref token) = arg.pagerduty_api_key {
@@ -369,6 +349,29 @@ pub async fn handle_slack_command(
         .join(",\n");
 
     response(200, format!(r#"{{ "blocks": [{}] }}"#, sections))
+}
+
+fn parse_user_group(user_group: &str) -> Result<(String, String), AppError> {
+    let user_group_id: String;
+    let user_group_handle: String;
+    let re = Regex::new(r"<!subteam\^(\w+)\|@([^>]+)>")?;
+    if let Some(captures) = re.captures(user_group) {
+        user_group_id = captures
+            .get(1)
+            .ok_or_else(|| AppError::InvalidData("Missing user group ID in capture".to_string()))?
+            .as_str()
+            .to_string();
+        user_group_handle = captures
+            .get(2)
+            .ok_or_else(|| AppError::InvalidData("Missing user group handle in capture".to_string()))?
+            .as_str()
+            .to_string();
+    } else {
+        tracing::error!(user_group, "Invalid user group");
+        return Err(AppError::InvalidData(format!("Invalid user group: {}", user_group)));
+    }
+
+    Ok((user_group_id, user_group_handle))
 }
 
 #[cfg(test)]
@@ -503,5 +506,275 @@ mod tests {
 
         let params = result.unwrap();
         assert_eq!(params.is_enterprise_install, "false");
+    }
+
+    #[test]
+    fn test_parse_user_group_valid() {
+        let user_group = "<!subteam^S12345ABCD|@oncall>";
+
+        let result = parse_user_group(user_group);
+        assert!(result.is_ok());
+
+        let (user_group_id, user_group_handle) = result.unwrap();
+        assert_eq!(user_group_id, "S12345ABCD");
+        assert_eq!(user_group_handle, "oncall");
+    }
+
+    #[test]
+    fn test_parse_user_group_valid_with_hyphen() {
+        let user_group = "<!subteam^S123|@on-call-team>";
+
+        let result = parse_user_group(user_group);
+        assert!(result.is_ok());
+
+        let (user_group_id, user_group_handle) = result.unwrap();
+        assert_eq!(user_group_id, "S123");
+        assert_eq!(user_group_handle, "on-call-team");
+    }
+
+    #[test]
+    fn test_parse_user_group_valid_with_underscore() {
+        let user_group = "<!subteam^S99999|@engineering_team>";
+
+        let result = parse_user_group(user_group);
+        assert!(result.is_ok());
+
+        let (user_group_id, user_group_handle) = result.unwrap();
+        assert_eq!(user_group_id, "S99999");
+        assert_eq!(user_group_handle, "engineering_team");
+    }
+
+    #[test]
+    fn test_parse_user_group_invalid_format_no_prefix() {
+        let user_group = "subteam^S123|@oncall>";
+
+        let result = parse_user_group(user_group);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidData(msg)) = result {
+            assert!(msg.contains("Invalid user group"));
+        } else {
+            panic!("Expected InvalidData error");
+        }
+    }
+
+    #[test]
+    fn test_parse_user_group_invalid_format_no_suffix() {
+        let user_group = "<!subteam^S123|@oncall";
+
+        let result = parse_user_group(user_group);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidData(msg)) = result {
+            assert!(msg.contains("Invalid user group"));
+        } else {
+            panic!("Expected InvalidData error");
+        }
+    }
+
+    #[test]
+    fn test_parse_user_group_invalid_format_missing_parts() {
+        let user_group = "<!subteam^>";
+
+        let result = parse_user_group(user_group);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidData(msg)) = result {
+            assert!(msg.contains("Invalid user group"));
+        } else {
+            panic!("Expected InvalidData error");
+        }
+    }
+
+    #[test]
+    fn test_parse_user_group_empty_string() {
+        let user_group = "";
+
+        let result = parse_user_group(user_group);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidData(msg)) = result {
+            assert!(msg.contains("Invalid user group"));
+        } else {
+            panic!("Expected InvalidData error");
+        }
+    }
+
+    #[test]
+    fn test_parse_user_group_plain_text() {
+        let user_group = "just plain text";
+
+        let result = parse_user_group(user_group);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidData(msg)) = result {
+            assert!(msg.contains("Invalid user group"));
+        } else {
+            panic!("Expected InvalidData error");
+        }
+    }
+
+    #[test]
+    fn test_validate_request_valid() {
+        let request_body = "token=test&team_id=T123&command=/oncall";
+        let signing_secret = "test_secret";
+
+        // Create a valid signature
+        let timestamp = chrono::Utc::now().timestamp();
+        let sig_basestring = format!("v0:{}:{}", timestamp, request_body);
+        let verification_key = hmac::Key::new(hmac::HMAC_SHA256, signing_secret.as_bytes());
+        let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
+        let expected_signature = format!("v0={}", signature);
+
+        // Build headers
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str(&timestamp.to_string()).unwrap());
+        headers.insert("X-Slack-Signature", HeaderValue::from_str(&expected_signature).unwrap());
+
+        let result = validate_request(&headers, request_body, signing_secret);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_request_invalid_signature() {
+        let request_body = "token=test&team_id=T123&command=/oncall";
+        let signing_secret = "test_secret";
+
+        let timestamp = chrono::Utc::now().timestamp();
+        let invalid_signature = "v0=invalid_signature_here";
+
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str(&timestamp.to_string()).unwrap());
+        headers.insert("X-Slack-Signature", HeaderValue::from_str(invalid_signature).unwrap());
+
+        let result = validate_request(&headers, request_body, signing_secret);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidSlackRequest(msg)) = result {
+            assert!(msg.contains("Invalid slack command signature"));
+        } else {
+            panic!("Expected InvalidSlackRequest error");
+        }
+    }
+
+    #[test]
+    fn test_validate_request_expired_timestamp() {
+        let request_body = "token=test&team_id=T123&command=/oncall";
+        let signing_secret = "test_secret";
+
+        // Use a timestamp that's 10 minutes old (should fail the 5 minute check)
+        let timestamp = chrono::Utc::now().timestamp() - 600;
+        let sig_basestring = format!("v0:{}:{}", timestamp, request_body);
+        let verification_key = hmac::Key::new(hmac::HMAC_SHA256, signing_secret.as_bytes());
+        let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
+        let expected_signature = format!("v0={}", signature);
+
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str(&timestamp.to_string()).unwrap());
+        headers.insert("X-Slack-Signature", HeaderValue::from_str(&expected_signature).unwrap());
+
+        let result = validate_request(&headers, request_body, signing_secret);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidSlackRequest(msg)) = result {
+            assert!(msg.contains("wrong timestamp"));
+        } else {
+            panic!("Expected InvalidSlackRequest error");
+        }
+    }
+
+    #[test]
+    fn test_validate_request_missing_timestamp_header() {
+        let request_body = "token=test&team_id=T123&command=/oncall";
+        let signing_secret = "test_secret";
+
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Slack-Signature", HeaderValue::from_str("v0=test").unwrap());
+
+        let result = validate_request(&headers, request_body, signing_secret);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidSlackRequest(msg)) = result {
+            assert!(msg.contains("Missing X-Slack-Request-Timestamp header"));
+        } else {
+            panic!("Expected InvalidSlackRequest error");
+        }
+    }
+
+    #[test]
+    fn test_validate_request_missing_signature_header() {
+        let request_body = "token=test&team_id=T123&command=/oncall";
+        let signing_secret = "test_secret";
+
+        let timestamp = chrono::Utc::now().timestamp();
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str(&timestamp.to_string()).unwrap());
+
+        let result = validate_request(&headers, request_body, signing_secret);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidSlackRequest(msg)) = result {
+            assert!(msg.contains("Missing X-Slack-Signature header"));
+        } else {
+            panic!("Expected InvalidSlackRequest error");
+        }
+    }
+
+    #[test]
+    fn test_validate_request_invalid_timestamp_format() {
+        let request_body = "token=test&team_id=T123&command=/oncall";
+        let signing_secret = "test_secret";
+
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str("not_a_number").unwrap());
+        headers.insert("X-Slack-Signature", HeaderValue::from_str("v0=test").unwrap());
+
+        let result = validate_request(&headers, request_body, signing_secret);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidSlackRequest(msg)) = result {
+            assert!(msg.contains("Invalid X-Slack-Request-Timestamp value"));
+        } else {
+            panic!("Expected InvalidSlackRequest error");
+        }
+    }
+
+    #[test]
+    fn test_validate_request_signature_with_different_body() {
+        let original_body = "token=test&team_id=T123&command=/oncall";
+        let different_body = "token=test&team_id=T456&command=/oncall";
+        let signing_secret = "test_secret";
+
+        let timestamp = chrono::Utc::now().timestamp();
+        let sig_basestring = format!("v0:{}:{}", timestamp, original_body);
+        let verification_key = hmac::Key::new(hmac::HMAC_SHA256, signing_secret.as_bytes());
+        let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
+        let expected_signature = format!("v0={}", signature);
+
+        let mut headers = HeaderMap::new();
+        headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str(&timestamp.to_string()).unwrap());
+        headers.insert("X-Slack-Signature", HeaderValue::from_str(&expected_signature).unwrap());
+
+        // Validate with different body - should fail
+        let result = validate_request(&headers, different_body, signing_secret);
+        assert!(result.is_err());
+
+        if let Err(AppError::InvalidSlackRequest(msg)) = result {
+            assert!(msg.contains("Invalid slack command signature"));
+        } else {
+            panic!("Expected InvalidSlackRequest error");
+        }
+    }
+
+    #[test]
+    fn test_build_task_id() {
+        let task_id = build_task_id("general", "C123", "oncall", "S456", "P789");
+        assert_eq!(task_id, "general:C123:oncall:S456:P789");
+    }
+
+    #[test]
+    fn test_build_task_id_with_special_characters() {
+        let task_id = build_task_id("on-call-channel", "C_123", "on-call", "S_456", "P_789");
+        assert_eq!(task_id, "on-call-channel:C_123:on-call:S_456:P_789");
     }
 }
