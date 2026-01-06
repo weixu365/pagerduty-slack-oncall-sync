@@ -111,6 +111,9 @@ pub enum AppError {
 
     #[error("Unexpected error: `{0:?}`")]
     UnexpectedError(String),
+
+    #[error("Error: `{0:?}`")]
+    Error(String),
 }
 
 // required by Lambda Runtime crate
