@@ -44,6 +44,42 @@ fn create_test_task() -> ScheduledTask {
     }
 }
 
+fn convert_task_to_map(task: &ScheduledTask, encryptor: &Encryptor) -> Result<HashMap<String, AttributeValue>, AppError> {
+    let encrypted_pagerduty_token_json = task.pager_duty_token.as_ref()
+        .map(|token| encryptor.encrypt(&token)).transpose()?
+        .map(|encrypted_token| serde_json::to_string(&encrypted_token)).transpose()?;
+
+    let pagerduty_token_value: AttributeValue = match encrypted_pagerduty_token_json {
+        None => AttributeValue::Null(true),
+        Some(json) => AttributeValue::S(json),
+    };
+
+    let mut item = HashMap::new();
+    item.insert("team".to_string(), AttributeValue::S(task.team.clone()));
+    item.insert("task_id".to_string(), AttributeValue::S(task.task_id.clone()));
+    item.insert("next_update_timestamp_utc".to_string(), AttributeValue::N(task.next_update_timestamp_utc.to_string()));
+    item.insert("next_update_time".to_string(), AttributeValue::S(task.next_update_time.clone()));
+    item.insert("team_id".to_string(), AttributeValue::S(task.team_id.clone()));
+    item.insert("team_domain".to_string(), AttributeValue::S(task.team_domain.clone()));
+    item.insert("channel_id".to_string(), AttributeValue::S(task.channel_id.clone()));
+    item.insert("channel_name".to_string(), AttributeValue::S(task.channel_name.clone()));
+    item.insert("enterprise_id".to_string(), AttributeValue::S(task.enterprise_id.clone()));
+    item.insert("enterprise_name".to_string(), AttributeValue::S(task.enterprise_name.clone()));
+    item.insert("is_enterprise_install".to_string(), AttributeValue::S(task.is_enterprise_install.to_string()));
+    item.insert("user_group_id".to_string(), AttributeValue::S(task.user_group_id.clone()));
+    item.insert("user_group_handle".to_string(), AttributeValue::S(task.user_group_handle.clone()));
+    item.insert("pager_duty_schedule_id".to_string(), AttributeValue::S(task.pager_duty_schedule_id.clone()));
+    item.insert("pager_duty_token".to_string(), pagerduty_token_value);
+    item.insert("cron".to_string(), AttributeValue::S(task.cron.clone()));
+    item.insert("timezone".to_string(), AttributeValue::S(task.timezone.clone()));
+    item.insert("created_by_user_id".to_string(), AttributeValue::S(task.created_by_user_id.clone()));
+    item.insert("created_by_user_name".to_string(), AttributeValue::S(task.created_by_user_name.clone()));
+    item.insert("created_at".to_string(), AttributeValue::S(task.created_at.clone()));
+    item.insert("last_updated_at".to_string(), AttributeValue::S(task.last_updated_at.clone()));
+
+    Ok(item)
+}
+
 #[tokio::test]
 async fn test_save_scheduled_task_with_token() -> Result<(), AppError> {
     let task = create_test_task();
@@ -183,32 +219,7 @@ async fn test_list_scheduled_tasks_empty() -> Result<(), AppError> {
 async fn test_list_scheduled_tasks_with_items() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
     let task = create_test_task();
-
-    let encrypted_token = encryptor.encrypt("pd_token_123")?;
-    let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
-
-    let mut item = HashMap::new();
-    item.insert("team".to_string(), AttributeValue::S(task.team.clone()));
-    item.insert("task_id".to_string(), AttributeValue::S(task.task_id.clone()));
-    item.insert("next_update_timestamp_utc".to_string(), AttributeValue::N(task.next_update_timestamp_utc.to_string()));
-    item.insert("next_update_time".to_string(), AttributeValue::S(task.next_update_time.clone()));
-    item.insert("team_id".to_string(), AttributeValue::S(task.team_id.clone()));
-    item.insert("team_domain".to_string(), AttributeValue::S(task.team_domain.clone()));
-    item.insert("channel_id".to_string(), AttributeValue::S(task.channel_id.clone()));
-    item.insert("channel_name".to_string(), AttributeValue::S(task.channel_name.clone()));
-    item.insert("enterprise_id".to_string(), AttributeValue::S(task.enterprise_id.clone()));
-    item.insert("enterprise_name".to_string(), AttributeValue::S(task.enterprise_name.clone()));
-    item.insert("is_enterprise_install".to_string(), AttributeValue::S(task.is_enterprise_install.to_string()));
-    item.insert("user_group_id".to_string(), AttributeValue::S(task.user_group_id.clone()));
-    item.insert("user_group_handle".to_string(), AttributeValue::S(task.user_group_handle.clone()));
-    item.insert("pager_duty_schedule_id".to_string(), AttributeValue::S(task.pager_duty_schedule_id.clone()));
-    item.insert("pager_duty_token".to_string(), AttributeValue::S(encrypted_token_json));
-    item.insert("cron".to_string(), AttributeValue::S(task.cron.clone()));
-    item.insert("timezone".to_string(), AttributeValue::S(task.timezone.clone()));
-    item.insert("created_by_user_id".to_string(), AttributeValue::S(task.created_by_user_id.clone()));
-    item.insert("created_by_user_name".to_string(), AttributeValue::S(task.created_by_user_name.clone()));
-    item.insert("created_at".to_string(), AttributeValue::S(task.created_at.clone()));
-    item.insert("last_updated_at".to_string(), AttributeValue::S(task.last_updated_at.clone()));
+    let item = convert_task_to_map(&task, &encryptor)?;
 
     let scan_rule = mock!(Client::scan).then_output(move || {
         aws_sdk_dynamodb::operation::scan::ScanOutput::builder()
@@ -300,36 +311,37 @@ async fn test_parse_scheduled_task_with_valid_data() -> Result<(), AppError> {
     };
 
     let task = create_test_task();
-    let encrypted_token = encryptor.encrypt("pd_token_123")?;
-    let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
-
-    let mut item = HashMap::new();
-    item.insert("team".to_string(), AttributeValue::S(task.team.clone()));
-    item.insert("task_id".to_string(), AttributeValue::S(task.task_id.clone()));
-    item.insert("next_update_timestamp_utc".to_string(), AttributeValue::N(task.next_update_timestamp_utc.to_string()));
-    item.insert("next_update_time".to_string(), AttributeValue::S(task.next_update_time.clone()));
-    item.insert("team_id".to_string(), AttributeValue::S(task.team_id.clone()));
-    item.insert("team_domain".to_string(), AttributeValue::S(task.team_domain.clone()));
-    item.insert("channel_id".to_string(), AttributeValue::S(task.channel_id.clone()));
-    item.insert("channel_name".to_string(), AttributeValue::S(task.channel_name.clone()));
-    item.insert("enterprise_id".to_string(), AttributeValue::S(task.enterprise_id.clone()));
-    item.insert("enterprise_name".to_string(), AttributeValue::S(task.enterprise_name.clone()));
-    item.insert("is_enterprise_install".to_string(), AttributeValue::S(task.is_enterprise_install.to_string()));
-    item.insert("user_group_id".to_string(), AttributeValue::S(task.user_group_id.clone()));
-    item.insert("user_group_handle".to_string(), AttributeValue::S(task.user_group_handle.clone()));
-    item.insert("pager_duty_schedule_id".to_string(), AttributeValue::S(task.pager_duty_schedule_id.clone()));
-    item.insert("pager_duty_token".to_string(), AttributeValue::S(encrypted_token_json));
-    item.insert("cron".to_string(), AttributeValue::S(task.cron.clone()));
-    item.insert("timezone".to_string(), AttributeValue::S(task.timezone.clone()));
-    item.insert("created_by_user_id".to_string(), AttributeValue::S(task.created_by_user_id.clone()));
-    item.insert("created_by_user_name".to_string(), AttributeValue::S(task.created_by_user_name.clone()));
-    item.insert("created_at".to_string(), AttributeValue::S(task.created_at.clone()));
-    item.insert("last_updated_at".to_string(), AttributeValue::S(task.last_updated_at.clone()));
+    let item = convert_task_to_map(&task, &encryptor)?;
 
     let result = db.parse_scheduled_task(&item)?;
     assert_eq!(result.task_id, "task_123");
     assert_eq!(result.team_id, "test_team");
     assert_eq!(result.pager_duty_token, Some("pd_token_123".to_string()));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_parse_scheduled_task_empty_pagerduty_token() -> Result<(), AppError> {
+    let encryptor = create_test_encryptor();
+
+    let put_item_rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
+
+    let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&put_item_rule]);
+
+    let db = ScheduledTasksDynamodb {
+        client,
+        table_name: "test-schedules".to_string(),
+        encryptor: encryptor.clone(),
+    };
+
+    let task = create_test_task();
+    let mut item = convert_task_to_map(&task, &encryptor)?;
+    item.insert("pager_duty_token".to_string(), AttributeValue::S("".to_string()));
+    
+    let result = db.parse_scheduled_task(&item)?;
+    assert_eq!(result.pager_duty_token, None);
 
     Ok(())
 }

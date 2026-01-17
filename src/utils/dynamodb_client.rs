@@ -29,6 +29,10 @@ pub fn get_optional_encrypted_attribute(
         Some(v) => v,
     };
 
+    if encrypted.is_empty() {
+        return Ok(None);
+    }
+
     let encrypted_token = serde_json::from_str(&encrypted)
         .map_err(|e| AppError::InvalidData(format!("invalid json field {}. Error: {}", name, e)))?;
 
