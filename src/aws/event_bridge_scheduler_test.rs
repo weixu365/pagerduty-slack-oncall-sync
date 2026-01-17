@@ -2,14 +2,13 @@ use super::event_bridge_scheduler::{EventBridgeSchedule, EventBridgeScheduler};
 use crate::{errors::AppError, utils::cron::CronSchedule};
 use aws_sdk_scheduler::{
     operation::{
-        delete_schedule::DeleteScheduleOutput, get_schedule::GetScheduleOutput,
-        list_schedules::ListSchedulesOutput,
+        delete_schedule::DeleteScheduleOutput, get_schedule::GetScheduleOutput, list_schedules::ListSchedulesOutput,
     },
     types::{FlexibleTimeWindow, FlexibleTimeWindowMode, ScheduleSummary, Target},
     Client,
 };
 use aws_smithy_mocks::{mock, mock_client, RuleMode};
-use chrono::{Datelike, Timelike, TimeZone, Utc};
+use chrono::{Datelike, TimeZone, Timelike, Utc};
 use chrono_tz::America::New_York;
 
 fn create_mock_scheduler(client: Client) -> EventBridgeScheduler {
@@ -58,9 +57,7 @@ fn create_get_schedule_output(
 
 #[tokio::test]
 async fn test_convert_to_schedule() -> Result<(), AppError> {
-    let list_rule = mock!(Client::list_schedules).then_output(|| {
-        ListSchedulesOutput::builder().build().unwrap()
-    });
+    let list_rule = mock!(Client::list_schedules).then_output(|| ListSchedulesOutput::builder().build().unwrap());
 
     let client = mock_client!(aws_sdk_scheduler, RuleMode::Sequential, &[&list_rule]);
     let scheduler = create_mock_scheduler(client);
@@ -80,10 +77,7 @@ async fn test_convert_to_schedule() -> Result<(), AppError> {
     assert_eq!(schedule.next_scheduled_timestamp_utc, Some(timestamp));
     assert_eq!(schedule.expression, Some("at(2024-01-15T10:00:00)".to_string()));
     assert_eq!(schedule.expression_timezone, Some("America/New_York".to_string()));
-    assert_eq!(
-        schedule.target,
-        Some("arn:aws:lambda:us-east-1:123456789012:function:test".to_string())
-    );
+    assert_eq!(schedule.target, Some("arn:aws:lambda:us-east-1:123456789012:function:test".to_string()));
     assert_eq!(schedule.description, Some("Test schedule".to_string()));
 
     Ok(())
@@ -91,9 +85,7 @@ async fn test_convert_to_schedule() -> Result<(), AppError> {
 
 #[tokio::test]
 async fn test_convert_to_schedule_invalid_timestamp() -> Result<(), AppError> {
-    let list_rule = mock!(Client::list_schedules).then_output(|| {
-        ListSchedulesOutput::builder().build().unwrap()
-    });
+    let list_rule = mock!(Client::list_schedules).then_output(|| ListSchedulesOutput::builder().build().unwrap());
 
     let client = mock_client!(aws_sdk_scheduler, RuleMode::Sequential, &[&list_rule]);
     let scheduler = create_mock_scheduler(client);
@@ -115,9 +107,7 @@ async fn test_convert_to_schedule_invalid_timestamp() -> Result<(), AppError> {
 
 #[tokio::test]
 async fn test_get_next_schedule_returns_valid_schedule() -> Result<(), AppError> {
-    let list_rule = mock!(Client::list_schedules).then_output(|| {
-        ListSchedulesOutput::builder().build().unwrap()
-    });
+    let list_rule = mock!(Client::list_schedules).then_output(|| ListSchedulesOutput::builder().build().unwrap());
 
     let client = mock_client!(aws_sdk_scheduler, RuleMode::Sequential, &[&list_rule]);
     let scheduler = create_mock_scheduler(client);
@@ -158,9 +148,7 @@ async fn test_get_next_schedule_returns_valid_schedule() -> Result<(), AppError>
 
 #[tokio::test]
 async fn test_get_next_schedule_returns_none_when_no_valid_schedule() -> Result<(), AppError> {
-    let list_rule = mock!(Client::list_schedules).then_output(|| {
-        ListSchedulesOutput::builder().build().unwrap()
-    });
+    let list_rule = mock!(Client::list_schedules).then_output(|| ListSchedulesOutput::builder().build().unwrap());
 
     let client = mock_client!(aws_sdk_scheduler, RuleMode::Sequential, &[&list_rule]);
     let scheduler = create_mock_scheduler(client);
@@ -187,9 +175,7 @@ async fn test_get_next_schedule_returns_none_when_no_valid_schedule() -> Result<
 
 #[tokio::test]
 async fn test_get_next_schedule_ignores_past_schedules() -> Result<(), AppError> {
-    let list_rule = mock!(Client::list_schedules).then_output(|| {
-        ListSchedulesOutput::builder().build().unwrap()
-    });
+    let list_rule = mock!(Client::list_schedules).then_output(|| ListSchedulesOutput::builder().build().unwrap());
 
     let client = mock_client!(aws_sdk_scheduler, RuleMode::Sequential, &[&list_rule]);
     let scheduler = create_mock_scheduler(client);
@@ -251,7 +237,12 @@ async fn test_list_schedules_empty() -> Result<(), AppError> {
             assert_eq!(req.name_prefix(), Some("test-schedule-"));
             true
         })
-        .then_output(|| ListSchedulesOutput::builder().set_schedules(Some(vec![])).build().unwrap());
+        .then_output(|| {
+            ListSchedulesOutput::builder()
+                .set_schedules(Some(vec![]))
+                .build()
+                .unwrap()
+        });
 
     let client = mock_client!(aws_sdk_scheduler, RuleMode::Sequential, &[&list_rule]);
     let scheduler = create_mock_scheduler(client);
@@ -374,9 +365,7 @@ async fn test_cleanup_schedules_keeps_next_schedule() -> Result<(), AppError> {
     }];
 
     // No delete should be called
-    let list_rule = mock!(Client::list_schedules).then_output(|| {
-        ListSchedulesOutput::builder().build().unwrap()
-    });
+    let list_rule = mock!(Client::list_schedules).then_output(|| ListSchedulesOutput::builder().build().unwrap());
 
     let client = mock_client!(aws_sdk_scheduler, RuleMode::Sequential, &[&list_rule]);
     let scheduler = create_mock_scheduler(client);
@@ -437,11 +426,7 @@ async fn test_cleanup_schedules_with_multiple_schedules() -> Result<(), AppError
         })
         .then_output(|| DeleteScheduleOutput::builder().build());
 
-    let client = mock_client!(
-        aws_sdk_scheduler,
-        RuleMode::Sequential,
-        &[&delete_rule_1, &delete_rule_2]
-    );
+    let client = mock_client!(aws_sdk_scheduler, RuleMode::Sequential, &[&delete_rule_1, &delete_rule_2]);
     let scheduler = create_mock_scheduler(client);
 
     scheduler.cleanup_schedules(schedules, next_schedule_time).await?;
@@ -455,12 +440,22 @@ async fn test_update_next_schedule_creates_new_when_earlier() -> Result<(), AppE
     let existing_schedule_time = now + 7200; // 2 hours from now
     let new_schedule_time = now + 3600; // 1 hour from now (earlier)
 
-    let new_datetime = Utc.timestamp_opt(new_schedule_time, 0).unwrap().with_timezone(&New_York);
+    let new_datetime = Utc
+        .timestamp_opt(new_schedule_time, 0)
+        .unwrap()
+        .with_timezone(&New_York);
 
     let cron_schedule = CronSchedule {
         cron: "0 9 * * *".to_string(),
         timezone: New_York,
-        next_oneoff_cron: format!("{} {} {} {} * {}", new_datetime.minute(), new_datetime.hour(), new_datetime.day(), new_datetime.month(), new_datetime.year()),
+        next_oneoff_cron: format!(
+            "{} {} {} {} * {}",
+            new_datetime.minute(),
+            new_datetime.hour(),
+            new_datetime.day(),
+            new_datetime.month(),
+            new_datetime.year()
+        ),
         next_timestamp_utc: new_schedule_time,
         next_datetime: new_datetime,
     };
@@ -505,11 +500,8 @@ async fn test_update_next_schedule_creates_new_when_earlier() -> Result<(), AppE
         })
         .then_output(|| DeleteScheduleOutput::builder().build());
 
-    let client = mock_client!(
-        aws_sdk_scheduler,
-        RuleMode::Sequential,
-        &[&list_rule, &get_rule, &create_rule, &delete_rule]
-    );
+    let client =
+        mock_client!(aws_sdk_scheduler, RuleMode::Sequential, &[&list_rule, &get_rule, &create_rule, &delete_rule]);
     let scheduler = create_mock_scheduler(client);
 
     scheduler.update_next_schedule(&cron_schedule).await?;
@@ -523,12 +515,22 @@ async fn test_update_next_schedule_keeps_existing_when_later() -> Result<(), App
     let existing_schedule_time = now + 3600; // 1 hour from now
     let new_schedule_time = now + 7200; // 2 hours from now (later)
 
-    let new_datetime = Utc.timestamp_opt(new_schedule_time, 0).unwrap().with_timezone(&New_York);
+    let new_datetime = Utc
+        .timestamp_opt(new_schedule_time, 0)
+        .unwrap()
+        .with_timezone(&New_York);
 
     let cron_schedule = CronSchedule {
         cron: "0 9 * * *".to_string(),
         timezone: New_York,
-        next_oneoff_cron: format!("{} {} {} {} * {}", new_datetime.minute(), new_datetime.hour(), new_datetime.day(), new_datetime.month(), new_datetime.year()),
+        next_oneoff_cron: format!(
+            "{} {} {} {} * {}",
+            new_datetime.minute(),
+            new_datetime.hour(),
+            new_datetime.day(),
+            new_datetime.month(),
+            new_datetime.year()
+        ),
         next_timestamp_utc: new_schedule_time,
         next_datetime: new_datetime,
     };

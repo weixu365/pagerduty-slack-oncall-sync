@@ -39,11 +39,8 @@ async fn test_save_slack_installation() -> Result<(), AppError> {
     let installation = create_test_installation();
     let encryptor = create_test_encryptor();
 
-    let rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        })
-        ;
+    let rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -80,10 +77,7 @@ async fn test_save_slack_installation_validates_request() -> Result<(), AppError
             assert!(items.contains_key("last_updated_at"));
             true
         })
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        })
-        ;
+        .then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -118,10 +112,7 @@ async fn test_update_pagerduty_token() -> Result<(), AppError> {
             assert_eq!(table, "test-installations");
             true
         })
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::update_item::UpdateItemOutput::builder().build()
-        })
-        ;
+        .then_output(|| aws_sdk_dynamodb::operation::update_item::UpdateItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -131,12 +122,8 @@ async fn test_update_pagerduty_token() -> Result<(), AppError> {
         encryptor,
     };
 
-    db.update_pagerduty_token(
-        "T123456".to_string(),
-        "E123456".to_string(),
-        "new_pd_token_456",
-    )
-    .await?;
+    db.update_pagerduty_token("T123456".to_string(), "E123456".to_string(), "new_pd_token_456")
+        .await?;
 
     Ok(())
 }
@@ -180,8 +167,7 @@ async fn test_get_slack_installation_success() -> Result<(), AppError> {
             aws_sdk_dynamodb::operation::get_item::GetItemOutput::builder()
                 .set_item(Some(item.clone()))
                 .build()
-        })
-        ;
+        });
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -204,11 +190,8 @@ async fn test_get_slack_installation_success() -> Result<(), AppError> {
 async fn test_get_slack_installation_not_found() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
 
-    let rule = mock!(Client::get_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::get_item::GetItemOutput::builder().build()
-        })
-        ;
+    let rule =
+        mock!(Client::get_item).then_output(|| aws_sdk_dynamodb::operation::get_item::GetItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -236,11 +219,7 @@ async fn test_get_slack_installation_not_found() -> Result<(), AppError> {
 async fn test_list_installations_empty() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
 
-    let rule = mock!(Client::scan)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::scan::ScanOutput::builder().build()
-        })
-        ;
+    let rule = mock!(Client::scan).then_output(|| aws_sdk_dynamodb::operation::scan::ScanOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -282,13 +261,11 @@ async fn test_list_installations_with_items() -> Result<(), AppError> {
     item.insert("bot_user_id".to_string(), AttributeValue::S(installation.bot_user_id.clone()));
     item.insert("pagerduty_token".to_string(), AttributeValue::S(encrypted_pd_token_json));
 
-    let rule = mock!(Client::scan)
-        .then_output(move || {
-            aws_sdk_dynamodb::operation::scan::ScanOutput::builder()
-                .set_items(Some(vec![item.clone()]))
-                .build()
-        })
-        ;
+    let rule = mock!(Client::scan).then_output(move || {
+        aws_sdk_dynamodb::operation::scan::ScanOutput::builder()
+            .set_items(Some(vec![item.clone()]))
+            .build()
+    });
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -311,11 +288,8 @@ async fn test_list_installations_with_items() -> Result<(), AppError> {
 #[tokio::test]
 async fn test_installation_id_formatting() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
-    let rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        })
-        ;
+    let rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -334,11 +308,8 @@ async fn test_installation_id_formatting() -> Result<(), AppError> {
 #[tokio::test]
 async fn test_parse_installation_with_valid_data() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
-    let rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        })
-        ;
+    let rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -381,11 +352,8 @@ async fn test_parse_installation_with_valid_data() -> Result<(), AppError> {
 #[tokio::test]
 async fn test_parse_installation_without_pagerduty_token() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
-    let rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        })
-        ;
+    let rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -422,11 +390,8 @@ async fn test_parse_installation_without_pagerduty_token() -> Result<(), AppErro
 #[tokio::test]
 async fn test_parse_installation_missing_required_field() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
-    let rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        })
-        ;
+    let rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 
@@ -454,11 +419,8 @@ async fn test_parse_installation_missing_required_field() -> Result<(), AppError
 #[tokio::test]
 async fn test_parse_installation_invalid_encrypted_token() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
-    let rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        })
-        ;
+    let rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&rule]);
 

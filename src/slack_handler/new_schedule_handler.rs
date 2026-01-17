@@ -1,10 +1,8 @@
 use crate::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
-    db::{
-        ScheduledTask, ScheduledTaskRepository, SlackInstallationRepository,
-    },
+    db::{ScheduledTask, ScheduledTaskRepository, SlackInstallationRepository},
     errors::AppError,
-    service_provider::{pager_duty::PagerDuty},
+    service_provider::pager_duty::PagerDuty,
     slack_handler::slack_request::{ScheduleArgs, SlackCommandRequest},
     utils::cron::get_next_schedule_from,
     utils::http_client::build_http_client,
@@ -48,8 +46,7 @@ pub async fn handle_schedule_command(
     };
 
     // Validate PagerDuty token and schedule by making a test API call
-    let pager_duty =
-        PagerDuty::new(http_client.clone(), pagerduty_token.clone(), arg.pagerduty_schedule.clone());
+    let pager_duty = PagerDuty::new(http_client.clone(), pagerduty_token.clone(), arg.pagerduty_schedule.clone());
     pager_duty.validate_token().await?;
     pager_duty.get_on_call_users(Utc::now()).await?;
 

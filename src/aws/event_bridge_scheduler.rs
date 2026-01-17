@@ -104,7 +104,11 @@ impl EventBridgeScheduler {
         Ok(())
     }
 
-    pub(crate) fn get_next_schedule(&self, schedules: &Vec<EventBridgeSchedule>, before: i64) -> Option<EventBridgeSchedule> {
+    pub(crate) fn get_next_schedule(
+        &self,
+        schedules: &Vec<EventBridgeSchedule>,
+        before: i64,
+    ) -> Option<EventBridgeSchedule> {
         let now = Utc::now().timestamp();
         for schedule in schedules {
             let scheduled_timestamp = schedule.next_scheduled_timestamp_utc.unwrap_or_default();

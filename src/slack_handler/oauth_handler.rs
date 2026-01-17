@@ -1,15 +1,9 @@
-use aws_lambda_events::{
-    encodings::Body,
-    query_map::QueryMap,
-};
+use aws_lambda_events::{encodings::Body, query_map::QueryMap};
 use lambda_http::Response;
 
 use crate::{
     aws::secrets_client::Secrets,
-    db::{
-        dynamodb::SlackInstallationsDynamoDb,
-        SlackInstallation, SlackInstallationRepository,
-    },
+    db::{dynamodb::SlackInstallationsDynamoDb, SlackInstallation, SlackInstallationRepository},
     errors::AppError,
     service_provider::slack::swap_slack_access_token,
     utils::http_client::build_http_client,

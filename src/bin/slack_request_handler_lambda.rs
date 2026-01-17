@@ -3,17 +3,15 @@ use std::env;
 use lambda_http::{service_fn, Body, Error, Request, RequestExt, Response};
 use on_call_support::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
-    config::Config, 
-    db::{
-        dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb},
-    },
+    config::Config,
+    db::dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb},
     encryptor::Encryptor,
     slack_handler::{
         list_schedules_handler::handle_list_schedules_command,
         new_schedule_handler::handle_schedule_command,
         oauth_handler::handle_slack_oauth,
         setup_pagerduty_handler::handle_setup_pagerduty_command,
-        slack_request::{Command, parse_slack_request},
+        slack_request::{parse_slack_request, Command},
     },
     utils::http_util::response,
     utils::logging,
@@ -81,7 +79,8 @@ async fn func(request: Request) -> Result<Response<Body>, Error> {
                     let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
                     let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor);
 
-                    handle_schedule_command(params, arg, &slack_installations_db, &scheduled_tasks_db, scheduler).await?
+                    handle_schedule_command(params, arg, &slack_installations_db, &scheduled_tasks_db, scheduler)
+                        .await?
                 }
                 Some(Command::SetupPagerduty(arg)) => {
                     let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());

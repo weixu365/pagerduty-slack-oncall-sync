@@ -49,10 +49,8 @@ async fn test_save_scheduled_task_with_token() -> Result<(), AppError> {
     let task = create_test_task();
     let encryptor = create_test_encryptor();
 
-    let put_item_rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        });
+    let put_item_rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&put_item_rule]);
 
@@ -73,10 +71,8 @@ async fn test_save_scheduled_task_without_token() -> Result<(), AppError> {
     task.pager_duty_token = None;
     let encryptor = create_test_encryptor();
 
-    let put_item_rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        });
+    let put_item_rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&put_item_rule]);
 
@@ -112,9 +108,7 @@ async fn test_save_scheduled_task_validates_request() -> Result<(), AppError> {
             assert!(items.contains_key("pager_duty_token"));
             true
         })
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        });
+        .then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&put_item_rule]);
 
@@ -149,9 +143,7 @@ async fn test_update_next_schedule() -> Result<(), AppError> {
             assert!(update_expr.contains("last_updated_at"));
             true
         })
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::update_item::UpdateItemOutput::builder().build()
-        });
+        .then_output(|| aws_sdk_dynamodb::operation::update_item::UpdateItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&update_item_rule]);
 
@@ -170,10 +162,8 @@ async fn test_update_next_schedule() -> Result<(), AppError> {
 async fn test_list_scheduled_tasks_empty() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
 
-    let scan_rule = mock!(Client::scan)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::scan::ScanOutput::builder().build()
-        });
+    let scan_rule =
+        mock!(Client::scan).then_output(|| aws_sdk_dynamodb::operation::scan::ScanOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&scan_rule]);
 
@@ -220,12 +210,11 @@ async fn test_list_scheduled_tasks_with_items() -> Result<(), AppError> {
     item.insert("created_at".to_string(), AttributeValue::S(task.created_at.clone()));
     item.insert("last_updated_at".to_string(), AttributeValue::S(task.last_updated_at.clone()));
 
-    let scan_rule = mock!(Client::scan)
-        .then_output(move || {
-            aws_sdk_dynamodb::operation::scan::ScanOutput::builder()
-                .set_items(Some(vec![item.clone()]))
-                .build()
-        });
+    let scan_rule = mock!(Client::scan).then_output(move || {
+        aws_sdk_dynamodb::operation::scan::ScanOutput::builder()
+            .set_items(Some(vec![item.clone()]))
+            .build()
+    });
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&scan_rule]);
 
@@ -258,9 +247,7 @@ async fn test_delete_scheduled_task() -> Result<(), AppError> {
             assert_eq!(table, "test-schedules");
             true
         })
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::delete_item::DeleteItemOutput::builder().build()
-        });
+        .then_output(|| aws_sdk_dynamodb::operation::delete_item::DeleteItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&delete_item_rule]);
 
@@ -270,7 +257,8 @@ async fn test_delete_scheduled_task() -> Result<(), AppError> {
         encryptor,
     };
 
-    db.delete_scheduled_task("test_team", "test_workspace", "task_123").await?;
+    db.delete_scheduled_task("test_team", "test_workspace", "task_123")
+        .await?;
 
     Ok(())
 }
@@ -279,10 +267,8 @@ async fn test_delete_scheduled_task() -> Result<(), AppError> {
 async fn test_team_formatting() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
 
-    let put_item_rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        });
+    let put_item_rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&put_item_rule]);
 
@@ -302,10 +288,8 @@ async fn test_team_formatting() -> Result<(), AppError> {
 async fn test_parse_scheduled_task_with_valid_data() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
 
-    let put_item_rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        });
+    let put_item_rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&put_item_rule]);
 
@@ -354,10 +338,8 @@ async fn test_parse_scheduled_task_with_valid_data() -> Result<(), AppError> {
 async fn test_parse_scheduled_task_invalid_timestamp() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
 
-    let put_item_rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        });
+    let put_item_rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&put_item_rule]);
 
@@ -389,10 +371,8 @@ async fn test_parse_scheduled_task_invalid_timestamp() -> Result<(), AppError> {
 async fn test_parse_scheduled_task_missing_field() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
 
-    let put_item_rule = mock!(Client::put_item)
-        .then_output(|| {
-            aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build()
-        });
+    let put_item_rule =
+        mock!(Client::put_item).then_output(|| aws_sdk_dynamodb::operation::put_item::PutItemOutput::builder().build());
 
     let client = mock_client!(aws_sdk_dynamodb, RuleMode::Sequential, &[&put_item_rule]);
 

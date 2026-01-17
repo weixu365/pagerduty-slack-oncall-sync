@@ -1,7 +1,4 @@
-use crate::{
-    db::ScheduledTaskRepository,
-    errors::AppError,
-};
+use crate::{db::ScheduledTaskRepository, errors::AppError};
 
 pub async fn handle_list_schedules_command(
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
@@ -53,7 +50,12 @@ mod tests {
             Ok(self.tasks.clone())
         }
 
-        async fn delete_scheduled_task(&self, _team_id: &str, _workspace_id: &str, _task_id: &str) -> Result<(), AppError> {
+        async fn delete_scheduled_task(
+            &self,
+            _team_id: &str,
+            _workspace_id: &str,
+            _task_id: &str,
+        ) -> Result<(), AppError> {
             Ok(())
         }
     }
@@ -105,9 +107,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_list_schedules_command_single_task() -> Result<(), AppError> {
         let task = create_test_task("general", "oncall", "0 9 * * *", "2024-01-15T09:00:00Z");
-        let mock_db = MockScheduledTaskRepository {
-            tasks: vec![task],
-        };
+        let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
         let schedules = handle_list_schedules_command(&mock_db).await?;
         assert_eq!(schedules.len(), 1);
@@ -144,9 +144,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_list_schedules_command_format() -> Result<(), AppError> {
         let task = create_test_task("my-channel", "my-group", "0 */2 * * *", "2024-12-25T14:00:00Z");
-        let mock_db = MockScheduledTaskRepository {
-            tasks: vec![task],
-        };
+        let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
         let schedules = handle_list_schedules_command(&mock_db).await?;
         assert_eq!(schedules.len(), 1);

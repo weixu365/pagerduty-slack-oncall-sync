@@ -1,8 +1,8 @@
 use crate::{
     db::SlackInstallationRepository,
-    errors::AppError, 
-    service_provider::pager_duty::PagerDuty, 
-    slack_handler::{slack_request::{SetupPagerdutyArgs, SlackCommandRequest}},
+    errors::AppError,
+    service_provider::pager_duty::PagerDuty,
+    slack_handler::slack_request::{SetupPagerdutyArgs, SlackCommandRequest},
     utils::http_client::build_http_client,
 };
 
