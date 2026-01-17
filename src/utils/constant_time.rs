@@ -22,7 +22,7 @@ use subtle::ConstantTimeEq;
 /// # Examples
 ///
 /// ```
-/// use on_call_support::constant_time::constant_time_compare;
+/// use on_call_support::utils::constant_time::constant_time_compare;
 ///
 /// let secret = b"my_secret_signature";
 /// let provided = b"my_secret_signature";
@@ -72,7 +72,7 @@ pub fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
 /// # Examples
 ///
 /// ```
-/// use on_call_support::constant_time::constant_time_compare_str;
+/// use on_call_support::utils::constant_time::constant_time_compare_str;
 ///
 /// let expected_signature = "v0=abc123def456";
 /// let provided_signature = "v0=abc123def456";

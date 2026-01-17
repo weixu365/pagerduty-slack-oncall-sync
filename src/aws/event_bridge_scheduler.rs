@@ -8,10 +8,10 @@ use chrono::Utc;
 use futures::{stream, StreamExt, TryStreamExt};
 
 pub struct EventBridgeScheduler {
-    client: Client,
-    name_prefix: String,
-    lambda_arn: String,
-    lambda_role: String,
+    pub(crate) client: Client,
+    pub(crate) name_prefix: String,
+    pub(crate) lambda_arn: String,
+    pub(crate) lambda_role: String,
 }
 
 #[derive(Debug, Clone)]
@@ -104,7 +104,7 @@ impl EventBridgeScheduler {
         Ok(())
     }
 
-    fn get_next_schedule(&self, schedules: &Vec<EventBridgeSchedule>, before: i64) -> Option<EventBridgeSchedule> {
+    pub(crate) fn get_next_schedule(&self, schedules: &Vec<EventBridgeSchedule>, before: i64) -> Option<EventBridgeSchedule> {
         let now = Utc::now().timestamp();
         for schedule in schedules {
             let scheduled_timestamp = schedule.next_scheduled_timestamp_utc.unwrap_or_default();
@@ -116,7 +116,7 @@ impl EventBridgeScheduler {
         None
     }
 
-    fn convert_to_schedule(&self, schedule: &GetScheduleOutput) -> EventBridgeSchedule {
+    pub(crate) fn convert_to_schedule(&self, schedule: &GetScheduleOutput) -> EventBridgeSchedule {
         let timestamp = schedule
             .name()
             .and_then(|s| s.trim_start_matches(self.name_prefix.as_str()).parse::<i64>().ok());
@@ -133,7 +133,7 @@ impl EventBridgeScheduler {
         }
     }
 
-    async fn cleanup_schedules(
+    pub(crate) async fn cleanup_schedules(
         &self,
         current_schedules: Vec<EventBridgeSchedule>,
         next_scheduled_timestamp_utc: i64,
@@ -155,7 +155,7 @@ impl EventBridgeScheduler {
         Ok(())
     }
 
-    async fn delete_schedules(&self, name: &str) -> Result<(), AppError> {
+    pub(crate) async fn delete_schedules(&self, name: &str) -> Result<(), AppError> {
         tracing::info!(name, "delete schedule");
 
         self.client.delete_schedule().name(name).send().await?;
@@ -163,7 +163,7 @@ impl EventBridgeScheduler {
         Ok(())
     }
 
-    async fn list_schedules(&self) -> Result<Vec<GetScheduleOutput>, AppError> {
+    pub(crate) async fn list_schedules(&self) -> Result<Vec<GetScheduleOutput>, AppError> {
         tracing::info!("list schedules in aws eventbridge scheduler");
 
         let schedule_summaries: Vec<_> = self
@@ -197,98 +197,5 @@ impl EventBridgeScheduler {
             .await?;
 
         Ok(schedules)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use chrono::Utc;
-    use chrono_tz::Tz;
-    use std::str::FromStr;
-
-    use crate::{
-        aws::event_bridge_scheduler::EventBridgeScheduler, config::Config, db::scheduled_task::ScheduledTask,
-        errors::AppError, utils::cron::get_next_schedule_from,
-    };
-
-    #[tokio::test]
-    async fn test_update_next_schedule() -> Result<(), AppError> {
-        let config = Config::get_or_init("dev").await?;
-        let lambda_arn = "arn:aws:lambda:ap-southeast-2:807579936170:function:on-call-support-dev-UpdateUserGroups";
-        let lambda_role_arn = "arn:aws:iam::807579936170:role/on-call-support-dev-ap-southeast-2-lambdaRole";
-        let scheduler = EventBridgeScheduler::new(&config, lambda_arn.to_string(), lambda_role_arn.to_string());
-
-        let task = ScheduledTask {
-            team: "".to_string(),
-            task_id: "".to_string(),
-            next_update_timestamp_utc: Utc::now().timestamp(),
-            next_update_time: Utc::now().to_rfc3339().to_string(),
-
-            team_id: "".to_string(),
-            team_domain: "".to_string(),
-            channel_id: "".to_string(),
-            channel_name: "".to_string(),
-            enterprise_id: "".to_string(),
-            enterprise_name: "".to_string(),
-            is_enterprise_install: false,
-
-            user_group_id: "".to_string(),
-            user_group_handle: "".to_string(),
-            pager_duty_schedule_id: "".to_string(),
-            pager_duty_token: None,
-            cron: "0 5 ? * MON-FRI *".to_string(),
-            timezone: "Australia/Melbourne".to_string(),
-
-            created_by_user_id: "U6HHTEST".to_string(),
-            created_by_user_name: "test-user".to_string(),
-            created_at: Utc::now().to_rfc3339(),
-            last_updated_at: Utc::now().to_rfc3339(),
-        };
-
-        let timezone = Tz::from_str(&task.timezone)?;
-        let from = Utc::now().with_timezone(&timezone);
-
-        let next_schedule = get_next_schedule_from(&task.cron, &from)?;
-
-        scheduler.update_next_schedule(&next_schedule).await?;
-
-        let schedules = scheduler.list_schedules().await?;
-
-        for item in &schedules {
-            println!("Schedule\n  - name: {:?}\n  - cron: {:?} {:?}\n  - target: {:?} {:?}\n  - flexible window mode: {:?}\n  - description: {:?}\n",
-                item.name,
-                item.schedule_expression.as_ref(),
-                item.schedule_expression_timezone.as_ref(),
-                item.target.as_ref().map(|t| t.arn()),
-                item.target.as_ref().map(|t| t.role_arn()),
-                item.flexible_time_window.as_ref().map(|w| w.mode()),
-                item.description(),
-            );
-        }
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_list_schedules() -> Result<(), AppError> {
-        let config = Config::get_or_init("dev").await?;
-        let lambda_arn = "arn:aws:lambda:ap-southeast-2:807579936170:function:on-call-support-dev-UpdateUserGroups";
-        let lambda_role_arn = "arn:aws:iam::807579936170:role/on-call-support-dev-ap-southeast-2-lambdaRole";
-        let scheduler = EventBridgeScheduler::new(&config, lambda_arn.to_string(), lambda_role_arn.to_string());
-        let schedules = scheduler.list_schedules().await?;
-
-        for item in &schedules {
-            println!("Schedule\n  - name: {:?}\n  - cron: {:?} {:?}\n  - target: {:?} {:?}\n  - flexible window mode: {:?}\n  - description: {:?}\n",
-                item.name,
-                item.schedule_expression.as_ref(),
-                item.schedule_expression_timezone.as_ref(),
-                item.target.as_ref().map(|t| t.arn()),
-                item.target.as_ref().map(|t| t.role_arn()),
-                item.flexible_time_window.as_ref().map(|w| w.mode()),
-                item.description(),
-            );
-        }
-
-        Ok(())
     }
 }

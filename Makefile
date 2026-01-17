@@ -27,3 +27,6 @@ threads:
 
 docker-build:
 	docker run -it --rm -v `pwd`:/work -w /work messense/rust-musl-cross:x86_64-musl bash
+
+test:
+	cargo install cargo-llvm-cov --quiet 2>&1 | tail -5 && cargo llvm-cov

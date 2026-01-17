@@ -44,4 +44,9 @@ tracing-subscriber = { version = "0.3.22", default-features = false, features = 
 [dev-dependencies]
 serial_test = "*"
 tokio-test = "*"
-
+aws-smithy-mocks = "0.2.2"
+aws-sdk-cloudformation = {version="1.104.0", features = ["test-util"]}
+aws-sdk-dynamodb = {version="1.101.0", features = ["test-util"]}
+aws-sdk-eventbridge = {version="1.98.0", features = ["test-util"]}
+aws-sdk-scheduler = {version="1.91.0", features = ["test-util"]}
+aws-sdk-secretsmanager = {version="1.97.0", features = ["test-util"]}

@@ -8,9 +8,9 @@ use crate::utils::dynamodb_client::{get_attribute, get_encrypted_attribute, get_
 use crate::{encryptor::Encryptor, errors::AppError};
 
 pub struct SlackInstallationsDynamoDb {
-    client: Client,
-    table_name: String,
-    encryptor: Encryptor,
+    pub(crate) client: Client,
+    pub(crate) table_name: String,
+    pub(crate) encryptor: Encryptor,
 }
 
 impl SlackInstallationsDynamoDb {
@@ -22,11 +22,11 @@ impl SlackInstallationsDynamoDb {
         }
     }
 
-    fn installation_id(&self, slack_team_id: &str, slack_enterprise_id: &str) -> String {
+    pub(crate) fn installation_id(&self, slack_team_id: &str, slack_enterprise_id: &str) -> String {
         format!("{}:{}", slack_team_id, slack_enterprise_id)
     }
 
-    fn parse_installation(
+    pub(crate) fn parse_installation(
         &self,
         item: &std::collections::HashMap<String, AttributeValue>,
     ) -> Result<SlackInstallation, AppError> {

@@ -58,3 +58,76 @@ pub async fn handle_slack_oauth(
         None => response(400, format!("Invalid request")),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn create_query_map_with_code(code: &str) -> QueryMap {
+        let mut map = HashMap::new();
+        map.insert("code".to_string(), vec![code.to_string()]);
+        QueryMap::from(map)
+    }
+
+    fn create_empty_query_map() -> QueryMap {
+        let map: HashMap<String, Vec<String>> = HashMap::new();
+        QueryMap::from(map)
+    }
+
+    #[test]
+    fn test_query_map_with_code() -> Result<(), AppError> {
+        let query_map = create_query_map_with_code("test_auth_code_123");
+
+        let code = query_map.first("code");
+        assert!(code.is_some());
+        assert_eq!(code.unwrap(), "test_auth_code_123");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_query_map_without_code() -> Result<(), AppError> {
+        let query_map = create_empty_query_map();
+
+        let code = query_map.first("code");
+        assert!(code.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_query_map_with_multiple_params() -> Result<(), AppError> {
+        let mut map = HashMap::new();
+        map.insert("code".to_string(), vec!["auth_code".to_string()]);
+        map.insert("state".to_string(), vec!["some_state".to_string()]);
+        let query_map = QueryMap::from(map);
+
+        let code = query_map.first("code");
+        assert!(code.is_some());
+        assert_eq!(code.unwrap(), "auth_code");
+
+        let state = query_map.first("state");
+        assert!(state.is_some());
+        assert_eq!(state.unwrap(), "some_state");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_query_map_empty() -> Result<(), AppError> {
+        let query_map = create_empty_query_map();
+
+        assert!(query_map.first("code").is_none());
+        assert!(query_map.first("state").is_none());
+        assert!(query_map.first("any_key").is_none());
+
+        Ok(())
+    }
+
+    // Note: Full integration tests for handle_slack_oauth would require:
+    // 1. Mocking the HTTP client for Slack OAuth API
+    // 2. Mocking the swap_slack_access_token function
+    // 3. Mocking the SlackInstallationsDynamoDb
+    // These are better suited for integration tests with a proper mocking framework
+}

@@ -3,7 +3,6 @@ use aws_lambda_events::http::{HeaderMap, HeaderValue};
 use lambda_http::Request;
 use crate::{
     config::Config,
-    encryptor::Encryptor,
     errors::AppError,
     utils::constant_time::constant_time_compare_str,
 };
@@ -152,8 +151,6 @@ pub async fn parse_slack_request(
         None => None,
     };
 
-    let encryptor = Encryptor::from_key(&secrets.encryption_key)?;
-
     let arg = arg.ok_or_else(|| AppError::InvalidData("Failed to parse command arguments".to_string()))?;
 
     Ok((params, arg))
@@ -164,13 +161,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_slack_command_request_valid_full() {
+    fn test_parse_slack_command_request_valid_full()  -> Result<(), AppError> {
         let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&enterprise_id=E1234&enterprise_name=Acme&is_enterprise_install=true&user_id=U1234&user_name=john&command=/oncall&text=schedule&response_url=https://example.com/response";
 
-        let result = parse_slack_command_request(request_body);
-        assert!(result.is_ok());
-
-        let params = result.unwrap();
+        let params = parse_slack_command_request(request_body)?;
+        
         assert_eq!(params.team_id, "T1234");
         assert_eq!(params.team_domain, "example");
         assert_eq!(params.channel_id, "C1234");
@@ -182,16 +177,15 @@ mod tests {
         assert_eq!(params.user_name, "john");
         assert_eq!(params.command, "/oncall");
         assert_eq!(params.text, "schedule");
+        Ok(())
     }
 
     #[test]
-    fn test_parse_slack_command_request_valid_minimal() {
+    fn test_parse_slack_command_request_valid_minimal() -> Result<(), AppError> {
         let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&user_id=U1234&user_name=john&command=/oncall";
 
-        let result = parse_slack_command_request(request_body);
-        assert!(result.is_ok());
-
-        let params = result.unwrap();
+        let params = parse_slack_command_request(request_body)?;
+        
         assert_eq!(params.team_id, "T1234");
         assert_eq!(params.team_domain, "example");
         assert_eq!(params.channel_id, "C1234");
@@ -203,37 +197,36 @@ mod tests {
         assert_eq!(params.user_name, "john");
         assert_eq!(params.command, "/oncall");
         assert_eq!(params.text, ""); // default value
+        Ok(())
     }
 
     #[test]
-    fn test_parse_slack_command_request_with_empty_optional_fields() {
-        let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&enterprise_id=&enterprise_name=&is_enterprise_install=&user_id=U1234&user_name=john&command=/oncall&text=&response_url=";
+    fn test_parse_slack_command_request_with_empty_optional_fields() -> Result<(), AppError> {
+        let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&enterprise_id=&enterprise_name=&user_id=U1234&user_name=john&command=/oncall&text=&response_url=";
 
-        let result = parse_slack_command_request(request_body);
-        assert!(result.is_ok());
-
-        let params = result.unwrap();
+        let params = parse_slack_command_request(request_body)?;
+        
         assert_eq!(params.team_id, "T1234");
         assert_eq!(params.enterprise_id, "");
         assert_eq!(params.enterprise_name, "");
         assert_eq!(params.is_enterprise_install, false);
         assert_eq!(params.text, "");
+        Ok(())
     }
 
     #[test]
-    fn test_parse_slack_command_request_with_url_encoded_values() {
+    fn test_parse_slack_command_request_with_url_encoded_values()  -> Result<(), AppError>{
         let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&user_id=U1234&user_name=john+doe&command=/oncall&text=schedule+--user-group+test";
 
-        let result = parse_slack_command_request(request_body);
-        assert!(result.is_ok());
-
-        let params = result.unwrap();
+        let params = parse_slack_command_request(request_body)?;
+        
         assert_eq!(params.user_name, "john doe");
         assert_eq!(params.text, "schedule --user-group test");
+        Ok(())
     }
 
     #[test]
-    fn test_parse_slack_command_request_missing_required_field() {
+    fn test_parse_slack_command_request_missing_required_field() -> Result<(), AppError> {
         let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&user_id=U1234";
         // Missing required fields: user_name, command
 
@@ -245,10 +238,11 @@ mod tests {
         } else {
             panic!("Expected InvalidData error");
         }
+        Ok(())
     }
 
     #[test]
-    fn test_parse_slack_command_request_empty_body() {
+    fn test_parse_slack_command_request_empty_body() -> Result<(), AppError> {
         let request_body = "";
 
         let result = parse_slack_command_request(request_body);
@@ -259,63 +253,61 @@ mod tests {
         } else {
             panic!("Expected InvalidData error");
         }
+        Ok(())
     }
 
     #[test]
-    fn test_parse_slack_command_request_invalid_format() {
+    fn test_parse_slack_command_request_invalid_format() -> Result<(), AppError> {
         let request_body = "not a valid urlencoded string!!!";
 
         let result = parse_slack_command_request(request_body);
         // This should actually succeed because serde_urlencoded is lenient
         // It will treat the whole string as a key with no value
         assert!(result.is_err());
+        Ok(())
     }
 
     #[test]
-    fn test_parse_slack_command_request_with_special_characters() {
+    fn test_parse_slack_command_request_with_special_characters() -> Result<(), AppError> {
         let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&user_id=U1234&user_name=john&command=/oncall&text=%3C!subteam%5ES123%7C%40oncall%3E";
 
-        let result = parse_slack_command_request(request_body);
-        assert!(result.is_ok());
-
-        let params = result.unwrap();
+        let params = parse_slack_command_request(request_body)?;
+        
         assert_eq!(params.text, "<!subteam^S123|@oncall>");
+        Ok(())
     }
 
     #[test]
-    fn test_parse_slack_command_request_enterprise_install_false() {
+    fn test_parse_slack_command_request_enterprise_install_false() -> Result<(), AppError> {
         let request_body = "team_id=T1234&team_domain=example&channel_id=C1234&channel_name=general&is_enterprise_install=false&user_id=U1234&user_name=john&command=/oncall";
 
-        let result = parse_slack_command_request(request_body);
-        assert!(result.is_ok());
-
-        let params = result.unwrap();
+        let params = parse_slack_command_request(request_body)?;
+        
         assert_eq!(params.is_enterprise_install, false);
+        Ok(())
     }
 
     #[test]
-    fn test_validate_request_valid() {
+    fn test_validate_request_valid() -> Result<(), AppError> {
         let request_body = "token=test&team_id=T123&command=/oncall";
         let signing_secret = "test_secret";
 
-        // Create a valid signature
         let timestamp = chrono::Utc::now().timestamp();
         let sig_basestring = format!("v0:{}:{}", timestamp, request_body);
         let verification_key = hmac::Key::new(hmac::HMAC_SHA256, signing_secret.as_bytes());
         let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
         let expected_signature = format!("v0={}", signature);
 
-        // Build headers
         let mut headers = HeaderMap::new();
         headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str(&timestamp.to_string()).unwrap());
         headers.insert("X-Slack-Signature", HeaderValue::from_str(&expected_signature).unwrap());
 
-        let result = validate_request(&headers, request_body, signing_secret);
-        assert!(result.is_ok());
+        validate_request(&headers, request_body, signing_secret)?;
+        Ok(())
     }
 
     #[test]
-    fn test_validate_request_invalid_signature() {
+    fn test_validate_request_invalid_signature() -> Result<(), AppError> {
         let request_body = "token=test&team_id=T123&command=/oncall";
         let signing_secret = "test_secret";
 
@@ -334,10 +326,11 @@ mod tests {
         } else {
             panic!("Expected InvalidSlackRequest error");
         }
+        Ok(())
     }
 
     #[test]
-    fn test_validate_request_expired_timestamp() {
+    fn test_validate_request_expired_timestamp() -> Result<(), AppError> {
         let request_body = "token=test&team_id=T123&command=/oncall";
         let signing_secret = "test_secret";
 
@@ -360,10 +353,11 @@ mod tests {
         } else {
             panic!("Expected InvalidSlackRequest error");
         }
+        Ok(())
     }
 
     #[test]
-    fn test_validate_request_missing_timestamp_header() {
+    fn test_validate_request_missing_timestamp_header()  -> Result<(), AppError>{
         let request_body = "token=test&team_id=T123&command=/oncall";
         let signing_secret = "test_secret";
 
@@ -378,10 +372,11 @@ mod tests {
         } else {
             panic!("Expected InvalidSlackRequest error");
         }
+        Ok(())
     }
 
     #[test]
-    fn test_validate_request_missing_signature_header() {
+    fn test_validate_request_missing_signature_header() -> Result<(), AppError> {
         let request_body = "token=test&team_id=T123&command=/oncall";
         let signing_secret = "test_secret";
 
@@ -397,10 +392,11 @@ mod tests {
         } else {
             panic!("Expected InvalidSlackRequest error");
         }
+        Ok(())
     }
 
     #[test]
-    fn test_validate_request_invalid_timestamp_format() {
+    fn test_validate_request_invalid_timestamp_format()  -> Result<(), AppError>{
         let request_body = "token=test&team_id=T123&command=/oncall";
         let signing_secret = "test_secret";
 
@@ -416,10 +412,11 @@ mod tests {
         } else {
             panic!("Expected InvalidSlackRequest error");
         }
+        Ok(())
     }
 
     #[test]
-    fn test_validate_request_signature_with_different_body() {
+    fn test_validate_request_signature_with_different_body() -> Result<(), AppError> {
         let original_body = "token=test&team_id=T123&command=/oncall";
         let different_body = "token=test&team_id=T456&command=/oncall";
         let signing_secret = "test_secret";
@@ -443,6 +440,7 @@ mod tests {
         } else {
             panic!("Expected InvalidSlackRequest error");
         }
+        Ok(())
     }
 
 }

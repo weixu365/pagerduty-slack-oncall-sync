@@ -8,9 +8,9 @@ use crate::{
 };
 
 pub struct ScheduledTasksDynamodb {
-    client: Client,
-    table_name: String,
-    encryptor: Encryptor,
+    pub(crate) client: Client,
+    pub(crate) table_name: String,
+    pub(crate) encryptor: Encryptor,
 }
 
 impl ScheduledTasksDynamodb {
@@ -22,11 +22,11 @@ impl ScheduledTasksDynamodb {
         }
     }
 
-    fn team(&self, team_id: &str, workspace_id: &str) -> String {
+    pub(crate) fn team(&self, team_id: &str, workspace_id: &str) -> String {
         format!("{}:{}", team_id, workspace_id)
     }
 
-    fn parse_scheduled_task(
+    pub(crate) fn parse_scheduled_task(
         &self,
         item: &std::collections::HashMap<String, AttributeValue>,
     ) -> Result<ScheduledTask, AppError> {
