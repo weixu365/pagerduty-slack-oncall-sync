@@ -41,8 +41,10 @@ async fn main() -> Result<(), AppError> {
         .get("UpdateUserGroupsLambdaRoleArn")
         .ok_or_else(|| AppError::UnexpectedError("UpdateUserGroupsLambdaRoleArn not found".to_string()))?;
 
-    env::set_var("UPDATE_USER_GROUP_LAMBDA", lambda_arn);
-    env::set_var("UPDATE_USER_GROUP_LAMBDA_ROLE", lambda_role_arn);
+    unsafe {
+        env::set_var("UPDATE_USER_GROUP_LAMBDA", lambda_arn);
+        env::set_var("UPDATE_USER_GROUP_LAMBDA_ROLE", lambda_role_arn);
+    }
 
     update_user_groups(&env).await?;
 
