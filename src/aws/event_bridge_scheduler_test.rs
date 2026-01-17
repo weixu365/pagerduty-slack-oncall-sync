@@ -1,13 +1,13 @@
 use super::event_bridge_scheduler::{EventBridgeSchedule, EventBridgeScheduler};
 use crate::{errors::AppError, utils::cron::CronSchedule};
 use aws_sdk_scheduler::{
+    Client,
     operation::{
         delete_schedule::DeleteScheduleOutput, get_schedule::GetScheduleOutput, list_schedules::ListSchedulesOutput,
     },
     types::{FlexibleTimeWindow, FlexibleTimeWindowMode, ScheduleSummary, Target},
-    Client,
 };
-use aws_smithy_mocks::{mock, mock_client, RuleMode};
+use aws_smithy_mocks::{RuleMode, mock, mock_client};
 use chrono::{Datelike, TimeZone, Timelike, Utc};
 use chrono_tz::America::New_York;
 

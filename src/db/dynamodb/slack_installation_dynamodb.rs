@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use aws_sdk_dynamodb::{types::AttributeValue, Client};
+use aws_sdk_dynamodb::{Client, types::AttributeValue};
 use chrono::Utc;
 
 use crate::config::Config;

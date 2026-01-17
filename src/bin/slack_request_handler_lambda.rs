@@ -1,6 +1,6 @@
 use std::env;
 
-use lambda_http::{service_fn, Body, Error, Request, RequestExt, Response};
+use lambda_http::{Body, Error, Request, RequestExt, Response, service_fn};
 use on_call_support::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
     config::Config,
@@ -11,7 +11,7 @@ use on_call_support::{
         new_schedule_handler::handle_schedule_command,
         oauth_handler::handle_slack_oauth,
         setup_pagerduty_handler::handle_setup_pagerduty_command,
-        slack_request::{parse_slack_request, Command},
+        slack_request::{Command, parse_slack_request},
     },
     utils::http_util::response,
     utils::logging,

@@ -4,7 +4,7 @@ use clap::Args;
 
 use crate::{
     errors::AppError,
-    utils::cron::{get_next_schedule_from, CronSchedule},
+    utils::cron::{CronSchedule, get_next_schedule_from},
     utils::timestamp::get_timezone,
 };
 

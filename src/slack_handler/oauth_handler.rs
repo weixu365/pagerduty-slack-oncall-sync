@@ -3,7 +3,7 @@ use lambda_http::Response;
 
 use crate::{
     aws::secrets_client::Secrets,
-    db::{dynamodb::SlackInstallationsDynamoDb, SlackInstallation, SlackInstallationRepository},
+    db::{SlackInstallation, SlackInstallationRepository, dynamodb::SlackInstallationsDynamoDb},
     errors::AppError,
     service_provider::slack::swap_slack_access_token,
     utils::http_client::build_http_client,

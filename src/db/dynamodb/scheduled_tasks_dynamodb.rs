@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use aws_sdk_dynamodb::{types::AttributeValue, Client};
+use aws_sdk_dynamodb::{Client, types::AttributeValue};
 
 use crate::db::scheduled_task::{ScheduledTask, ScheduledTaskRepository};
 use crate::utils::dynamodb_client::get_attribute;

@@ -4,8 +4,8 @@ use crate::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
     config::Config,
     db::{
-        dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb},
         ScheduledTask, ScheduledTaskRepository, SlackInstallation, SlackInstallationRepository,
+        dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb},
     },
     encryptor::Encryptor,
     errors::AppError,

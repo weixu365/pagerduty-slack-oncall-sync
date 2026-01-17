@@ -1,11 +1,11 @@
 use crate::{config::Config, errors::AppError, utils::cron::CronSchedule};
 use aws_sdk_scheduler::{
+    Client,
     operation::get_schedule::GetScheduleOutput,
     types::{FlexibleTimeWindow, Target},
-    Client,
 };
 use chrono::Utc;
-use futures::{stream, StreamExt, TryStreamExt};
+use futures::{StreamExt, TryStreamExt, stream};
 
 pub struct EventBridgeScheduler {
     pub(crate) client: Client,

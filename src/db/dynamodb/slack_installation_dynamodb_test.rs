@@ -5,8 +5,8 @@ use crate::{
 };
 
 use super::slack_installation_dynamodb::SlackInstallationsDynamoDb;
-use aws_sdk_dynamodb::{types::AttributeValue, Client};
-use aws_smithy_mocks::{mock, mock_client, RuleMode};
+use aws_sdk_dynamodb::{Client, types::AttributeValue};
+use aws_smithy_mocks::{RuleMode, mock, mock_client};
 use std::collections::HashMap;
 
 fn create_test_encryptor() -> Encryptor {

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use derive_more::Display;
 use reqwest::{Client, Method};
 use serde_derive::Deserialize;
-use serde_json::{json, Error, Value};
+use serde_json::{Error, Value, json};
 
 use crate::{errors::AppError, utils::base64::encode_with_pad};
 
