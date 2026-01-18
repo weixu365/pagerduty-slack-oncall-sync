@@ -1,20 +1,22 @@
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{Client, types::AttributeValue};
 use chrono::Utc;
+use futures::stream::{self, StreamExt};
 
 use crate::config::Config;
 use crate::db::slack_installation::{SlackInstallation, SlackInstallationRepository};
 use crate::utils::dynamodb_client::{get_attribute, get_encrypted_attribute, get_optional_encrypted_attribute};
 use crate::{encryptor::Encryptor, errors::AppError};
+use std::sync::Arc;
 
 pub struct SlackInstallationsDynamoDb {
     pub(crate) client: Client,
     pub(crate) table_name: String,
-    pub(crate) encryptor: Encryptor,
+    pub(crate) encryptor: Arc<dyn Encryptor + Send + Sync>,
 }
 
 impl SlackInstallationsDynamoDb {
-    pub fn new(config: &Config, encryptor: Encryptor) -> SlackInstallationsDynamoDb {
+    pub fn new(config: &Config, encryptor: Arc<dyn Encryptor + Send + Sync>) -> SlackInstallationsDynamoDb {
         SlackInstallationsDynamoDb {
             client: Client::new(&config.aws_config),
             table_name: config.installations_table_name.to_string(),
@@ -26,7 +28,7 @@ impl SlackInstallationsDynamoDb {
         format!("{}:{}", slack_team_id, slack_enterprise_id)
     }
 
-    pub(crate) fn parse_installation(
+    pub(crate) async fn parse_installation(
         &self,
         item: &std::collections::HashMap<String, AttributeValue>,
     ) -> Result<SlackInstallation, AppError> {
@@ -37,14 +39,14 @@ impl SlackInstallationsDynamoDb {
             enterprise_name: get_attribute(item, "enterprise_name")?,
             is_enterprise_install: get_attribute(item, "is_enterprise_install")?.eq_ignore_ascii_case("true"),
 
-            access_token: get_encrypted_attribute(item, "access_token", &self.encryptor)?,
+            access_token: get_encrypted_attribute(item, "access_token", &self.encryptor).await?,
             token_type: get_attribute(item, "token_type")?,
             scope: get_attribute(item, "scope")?,
             authed_user_id: get_attribute(item, "authed_user_id")?,
             app_id: get_attribute(item, "app_id")?,
             bot_user_id: get_attribute(item, "bot_user_id")?,
 
-            pager_duty_token: get_optional_encrypted_attribute(item, "pagerduty_token", &self.encryptor)?,
+            pager_duty_token: get_optional_encrypted_attribute(item, "pagerduty_token", &self.encryptor).await?,
         })
     }
 }
@@ -55,8 +57,7 @@ impl SlackInstallationRepository for SlackInstallationsDynamoDb {
         let now = Utc::now();
 
         let t = installation.clone();
-        let encrypted_token = self.encryptor.encrypt(&t.access_token)?;
-        let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
+        let encrypted_token = self.encryptor.encrypt(&t.access_token).await?;
 
         let builder = self
             .client
@@ -67,7 +68,7 @@ impl SlackInstallationRepository for SlackInstallationsDynamoDb {
             .item("enterprise_id", AttributeValue::S(t.enterprise_id))
             .item("enterprise_name", AttributeValue::S(t.enterprise_name))
             .item("is_enterprise_install", AttributeValue::S(t.is_enterprise_install.to_string()))
-            .item("access_token", AttributeValue::S(encrypted_token_json))
+            .item("access_token", AttributeValue::S(encrypted_token))
             .item("token_type", AttributeValue::S(t.token_type))
             .item("scope", AttributeValue::S(t.scope))
             .item("authed_user_id", AttributeValue::S(t.authed_user_id))
@@ -92,8 +93,7 @@ impl SlackInstallationRepository for SlackInstallationsDynamoDb {
     ) -> Result<(), AppError> {
         let now = Utc::now();
         let installation_id = self.installation_id(&slack_team_id, &slack_enterprise_id);
-        let encrypted_token = self.encryptor.encrypt(pagerduty_token)?;
-        let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
+        let encrypted_token = self.encryptor.encrypt(pagerduty_token).await?;
 
         let request = self
             .client
@@ -102,7 +102,7 @@ impl SlackInstallationRepository for SlackInstallationsDynamoDb {
             .key("id", AttributeValue::S(installation_id.to_string()))
             .update_expression("SET pagerduty_token = :pagerduty_token, last_updated_at = :last_updated_at")
             .condition_expression("id = :id")
-            .expression_attribute_values(":pagerduty_token", AttributeValue::S(encrypted_token_json))
+            .expression_attribute_values(":pagerduty_token", AttributeValue::S(encrypted_token))
             .expression_attribute_values(":last_updated_at", AttributeValue::S(now.to_rfc3339()))
             .expression_attribute_values(":id", AttributeValue::S(installation_id.to_string()));
 
@@ -134,7 +134,7 @@ impl SlackInstallationRepository for SlackInstallationsDynamoDb {
             ))
         })?;
 
-        self.parse_installation(&item)
+        self.parse_installation(&item).await
     }
 
     async fn list_installations(&self) -> Result<Vec<SlackInstallation>, AppError> {
@@ -150,16 +150,18 @@ impl SlackInstallationRepository for SlackInstallationsDynamoDb {
 
         tracing::debug!(count = all_items.len(), "Retrieved all Slack installation items from DynamoDB");
 
-        let installations: Vec<SlackInstallation> = all_items
-            .into_iter()
-            .filter_map(|item| match self.parse_installation(&item) {
-                Ok(installation) => Some(installation),
-                Err(err) => {
-                    tracing::error!(%err, item = ?item, "Failed to parse Slack installation, skipping");
-                    None
+        let installations: Vec<SlackInstallation> = stream::iter(all_items)
+            .filter_map(|item| async move {
+                match self.parse_installation(&item).await {
+                    Ok(installation) => Some(installation),
+                    Err(err) => {
+                        tracing::error!(%err, item = ?item, "Failed to parse Slack installation, skipping");
+                        None
+                    }
                 }
             })
-            .collect();
+            .collect()
+            .await;
 
         Ok(installations)
     }

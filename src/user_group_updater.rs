@@ -7,7 +7,7 @@ use crate::{
         ScheduledTask, ScheduledTaskRepository, SlackInstallation, SlackInstallationRepository,
         dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb},
     },
-    encryptor::Encryptor,
+    encryptor::XChaCha20Encryptor,
     errors::AppError,
     service_provider::{pager_duty::PagerDuty, slack::Slack},
     utils::http_client::build_http_client,
@@ -178,7 +178,8 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
     let http_client = Arc::new(build_http_client()?);
     let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
     let secrets = config.secrets().await?;
-    let encryptor = Encryptor::from_key(&secrets.encryption_key)?;
+    let encryptor: Arc<dyn crate::encryptor::Encryptor + Send + Sync> =
+        Arc::new(XChaCha20Encryptor::from_key(&secrets.encryption_key)?);
 
     let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
     let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor.clone());

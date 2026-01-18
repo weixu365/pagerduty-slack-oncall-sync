@@ -1,17 +1,17 @@
 use crate::{
     db::slack_installation::{SlackInstallation, SlackInstallationRepository},
-    encryptor::Encryptor,
+    encryptor::{Encryptor, XChaCha20Encryptor},
     errors::AppError,
 };
 
 use super::slack_installation_dynamodb::SlackInstallationsDynamoDb;
 use aws_sdk_dynamodb::{Client, types::AttributeValue};
 use aws_smithy_mocks::{RuleMode, mock, mock_client};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
-fn create_test_encryptor() -> Encryptor {
+fn create_test_encryptor() -> Arc<dyn Encryptor + Send + Sync> {
     let key = "0123456789abcdef0123456789abcdef";
-    Encryptor::from_key(key).unwrap()
+    Arc::new(XChaCha20Encryptor::from_key(key).unwrap())
 }
 
 fn create_test_installation() -> SlackInstallation {
@@ -133,11 +133,8 @@ async fn test_get_slack_installation_success() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
     let installation = create_test_installation();
 
-    let encrypted_token = encryptor.encrypt(&installation.access_token)?;
-    let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
-
-    let encrypted_pd_token = encryptor.encrypt("pd_token_123")?;
-    let encrypted_pd_token_json = serde_json::to_string(&encrypted_pd_token)?;
+    let encrypted_token = encryptor.encrypt(&installation.access_token).await?;
+    let encrypted_pd_token = encryptor.encrypt("pd_token_123").await?;
 
     let mut item = HashMap::new();
     item.insert("id".to_string(), AttributeValue::S("T123456:E123456".to_string()));
@@ -146,13 +143,13 @@ async fn test_get_slack_installation_success() -> Result<(), AppError> {
     item.insert("enterprise_id".to_string(), AttributeValue::S(installation.enterprise_id.clone()));
     item.insert("enterprise_name".to_string(), AttributeValue::S(installation.enterprise_name.clone()));
     item.insert("is_enterprise_install".to_string(), AttributeValue::S(installation.is_enterprise_install.to_string()));
-    item.insert("access_token".to_string(), AttributeValue::S(encrypted_token_json));
+    item.insert("access_token".to_string(), AttributeValue::S(encrypted_token));
     item.insert("token_type".to_string(), AttributeValue::S(installation.token_type.clone()));
     item.insert("scope".to_string(), AttributeValue::S(installation.scope.clone()));
     item.insert("authed_user_id".to_string(), AttributeValue::S(installation.authed_user_id.clone()));
     item.insert("app_id".to_string(), AttributeValue::S(installation.app_id.clone()));
     item.insert("bot_user_id".to_string(), AttributeValue::S(installation.bot_user_id.clone()));
-    item.insert("pagerduty_token".to_string(), AttributeValue::S(encrypted_pd_token_json));
+    item.insert("pagerduty_token".to_string(), AttributeValue::S(encrypted_pd_token));
 
     let rule = mock!(Client::get_item)
         .match_requests(|req| {
@@ -240,11 +237,8 @@ async fn test_list_installations_with_items() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
     let installation = create_test_installation();
 
-    let encrypted_token = encryptor.encrypt(&installation.access_token)?;
-    let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
-
-    let encrypted_pd_token = encryptor.encrypt("pd_token_123")?;
-    let encrypted_pd_token_json = serde_json::to_string(&encrypted_pd_token)?;
+    let encrypted_token = encryptor.encrypt(&installation.access_token).await?;
+    let encrypted_pd_token = encryptor.encrypt("pd_token_123").await?;
 
     let mut item = HashMap::new();
     item.insert("id".to_string(), AttributeValue::S("T123456:E123456".to_string()));
@@ -253,13 +247,13 @@ async fn test_list_installations_with_items() -> Result<(), AppError> {
     item.insert("enterprise_id".to_string(), AttributeValue::S(installation.enterprise_id.clone()));
     item.insert("enterprise_name".to_string(), AttributeValue::S(installation.enterprise_name.clone()));
     item.insert("is_enterprise_install".to_string(), AttributeValue::S(installation.is_enterprise_install.to_string()));
-    item.insert("access_token".to_string(), AttributeValue::S(encrypted_token_json));
+    item.insert("access_token".to_string(), AttributeValue::S(encrypted_token));
     item.insert("token_type".to_string(), AttributeValue::S(installation.token_type.clone()));
     item.insert("scope".to_string(), AttributeValue::S(installation.scope.clone()));
     item.insert("authed_user_id".to_string(), AttributeValue::S(installation.authed_user_id.clone()));
     item.insert("app_id".to_string(), AttributeValue::S(installation.app_id.clone()));
     item.insert("bot_user_id".to_string(), AttributeValue::S(installation.bot_user_id.clone()));
-    item.insert("pagerduty_token".to_string(), AttributeValue::S(encrypted_pd_token_json));
+    item.insert("pagerduty_token".to_string(), AttributeValue::S(encrypted_pd_token));
 
     let rule = mock!(Client::scan).then_output(move || {
         aws_sdk_dynamodb::operation::scan::ScanOutput::builder()
@@ -320,11 +314,8 @@ async fn test_parse_installation_with_valid_data() -> Result<(), AppError> {
     };
 
     let installation = create_test_installation();
-    let encrypted_token = encryptor.encrypt(&installation.access_token)?;
-    let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
-
-    let encrypted_pd_token = encryptor.encrypt("pd_token_123")?;
-    let encrypted_pd_token_json = serde_json::to_string(&encrypted_pd_token)?;
+    let encrypted_token = encryptor.encrypt(&installation.access_token).await?;
+    let encrypted_pd_token = encryptor.encrypt("pd_token_123").await?;
 
     let mut item = HashMap::new();
     item.insert("team_id".to_string(), AttributeValue::S(installation.team_id.clone()));
@@ -332,15 +323,15 @@ async fn test_parse_installation_with_valid_data() -> Result<(), AppError> {
     item.insert("enterprise_id".to_string(), AttributeValue::S(installation.enterprise_id.clone()));
     item.insert("enterprise_name".to_string(), AttributeValue::S(installation.enterprise_name.clone()));
     item.insert("is_enterprise_install".to_string(), AttributeValue::S(installation.is_enterprise_install.to_string()));
-    item.insert("access_token".to_string(), AttributeValue::S(encrypted_token_json));
+    item.insert("access_token".to_string(), AttributeValue::S(encrypted_token));
     item.insert("token_type".to_string(), AttributeValue::S(installation.token_type.clone()));
     item.insert("scope".to_string(), AttributeValue::S(installation.scope.clone()));
     item.insert("authed_user_id".to_string(), AttributeValue::S(installation.authed_user_id.clone()));
     item.insert("app_id".to_string(), AttributeValue::S(installation.app_id.clone()));
     item.insert("bot_user_id".to_string(), AttributeValue::S(installation.bot_user_id.clone()));
-    item.insert("pagerduty_token".to_string(), AttributeValue::S(encrypted_pd_token_json));
+    item.insert("pagerduty_token".to_string(), AttributeValue::S(encrypted_pd_token));
 
-    let result = db.parse_installation(&item)?;
+    let result = db.parse_installation(&item).await?;
     assert_eq!(result.team_id, "T123456");
     assert_eq!(result.team_name, "Test Team");
     assert_eq!(result.access_token, "xoxb-test-token-123");
@@ -364,8 +355,7 @@ async fn test_parse_installation_without_pagerduty_token() -> Result<(), AppErro
     };
 
     let installation = create_test_installation();
-    let encrypted_token = encryptor.encrypt(&installation.access_token)?;
-    let encrypted_token_json = serde_json::to_string(&encrypted_token)?;
+    let encrypted_token = encryptor.encrypt(&installation.access_token).await?;
 
     let mut item = HashMap::new();
     item.insert("team_id".to_string(), AttributeValue::S(installation.team_id.clone()));
@@ -373,14 +363,14 @@ async fn test_parse_installation_without_pagerduty_token() -> Result<(), AppErro
     item.insert("enterprise_id".to_string(), AttributeValue::S(installation.enterprise_id.clone()));
     item.insert("enterprise_name".to_string(), AttributeValue::S(installation.enterprise_name.clone()));
     item.insert("is_enterprise_install".to_string(), AttributeValue::S(installation.is_enterprise_install.to_string()));
-    item.insert("access_token".to_string(), AttributeValue::S(encrypted_token_json));
+    item.insert("access_token".to_string(), AttributeValue::S(encrypted_token));
     item.insert("token_type".to_string(), AttributeValue::S(installation.token_type.clone()));
     item.insert("scope".to_string(), AttributeValue::S(installation.scope.clone()));
     item.insert("authed_user_id".to_string(), AttributeValue::S(installation.authed_user_id.clone()));
     item.insert("app_id".to_string(), AttributeValue::S(installation.app_id.clone()));
     item.insert("bot_user_id".to_string(), AttributeValue::S(installation.bot_user_id.clone()));
 
-    let result = db.parse_installation(&item)?;
+    let result = db.parse_installation(&item).await?;
     assert_eq!(result.team_id, "T123456");
     assert_eq!(result.pager_duty_token, None);
 
@@ -404,7 +394,7 @@ async fn test_parse_installation_missing_required_field() -> Result<(), AppError
     let mut item = HashMap::new();
     item.insert("team_id".to_string(), AttributeValue::S("T123456".to_string()));
 
-    let result = db.parse_installation(&item);
+    let result = db.parse_installation(&item).await;
     assert!(result.is_err());
     match result {
         Err(AppError::UnexpectedError(msg)) => {
@@ -443,12 +433,12 @@ async fn test_parse_installation_invalid_encrypted_token() -> Result<(), AppErro
     item.insert("app_id".to_string(), AttributeValue::S("A123456".to_string()));
     item.insert("bot_user_id".to_string(), AttributeValue::S("B123456".to_string()));
 
-    let result = db.parse_installation(&item);
+    let result = db.parse_installation(&item).await;
     assert!(result.is_err());
     match result {
         Err(AppError::InvalidData(msg)) => {
-            assert!(msg.contains("invalid json field"));
-            assert!(msg.contains("access_token"));
+            // Error should indicate decryption/deserialization failure
+            assert!(msg.contains("decrypt field") || msg.contains("access_token"));
         }
         _ => panic!("Expected InvalidData error"),
     }

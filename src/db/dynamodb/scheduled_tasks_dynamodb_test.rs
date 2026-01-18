@@ -1,6 +1,6 @@
 use crate::{
     db::scheduled_task::{ScheduledTask, ScheduledTaskRepository},
-    encryptor::Encryptor,
+    encryptor::{Encryptor, XChaCha20Encryptor},
     errors::AppError,
 };
 
@@ -8,11 +8,11 @@ use super::scheduled_tasks_dynamodb::ScheduledTasksDynamodb;
 use aws_sdk_dynamodb::{Client, types::AttributeValue};
 use aws_smithy_mocks::{RuleMode, mock, mock_client};
 use chrono::Utc;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
-fn create_test_encryptor() -> Encryptor {
+fn create_test_encryptor() -> Arc<dyn Encryptor + Send + Sync> {
     let key = "0123456789abcdef0123456789abcdef";
-    Encryptor::from_key(key).unwrap()
+    Arc::new(XChaCha20Encryptor::from_key(key).unwrap())
 }
 
 fn create_test_task() -> ScheduledTask {
@@ -44,12 +44,14 @@ fn create_test_task() -> ScheduledTask {
     }
 }
 
-fn convert_task_to_map(task: &ScheduledTask, encryptor: &Encryptor) -> Result<HashMap<String, AttributeValue>, AppError> {
-    let encrypted_pagerduty_token_json = task.pager_duty_token.as_ref()
-        .map(|token| encryptor.encrypt(&token)).transpose()?
-        .map(|encrypted_token| serde_json::to_string(&encrypted_token)).transpose()?;
+async fn convert_task_to_map(task: &ScheduledTask, encryptor: &Arc<dyn Encryptor + Send + Sync>) -> Result<HashMap<String, AttributeValue>, AppError> {
+    let encrypted_pagerduty_token = if let Some(token) = task.pager_duty_token.as_ref() {
+        Some(encryptor.encrypt(token).await?)
+    } else {
+        None
+    };
 
-    let pagerduty_token_value: AttributeValue = match encrypted_pagerduty_token_json {
+    let pagerduty_token_value: AttributeValue = match encrypted_pagerduty_token {
         None => AttributeValue::Null(true),
         Some(json) => AttributeValue::S(json),
     };
@@ -219,7 +221,7 @@ async fn test_list_scheduled_tasks_empty() -> Result<(), AppError> {
 async fn test_list_scheduled_tasks_with_items() -> Result<(), AppError> {
     let encryptor = create_test_encryptor();
     let task = create_test_task();
-    let item = convert_task_to_map(&task, &encryptor)?;
+    let item = convert_task_to_map(&task, &encryptor).await?;
 
     let scan_rule = mock!(Client::scan).then_output(move || {
         aws_sdk_dynamodb::operation::scan::ScanOutput::builder()
@@ -311,9 +313,9 @@ async fn test_parse_scheduled_task_with_valid_data() -> Result<(), AppError> {
     };
 
     let task = create_test_task();
-    let item = convert_task_to_map(&task, &encryptor)?;
+    let item = convert_task_to_map(&task, &encryptor).await?;
 
-    let result = db.parse_scheduled_task(&item)?;
+    let result = db.parse_scheduled_task(&item).await?;
     assert_eq!(result.task_id, "task_123");
     assert_eq!(result.team_id, "test_team");
     assert_eq!(result.pager_duty_token, Some("pd_token_123".to_string()));
@@ -337,10 +339,10 @@ async fn test_parse_scheduled_task_empty_pagerduty_token() -> Result<(), AppErro
     };
 
     let task = create_test_task();
-    let mut item = convert_task_to_map(&task, &encryptor)?;
+    let mut item = convert_task_to_map(&task, &encryptor).await?;
     item.insert("pager_duty_token".to_string(), AttributeValue::S("".to_string()));
     
-    let result = db.parse_scheduled_task(&item)?;
+    let result = db.parse_scheduled_task(&item).await?;
     assert_eq!(result.pager_duty_token, None);
 
     Ok(())
@@ -367,7 +369,7 @@ async fn test_parse_scheduled_task_invalid_timestamp() -> Result<(), AppError> {
     item.insert("next_update_timestamp_utc".to_string(), AttributeValue::S("invalid".to_string()));
     item.insert("next_update_time".to_string(), AttributeValue::S("2024-01-15T10:00:00Z".to_string()));
 
-    let result = db.parse_scheduled_task(&item);
+    let result = db.parse_scheduled_task(&item).await;
     assert!(result.is_err());
     match result {
         Err(AppError::InvalidData(msg)) => {
@@ -397,7 +399,7 @@ async fn test_parse_scheduled_task_missing_field() -> Result<(), AppError> {
     let mut item = HashMap::new();
     item.insert("team".to_string(), AttributeValue::S("test_team".to_string()));
 
-    let result = db.parse_scheduled_task(&item);
+    let result = db.parse_scheduled_task(&item).await;
     assert!(result.is_err());
     match result {
         Err(AppError::UnexpectedError(msg)) => {

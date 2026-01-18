@@ -97,6 +97,9 @@ pub enum AppError {
     #[error("Failed to encrypt/decrypt: `{0:?}`")]
     Chacha20poly1305Error(#[from] chacha20poly1305::Error),
 
+    #[error("Encryption error: `{0:?}`")]
+    EncryptionError(String),
+
     #[error("{0:?}")]
     HttpError(String),
 

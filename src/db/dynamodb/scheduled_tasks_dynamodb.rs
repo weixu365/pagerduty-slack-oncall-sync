@@ -6,15 +6,17 @@ use crate::utils::dynamodb_client::get_attribute;
 use crate::{
     config::Config, encryptor::Encryptor, errors::AppError, utils::dynamodb_client::get_optional_encrypted_attribute,
 };
+use std::sync::Arc;
+use futures::stream::{self, StreamExt};
 
 pub struct ScheduledTasksDynamodb {
     pub(crate) client: Client,
     pub(crate) table_name: String,
-    pub(crate) encryptor: Encryptor,
+    pub(crate) encryptor: Arc<dyn Encryptor + Send + Sync>,
 }
 
 impl ScheduledTasksDynamodb {
-    pub fn new(config: &Config, encryptor: Encryptor) -> ScheduledTasksDynamodb {
+    pub fn new(config: &Config, encryptor: Arc<dyn Encryptor + Send + Sync>) -> ScheduledTasksDynamodb {
         ScheduledTasksDynamodb {
             client: Client::new(&config.aws_config),
             table_name: config.schedules_table_name.to_string(),
@@ -26,7 +28,7 @@ impl ScheduledTasksDynamodb {
         format!("{}:{}", team_id, workspace_id)
     }
 
-    pub(crate) fn parse_scheduled_task(
+    pub(crate) async fn parse_scheduled_task(
         &self,
         item: &std::collections::HashMap<String, AttributeValue>,
     ) -> Result<ScheduledTask, AppError> {
@@ -49,7 +51,7 @@ impl ScheduledTasksDynamodb {
             user_group_id: get_attribute(item, "user_group_id")?,
             user_group_handle: get_attribute(item, "user_group_handle")?,
             pager_duty_schedule_id: get_attribute(item, "pager_duty_schedule_id")?,
-            pager_duty_token: get_optional_encrypted_attribute(item, "pager_duty_token", &self.encryptor)?,
+            pager_duty_token: get_optional_encrypted_attribute(item, "pager_duty_token", &self.encryptor).await?,
             cron: get_attribute(item, "cron")?,
             timezone: get_attribute(item, "timezone")?,
 
@@ -66,17 +68,11 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
     async fn save_scheduled_task(&self, task: &ScheduledTask) -> Result<(), AppError> {
         let t = task.clone();
 
-        let encrypted_pagerduty_token_json = t
-            .pager_duty_token
-            .as_deref()
-            .map(|token| -> Result<String, AppError> {
-                let encrypted = self.encryptor.encrypt(token)?;
-                let json = serde_json::to_string(&encrypted).map_err(|e| {
-                    AppError::UnexpectedError(format!("Failed to serialize encrypted PagerDuty token: {}", e))
-                })?;
-                Ok(json)
-            })
-            .transpose()?;
+        let encrypted_pagerduty_token = if let Some(token) = t.pager_duty_token.as_deref() {
+            Some(self.encryptor.encrypt(token).await?)
+        } else {
+            None
+        };
 
         let mut builder = self
             .client
@@ -103,8 +99,8 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
             .item("created_at", AttributeValue::S(t.created_at))
             .item("last_updated_at", AttributeValue::S(t.last_updated_at));
 
-        if let Some(json) = encrypted_pagerduty_token_json {
-            builder = builder.item("pager_duty_token", AttributeValue::S(json));
+        if let Some(encrypted) = encrypted_pagerduty_token {
+            builder = builder.item("pager_duty_token", AttributeValue::S(encrypted));
         }
 
         tracing::info!(task_id = task.task_id, next_update_time = task.next_update_time, "Saving task");
@@ -177,16 +173,18 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
 
         tracing::debug!(count = all_items.len(), "Retrieved all scheduled task items from DynamoDB");
 
-        let scheduled_tasks: Vec<ScheduledTask> = all_items
-            .into_iter()
-            .filter_map(|item| match self.parse_scheduled_task(&item) {
-                Ok(task) => Some(task),
-                Err(err) => {
-                    tracing::error!(%err, item = ?item, "Failed to parse scheduled task, skipping");
-                    None
+        let scheduled_tasks: Vec<ScheduledTask> = stream::iter(all_items)
+            .filter_map(|item| async move {
+                match self.parse_scheduled_task(&item).await {
+                    Ok(task) => Some(task),
+                    Err(err) => {
+                        tracing::error!(%err, item = ?item, "Failed to parse scheduled task, skipping");
+                        None
+                    }
                 }
             })
-            .collect();
+            .collect()
+            .await;
 
         Ok(scheduled_tasks)
     }

@@ -1,6 +1,6 @@
 use crate::{encryptor::Encryptor, errors::AppError};
 use aws_sdk_dynamodb::types::AttributeValue;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 pub fn get_optional_attribute(item: &HashMap<String, AttributeValue>, name: &str) -> Option<String> {
     item.get(name)
@@ -19,10 +19,10 @@ pub fn get_attribute(item: &HashMap<String, AttributeValue>, name: &str) -> Resu
         .ok_or_else(|| AppError::UnexpectedError(format!("Missing or invalid field '{}'", name)))
 }
 
-pub fn get_optional_encrypted_attribute(
+pub async fn get_optional_encrypted_attribute(
     item: &HashMap<String, AttributeValue>,
     name: &str,
-    encryptor: &Encryptor,
+    encryptor: &Arc<dyn Encryptor + Send + Sync>,
 ) -> Result<Option<String>, AppError> {
     let encrypted = match get_optional_attribute(item, name) {
         None => return Ok(None),
@@ -33,21 +33,19 @@ pub fn get_optional_encrypted_attribute(
         return Ok(None);
     }
 
-    let encrypted_token = serde_json::from_str(&encrypted)
-        .map_err(|e| AppError::InvalidData(format!("invalid json field {}. Error: {}", name, e)))?;
-
     let decrypted = encryptor
-        .decrypt(&encrypted_token)
+        .decrypt(&encrypted)
+        .await
         .map_err(|e| AppError::InvalidData(format!("can't decrypt field {}. Error: {}", name, e)))?;
 
     Ok(Some(decrypted))
 }
 
-pub fn get_encrypted_attribute(
+pub async fn get_encrypted_attribute(
     item: &HashMap<String, AttributeValue>,
     name: &str,
-    encryptor: &Encryptor,
+    encryptor: &Arc<dyn Encryptor + Send + Sync>,
 ) -> Result<String, AppError> {
-    get_optional_encrypted_attribute(item, name, encryptor)?
+    get_optional_encrypted_attribute(item, name, encryptor).await?
         .ok_or_else(|| AppError::UnexpectedError(format!("Missing or invalid field '{}'", name)))
 }

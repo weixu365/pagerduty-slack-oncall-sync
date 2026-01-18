@@ -5,7 +5,7 @@ use on_call_support::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
     config::Config,
     db::dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb},
-    encryptor::Encryptor,
+    encryptor::{Encryptor, XChaCha20Encryptor},
     slack_handler::{
         list_schedules_handler::handle_list_schedules_command,
         new_schedule_handler::handle_schedule_command,
@@ -16,6 +16,7 @@ use on_call_support::{
     utils::http_util::response,
     utils::logging,
 };
+use std::sync::Arc;
 use tokio;
 use tracing::{error, info, warn};
 
@@ -43,7 +44,8 @@ async fn func(request: Request) -> Result<Response<Body>, Error> {
     let env = env::var("ENV").unwrap_or("dev".to_string());
     let config = Config::get_or_init(&env).await?;
     let secrets = config.secrets().await?;
-    let encryptor = Encryptor::from_key(&secrets.encryption_key)?;
+    let encryptor: Arc<dyn Encryptor + Send + Sync> =
+        Arc::new(XChaCha20Encryptor::from_key(&secrets.encryption_key)?);
 
     let request_path = request.uri().path();
     let method = request.method().as_str();
