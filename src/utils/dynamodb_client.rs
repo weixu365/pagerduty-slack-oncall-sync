@@ -46,6 +46,7 @@ pub async fn get_encrypted_attribute(
     name: &str,
     encryptor: &Arc<dyn Encryptor + Send + Sync>,
 ) -> Result<String, AppError> {
-    get_optional_encrypted_attribute(item, name, encryptor).await?
+    get_optional_encrypted_attribute(item, name, encryptor)
+        .await?
         .ok_or_else(|| AppError::UnexpectedError(format!("Missing or invalid field '{}'", name)))
 }

@@ -6,8 +6,8 @@ use crate::utils::dynamodb_client::get_attribute;
 use crate::{
     config::Config, encryptor::Encryptor, errors::AppError, utils::dynamodb_client::get_optional_encrypted_attribute,
 };
-use std::sync::Arc;
 use futures::stream::{self, StreamExt};
+use std::sync::Arc;
 
 pub struct ScheduledTasksDynamodb {
     pub(crate) client: Client,

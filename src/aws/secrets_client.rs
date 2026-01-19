@@ -34,4 +34,16 @@ impl SecretsClient {
         let secrets: Secrets = serde_json::from_str(&secrets_value)?;
         Ok(secrets)
     }
+
+    pub async fn get_secret_value(&self, name: &str) -> Result<String, AppError> {
+        tracing::debug!(name, "Getting secret value");
+
+        let result = self.client.get_secret_value().secret_id(name).send().await?;
+
+        let secrets_value = result
+            .secret_string()
+            .map(|s| s.to_string())
+            .ok_or_else(|| AppError::InvalidSecret(format!("secret {} doesn't exist", name)))?;
+        Ok(secrets_value)
+    }
 }

@@ -1,16 +1,16 @@
 use crate::errors::AppError;
 use crate::utils::base64;
-use chacha20poly1305::{
-    XChaCha20Poly1305, XNonce,
-    aead::{Aead, AeadCore, KeyInit, OsRng},
-};
-use serde_derive::{Deserialize, Serialize};
+use async_trait::async_trait;
 use aws_esdk::client as esdk_client;
 use aws_esdk::material_providers::client as mpl_client;
 use aws_esdk::material_providers::types::material_providers_config::MaterialProvidersConfig;
 use aws_esdk::types::aws_encryption_sdk_config::AwsEncryptionSdkConfig;
 use aws_sdk_kms::Client as KmsClient;
-use async_trait::async_trait;
+use chacha20poly1305::{
+    XChaCha20Poly1305, XNonce,
+    aead::{Aead, AeadCore, KeyInit, OsRng},
+};
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EncryptedData {
@@ -80,12 +80,14 @@ pub struct AWSKMSEncryptor {
 
 impl AWSKMSEncryptor {
     pub async fn new(kms_client: KmsClient, key_id: String) -> Result<AWSKMSEncryptor, AppError> {
-        let encryption_config = AwsEncryptionSdkConfig::builder().build()
+        let encryption_config = AwsEncryptionSdkConfig::builder()
+            .build()
             .map_err(|e| AppError::EncryptionError(format!("Failed to build ESDK config: {}", e)))?;
         let encryption_client = esdk_client::Client::from_conf(encryption_config)
             .map_err(|e| AppError::EncryptionError(format!("Failed to create ESDK client: {}", e)))?;
 
-        let material_providers_config = MaterialProvidersConfig::builder().build()
+        let material_providers_config = MaterialProvidersConfig::builder()
+            .build()
             .map_err(|e| AppError::EncryptionError(format!("Failed to build MPL config: {}", e)))?;
         let material_providers_client = mpl_client::Client::from_conf(material_providers_config)
             .map_err(|e| AppError::EncryptionError(format!("Failed to create MPL client: {}", e)))?;
@@ -98,7 +100,10 @@ impl AWSKMSEncryptor {
             .await
             .map_err(|e| AppError::EncryptionError(format!("Failed to create KMS keyring: {}", e)))?;
 
-        Ok(AWSKMSEncryptor { encryption_client, keyring })
+        Ok(AWSKMSEncryptor {
+            encryption_client,
+            keyring,
+        })
     }
 }
 
@@ -107,7 +112,8 @@ impl Encryptor for AWSKMSEncryptor {
     async fn encrypt(&self, plaintext: &str) -> Result<String, AppError> {
         let plaintext_bytes = plaintext.as_bytes();
 
-        let encryption_response = self.encryption_client
+        let encryption_response = self
+            .encryption_client
             .encrypt()
             .plaintext(plaintext_bytes)
             .keyring(self.keyring.clone())
@@ -119,13 +125,14 @@ impl Encryptor for AWSKMSEncryptor {
             .ciphertext
             .ok_or_else(|| AppError::EncryptionError("No ciphertext in encryption response".to_string()))?;
 
-            Ok(base64::encode_no_pad(ciphertext.as_ref()))
+        Ok(base64::encode_no_pad(ciphertext.as_ref()))
     }
 
     async fn decrypt(&self, ciphertext: &str) -> Result<String, AppError> {
         let encrypted_bytes = base64::decode_no_pad(ciphertext.as_bytes())?;
 
-        let decryption_response = self.encryption_client
+        let decryption_response = self
+            .encryption_client
             .decrypt()
             .ciphertext(encrypted_bytes.as_slice())
             .keyring(self.keyring.clone())
@@ -147,7 +154,7 @@ impl Encryptor for AWSKMSEncryptor {
 mod tests {
     use std::env;
 
-    use crate::encryptor::{Encryptor, XChaCha20Encryptor, AWSKMSEncryptor};
+    use crate::encryptor::{AWSKMSEncryptor, Encryptor, XChaCha20Encryptor};
 
     #[tokio::test]
     async fn encrypt_decrypt_string() -> Result<(), Box<dyn std::error::Error>> {
@@ -185,7 +192,10 @@ mod tests {
 
         assert!(!encrypted.is_empty(), "Encrypted data should not be empty");
 
-        let decrypted = encryptor.decrypt(&encrypted).await?;
+        let decryptor_kms_client = aws_sdk_kms::Client::new(&sdk_config);
+        let decryptor = AWSKMSEncryptor::new(decryptor_kms_client, kms_key_id.to_string()).await?;
+
+        let decrypted = decryptor.decrypt(&encrypted).await?;
 
         assert_eq!(decrypted, original);
 

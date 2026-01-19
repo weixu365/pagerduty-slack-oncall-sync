@@ -44,7 +44,10 @@ fn create_test_task() -> ScheduledTask {
     }
 }
 
-async fn convert_task_to_map(task: &ScheduledTask, encryptor: &Arc<dyn Encryptor + Send + Sync>) -> Result<HashMap<String, AttributeValue>, AppError> {
+async fn convert_task_to_map(
+    task: &ScheduledTask,
+    encryptor: &Arc<dyn Encryptor + Send + Sync>,
+) -> Result<HashMap<String, AttributeValue>, AppError> {
     let encrypted_pagerduty_token = if let Some(token) = task.pager_duty_token.as_ref() {
         Some(encryptor.encrypt(token).await?)
     } else {
@@ -341,7 +344,7 @@ async fn test_parse_scheduled_task_empty_pagerduty_token() -> Result<(), AppErro
     let task = create_test_task();
     let mut item = convert_task_to_map(&task, &encryptor).await?;
     item.insert("pager_duty_token".to_string(), AttributeValue::S("".to_string()));
-    
+
     let result = db.parse_scheduled_task(&item).await?;
     assert_eq!(result.pager_duty_token, None);
 
