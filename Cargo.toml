@@ -6,14 +6,14 @@ edition = "2024"
 [dependencies]
 async-trait = "0.1.83"
 aws_lambda_events = { version = "1.0.3", default-features = false, features = ["apigw"] }
-aws-config = "1.8.12"
-aws-sdk-cloudformation = "1.105.0"
-aws-sdk-dynamodb = "1.102.0"
-aws-sdk-eventbridge = "1.99.0"
-aws-sdk-kms = "1.98.0"
-aws-sdk-lambda = "1.100.0"
-aws-sdk-scheduler = "1.92.0"
-aws-sdk-secretsmanager = "1.98.0"
+aws-config = { version = "1.8.12", features = ["rustls"] }
+aws-sdk-cloudformation = { version = "1.105.0", features = ["rustls"] }
+aws-sdk-dynamodb = { version = "1.102.0", features = ["rustls"] }
+aws-sdk-eventbridge = { version = "1.99.0", features = ["rustls"] }
+aws-sdk-kms = { version = "1.98.0", features = ["rustls"] }
+aws-sdk-lambda = { version = "1.100.0", features = ["rustls"] }
+aws-sdk-scheduler = { version = "1.92.0", features = ["rustls"] }
+aws-sdk-secretsmanager = {  version="1.98.0", features = ["rustls"]}
 aws-esdk = "1.2.1"
 base64 = "0.22.1"
 chacha20poly1305 = {version="0.10.1", features=["std"]}
