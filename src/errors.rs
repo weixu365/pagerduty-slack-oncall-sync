@@ -8,6 +8,7 @@ use aws_sdk_dynamodb::{
         update_item::UpdateItemError,
     },
 };
+use aws_sdk_lambda::operation::invoke::InvokeError;
 use aws_sdk_scheduler::operation::list_schedules::ListSchedulesError;
 use aws_sdk_scheduler::operation::{create_schedule::CreateScheduleError, delete_schedule::DeleteScheduleError};
 use aws_sdk_secretsmanager::operation::get_secret_value::GetSecretValueError;
@@ -81,6 +82,9 @@ pub enum AppError {
 
     #[error("Failed to delete schedule in AWS Scheduler: `{0:?}`")]
     DeleteScheduleError(#[from] SdkError<DeleteScheduleError>),
+
+    #[error("Failed to invoke Lambda function: `{0:?}`")]
+    LambdaInvokeError(#[from] SdkError<InvokeError>),
 
     #[error("Failed to serialize/deserialize json: `{0:?}`")]
     JsonError(#[from] serde_json::Error),
