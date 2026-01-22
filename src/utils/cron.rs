@@ -99,4 +99,20 @@ mod tests {
         assert_eq!(next.next_timestamp_utc, 1673215200);
         Ok(())
     }
+
+    #[test]
+    fn test_get_next_schedule_from_monday_for_kuala_lumpur() -> Result<(), Box<dyn std::error::Error>> {
+        let utc_tz = Tz::from_str("Etc/UTC").unwrap();
+        let kuala_lumpur_tz = Tz::from_str("Asia/Kuala_Lumpur").unwrap();
+        let from = utc_tz.with_ymd_and_hms(2026, 1, 18, 22, 0, 1).unwrap(); // 2026-1-19 9:00:01 in Melbourne time
+        let kuala_lumpure_tz_from = from.with_timezone(&kuala_lumpur_tz);
+
+        let next = get_next_schedule_from("0 0 9 ? * MON-FRI *", &kuala_lumpure_tz_from)?;
+        assert_eq!(next.cron, "0 9 ? * MON-FRI *");
+        assert_eq!(next.next_oneoff_cron, "0 9 19 1 * 2026");
+        assert_eq!(next.timezone, kuala_lumpur_tz);
+        assert_eq!(next.next_datetime, kuala_lumpur_tz.with_ymd_and_hms(2026, 1, 19, 9, 0, 0).unwrap());
+        assert_eq!(next.next_timestamp_utc, 1768784400);
+        Ok(())
+    }
 }

@@ -1,19 +1,17 @@
 use std::env;
 
-use lambda_http::{Body, Error, Request, RequestExt, Response, service_fn};
+use aws_lambda_events::event::apigw::{ApiGatewayProxyRequest, ApiGatewayProxyResponse};
+use lambda_runtime::{service_fn, LambdaEvent, Error};
 use on_call_support::{
-    aws::event_bridge_scheduler::EventBridgeScheduler,
-    config::Config,
-    db::dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb},
-    slack_handler::{
+    aws::event_bridge_scheduler::EventBridgeScheduler, config::Config, db::dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb}, errors::AppError, slack_handler::{
         list_schedules_handler::handle_list_schedules_command,
         new_schedule_handler::handle_schedule_command,
         oauth_handler::handle_slack_oauth,
         setup_pagerduty_handler::handle_setup_pagerduty_command,
         slack_request::{Command, parse_slack_request},
+        slack_response::response,
     },
-    utils::http_util::response,
-    utils::logging,
+    utils::logging
 };
 use tokio;
 use tracing::{error, info, warn};
@@ -24,7 +22,7 @@ async fn main() -> Result<(), Error> {
     info!("Start handling Slack request");
 
     let service_func = service_fn(func);
-    let result = lambda_http::run(service_func).await;
+    let result = lambda_runtime::run(service_func).await;
 
     match result {
         Ok(()) => {
@@ -38,24 +36,25 @@ async fn main() -> Result<(), Error> {
     }
 }
 
-async fn func(request: Request) -> Result<Response<Body>, Error> {
+async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayProxyResponse, AppError> {
+    let (event, _context) = event.into_parts();
+
     let env = env::var("ENV").unwrap_or("dev".to_string());
+    info!(path=event.path, "Received Slack request");
+
     let config = Config::get_or_init(&env).await?;
     let secrets = config.secrets().await?;
     let encryptor = config.build_encryptor().await?;
 
-    let request_path = request.uri().path();
-    let method = request.method().as_str();
+    let request_path = &event.path;
 
-    info!(method, request_path, "Received Slack request");
-
-    match request_path {
-        "/slack/oauth" => {
+    match request_path.as_deref() {
+        Some("/slack/oauth") => {
             info!("Processing Slack OAuth callback");
             // TODO: Return error if not allowed to install app based on ENV
             let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
 
-            match handle_slack_oauth(slack_installations_db, &secrets, request.path_parameters()).await {
+            match handle_slack_oauth(slack_installations_db, &secrets, event.query_string_parameters).await {
                 Ok(res) => {
                     info!("Successfully processed Slack OAuth request");
                     Ok(res)
@@ -66,9 +65,10 @@ async fn func(request: Request) -> Result<Response<Body>, Error> {
                 }
             }
         }
-        "/slack/command" => {
+        Some("/slack/command") => {
             info!("Processing Slack command");
-            let (params, arg) = parse_slack_request(request, &config).await?;
+            let request_body = event.body.as_deref().unwrap_or("");
+            let (params, arg) = parse_slack_request(event.headers, request_body, &config).await?;
 
             let response_body = match arg.command {
                 Some(Command::Schedule(arg)) => {
@@ -99,11 +99,11 @@ async fn func(request: Request) -> Result<Response<Body>, Error> {
                 .collect::<Vec<String>>()
                 .join(",\n");
 
-            response(200, format!(r#"{{ "blocks": [{}] }}"#, sections)).map_err(|err| err.into())
+            response(200, format!(r#"{{ "blocks": [{}] }}"#, sections))
         }
         _ => {
-            warn!(method, request_path, "Received request for unknown path");
-            response(400, format!("Invalid request")).map_err(|err| err.into())
+            warn!(request_path, "Received request for unknown path");
+            response(400, format!("Invalid request"))
         }
     }
 }

@@ -13,7 +13,6 @@ release-linux:
 lambda:
 	cargo lambda build --release --output-format zip
 	cp target/lambda/slack_request_handler_lambda/bootstrap.zip target/lambda/slack_request_handler_lambda.zip
-	cp target/lambda/update_user_group_mk_lambda/bootstrap.zip target/lambda/update_user_group_mk_lambda.zip
 	cp target/lambda/update_user_groups_lambda/bootstrap.zip target/lambda/update_user_groups_lambda.zip
 
 run:

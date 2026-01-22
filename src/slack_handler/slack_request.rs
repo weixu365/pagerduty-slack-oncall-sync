@@ -3,7 +3,6 @@ use aws_lambda_events::http::{HeaderMap, HeaderValue};
 use crate::{config::Config, errors::AppError, utils::constant_time::constant_time_compare_str};
 use clap::Parser;
 use clap::{Args, Subcommand};
-use lambda_http::Request;
 use lazy_static::lazy_static;
 use regex::Regex;
 use ring::hmac;
@@ -71,8 +70,8 @@ pub struct SlackCommandRequest {
     pub command: String,
     #[serde(default)]
     pub text: String,
-    // #[serde(default)]
-    // response_url: String,
+    #[serde(default)]
+    pub response_url: String,
 }
 
 fn parse_slack_command_request(request_body: &str) -> Result<SlackCommandRequest, AppError> {
@@ -93,11 +92,11 @@ fn cleanse(text: &str) -> String {
 }
 
 fn validate_request(
-    request_header: &HeaderMap<HeaderValue>,
+    request_headers: HeaderMap<HeaderValue>,
     request_body: &str,
     slack_signing_secret: &str,
 ) -> Result<(), AppError> {
-    let slack_request_timestamp = request_header
+    let slack_request_timestamp = request_headers
         .get("X-Slack-Request-Timestamp")
         .ok_or_else(|| AppError::InvalidSlackRequest("Missing X-Slack-Request-Timestamp header".to_string()))?
         .to_str()
@@ -105,7 +104,7 @@ fn validate_request(
         .parse::<i64>()
         .map_err(|_| AppError::InvalidSlackRequest("Invalid X-Slack-Request-Timestamp value".to_string()))?;
 
-    let slack_request_signature = request_header
+    let slack_request_signature = request_headers
         .get("X-Slack-Signature")
         .ok_or_else(|| AppError::InvalidSlackRequest("Missing X-Slack-Signature header".to_string()))?
         .to_str()
@@ -132,19 +131,16 @@ fn validate_request(
 }
 
 pub async fn parse_slack_request(
-    request: Request,
+    request_headers: HeaderMap<HeaderValue>,
+    request_body: &str,
     config: &Config,
 ) -> Result<(SlackCommandRequest, AppArgs), AppError> {
-    let request_body = std::str::from_utf8(request.body().as_ref()).map_err(|e| {
-        tracing::error!(error = %e, "Request body is not valid UTF-8");
-        AppError::Error(format!("Request body is not valid UTF-8: {}", e))
-    })?;
-
     let params = parse_slack_command_request(request_body)?;
     tracing::debug!(?params, "params in request body");
 
     let secrets = config.secrets().await?;
-    validate_request(request.headers(), request_body, &secrets.slack_signing_secret)?;
+    validate_request(request_headers, request_body, &secrets.slack_signing_secret)?;
+    tracing::debug!(?params, "validated request");
 
     let arg = match shlex::split(cleanse(format!("{} {}", &params.command, &params.text).as_str()).as_str()) {
         Some(args) => Some(AppArgs::parse_from(args.iter())),
@@ -302,7 +298,7 @@ mod tests {
         headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str(&timestamp.to_string()).unwrap());
         headers.insert("X-Slack-Signature", HeaderValue::from_str(&expected_signature).unwrap());
 
-        validate_request(&headers, request_body, signing_secret)?;
+        validate_request(headers, request_body, signing_secret)?;
         Ok(())
     }
 
@@ -318,7 +314,7 @@ mod tests {
         headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str(&timestamp.to_string()).unwrap());
         headers.insert("X-Slack-Signature", HeaderValue::from_str(invalid_signature).unwrap());
 
-        let result = validate_request(&headers, request_body, signing_secret);
+        let result = validate_request(headers, request_body, signing_secret);
         assert!(result.is_err());
 
         if let Err(AppError::InvalidSlackRequest(msg)) = result {
@@ -345,7 +341,7 @@ mod tests {
         headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str(&timestamp.to_string()).unwrap());
         headers.insert("X-Slack-Signature", HeaderValue::from_str(&expected_signature).unwrap());
 
-        let result = validate_request(&headers, request_body, signing_secret);
+        let result = validate_request(headers, request_body, signing_secret);
         assert!(result.is_err());
 
         if let Err(AppError::InvalidSlackRequest(msg)) = result {
@@ -364,7 +360,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("X-Slack-Signature", HeaderValue::from_str("v0=test").unwrap());
 
-        let result = validate_request(&headers, request_body, signing_secret);
+        let result = validate_request(headers, request_body, signing_secret);
         assert!(result.is_err());
 
         if let Err(AppError::InvalidSlackRequest(msg)) = result {
@@ -384,7 +380,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str(&timestamp.to_string()).unwrap());
 
-        let result = validate_request(&headers, request_body, signing_secret);
+        let result = validate_request(headers, request_body, signing_secret);
         assert!(result.is_err());
 
         if let Err(AppError::InvalidSlackRequest(msg)) = result {
@@ -404,7 +400,7 @@ mod tests {
         headers.insert("X-Slack-Request-Timestamp", HeaderValue::from_str("not_a_number").unwrap());
         headers.insert("X-Slack-Signature", HeaderValue::from_str("v0=test").unwrap());
 
-        let result = validate_request(&headers, request_body, signing_secret);
+        let result = validate_request(headers, request_body, signing_secret);
         assert!(result.is_err());
 
         if let Err(AppError::InvalidSlackRequest(msg)) = result {
@@ -432,7 +428,7 @@ mod tests {
         headers.insert("X-Slack-Signature", HeaderValue::from_str(&expected_signature).unwrap());
 
         // Validate with different body - should fail
-        let result = validate_request(&headers, different_body, signing_secret);
+        let result = validate_request(headers, different_body, signing_secret);
         assert!(result.is_err());
 
         if let Err(AppError::InvalidSlackRequest(msg)) = result {

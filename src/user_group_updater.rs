@@ -210,7 +210,9 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
             );
         }
 
-        if task.next_update_timestamp_utc > 0 && task.next_update_timestamp_utc < timestamp_of_next_trigger {
+        if task.next_update_timestamp_utc > start_of_the_update.timestamp()
+            && task.next_update_timestamp_utc < timestamp_of_next_trigger
+        {
             timestamp_of_next_trigger = task.next_update_timestamp_utc;
             next_task = Some(task);
         }
@@ -219,6 +221,15 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
     // at least re-run daily
     // (Utc::now() + Duration::days(1)).timestamp()
     if let Some(next) = next_task {
+        tracing::info!(
+            task_id = next.task_id,
+            cron = next.cron,
+            next_update_time = next.next_update_time,
+            next_update_timestamp_utc = next.next_update_timestamp_utc,
+            start_of_the_update = %start_of_the_update,
+            "Scheduling next update based on the next task"
+        );
+
         match next.calculate_next_schedule(&start_of_the_update) {
             //TODO: if next schedule is earlier than now, re-run the above loop
             Ok(next_schedule) => {

@@ -1,5 +1,4 @@
-use aws_lambda_events::{encodings::Body, query_map::QueryMap};
-use lambda_http::Response;
+use aws_lambda_events::{apigw::ApiGatewayProxyResponse, query_map::QueryMap};
 
 use crate::{
     aws::secrets_client::Secrets,
@@ -7,14 +6,14 @@ use crate::{
     errors::AppError,
     service_provider::slack::swap_slack_access_token,
     utils::http_client::build_http_client,
-    utils::http_util::response,
+    slack_handler::slack_response::response,
 };
 
 pub async fn handle_slack_oauth(
     slack_installations_db: SlackInstallationsDynamoDb,
     secrets: &Secrets,
     query_map: QueryMap,
-) -> Result<Response<Body>, AppError> {
+) -> Result<ApiGatewayProxyResponse, AppError> {
     let code_parameter = query_map.first("code");
 
     match code_parameter {

@@ -12,6 +12,7 @@ use tokio;
 async fn main() -> Result<(), AppError> {
     init_logging();
 
+    tracing::info!("Updating Slack user groups based on PagerDuty on-call schedule");
     let env = env::var("ENV").unwrap_or("dev".to_string());
     let config = Config::get_or_init(&env).await?;
     let cloudformation_stack_name = format!("on-call-support-{}", env);

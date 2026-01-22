@@ -2,8 +2,9 @@ use std::env;
 use tracing_subscriber::EnvFilter;
 
 pub fn init_logging() {
+    let default_log_level = "warn,on_call_support=info,slack_request_handler_lambda=info,update_user_groups_lambda=info,update_user_groups=info";
     let log_format = env::var("LOG_FORMAT").unwrap_or_else(|_| "json".to_string());
-    let log_level = env::var("LOG_LEVEL").unwrap_or_else(|_| "warn,on_call_support=info".to_string());
+    let log_level = env::var("LOG_LEVEL").unwrap_or_else(|_| default_log_level.to_string());
 
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(log_level));
 

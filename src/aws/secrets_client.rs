@@ -24,14 +24,12 @@ impl SecretsClient {
     }
 
     pub async fn get_secret(&self, name: &str) -> Result<Secrets, AppError> {
-        tracing::debug!(name, "Getting secret value");
+        tracing::debug!(name, "Fetching secret value");
 
-        let result = self.client.get_secret_value().secret_id(name).send().await?;
-
-        let secrets_value = result
-            .secret_string()
-            .ok_or_else(|| AppError::InvalidSecret(format!("secret {} doesn't exist", name)))?;
+        let secrets_value = self.get_secret_value(name).await?;
         let secrets: Secrets = serde_json::from_str(&secrets_value)?;
+        tracing::debug!(name, "Fetched secret value");
+
         Ok(secrets)
     }
 

@@ -47,7 +47,6 @@ pub async fn handle_schedule_command(
 
     // Validate PagerDuty token and schedule by making a test API call
     let pager_duty = PagerDuty::new(http_client.clone(), pagerduty_token.clone(), arg.pagerduty_schedule.clone());
-    pager_duty.validate_token().await?;
     pager_duty.get_on_call_users(Utc::now()).await?;
 
     let timezone = Tz::from_str(&arg.timezone.unwrap_or("UTC".to_string()))

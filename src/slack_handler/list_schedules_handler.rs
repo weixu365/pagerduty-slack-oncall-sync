@@ -8,8 +8,8 @@ pub async fn handle_list_schedules_command(
         .into_iter()
         .map(|t| {
             format!(
-                "## {}\nUpdate {} on {}\nNext schedule: {}",
-                t.channel_name, t.user_group_handle, t.cron, t.next_update_time
+                "## {}\nUpdate {} on {} {}\nLast updated at: {}. Next schedule: {}",
+                t.channel_name, t.user_group_handle, t.cron, t.timezone, t.last_updated_at, t.next_update_time
             )
         })
         .collect();
