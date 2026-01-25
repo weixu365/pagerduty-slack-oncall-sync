@@ -1,4 +1,5 @@
 use aws_lambda_events::http::{HeaderMap, HeaderValue};
+use tracing::warn;
 
 use crate::{config::Config, errors::AppError, utils::constant_time::constant_time_compare_str};
 use clap::Parser;
@@ -42,7 +43,13 @@ pub struct SetupPagerdutyArgs {
 #[derive(Debug, Args)]
 pub struct ListSchedulesArgs {
     #[arg(long)]
-    all: Option<bool>,
+    pub all: Option<bool>,
+
+    #[arg(long)]
+    pub page: Option<usize>,
+
+    #[arg(long, default_value = "5")]
+    pub page_size: usize,
 }
 
 #[derive(Debug, Subcommand)]
@@ -70,6 +77,8 @@ pub struct SlackCommandRequest {
     pub command: String,
     #[serde(default)]
     pub text: String,
+    #[serde(default)]
+    pub payload: String,
     #[serde(default)]
     pub response_url: String,
 }
@@ -134,22 +143,32 @@ pub async fn parse_slack_request(
     request_headers: HeaderMap<HeaderValue>,
     request_body: &str,
     config: &Config,
-) -> Result<(SlackCommandRequest, AppArgs), AppError> {
+) -> Result<SlackCommandRequest, AppError> {
     let params = parse_slack_command_request(request_body)?;
     tracing::debug!(?params, "params in request body");
+
+    let response_url = params.response_url.clone();
+    if response_url.is_empty() {
+        warn!("response_url is empty, cannot send response to Slack");
+        return Err(AppError::InvalidSlackRequest(format!("response_url is empty")));
+    }
 
     let secrets = config.secrets().await?;
     validate_request(request_headers, request_body, &secrets.slack_signing_secret)?;
     tracing::debug!(?params, "validated request");
 
-    let arg = match shlex::split(cleanse(format!("{} {}", &params.command, &params.text).as_str()).as_str()) {
+    Ok(params)
+}
+
+pub async fn parse_slack_command(command: &str, args: &str) -> Result<AppArgs, AppError> {
+    let arg = match shlex::split(cleanse(format!("{} {}", command, args).as_str()).as_str()) {
         Some(args) => Some(AppArgs::parse_from(args.iter())),
         None => None,
     };
 
     let arg = arg.ok_or_else(|| AppError::InvalidData("Failed to parse command arguments".to_string()))?;
 
-    Ok((params, arg))
+    Ok(arg)
 }
 
 #[cfg(test)]

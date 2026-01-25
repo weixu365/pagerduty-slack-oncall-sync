@@ -4,7 +4,7 @@ use crate::errors::AppError;
 
 pub fn response(status_code: i64, body: String) -> Result<ApiGatewayProxyResponse, AppError> {
     let mut response_headers = HeaderMap::new();
-    response_headers.insert("response_type", "in_channel".parse().unwrap());
+    // response_headers.insert("response_type", "in_channel".parse().unwrap());
     response_headers.insert("Content-type", "application/json".parse().unwrap());
 
     let mut response = ApiGatewayProxyResponse::default();
