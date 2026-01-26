@@ -2,6 +2,7 @@ use crate::db::ScheduledTask;
 use slack_morphism::prelude::*;
 use chrono::{DateTime, SecondsFormat};
 use chrono_tz::Tz;
+use serde_json;
 
 pub const DEFAULT_PAGE_SIZE: usize = 5;
 
@@ -84,13 +85,13 @@ pub fn build_schedule_list_blocks(
 
     // Schedule items
     for (idx, task) in page_tasks.iter().enumerate() {
-        let blocks_for_task = build_schedule_item_blocks(task, idx);
+        let blocks_for_task = build_schedule_item_blocks(task, idx, current_page, page_size);
         blocks.extend(blocks_for_task);
     }
 
     // Pagination controls
     if total_pages > 1 || true {  // Always show controls for refresh button
-        let pagination_blocks = build_pagination_blocks(current_page, total_pages);
+        let pagination_blocks = build_pagination_blocks(current_page, total_pages, page_size);
         blocks.extend(pagination_blocks);
     }
 
@@ -105,7 +106,7 @@ pub fn build_schedule_list_blocks(
     }
 }
 
-fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize) -> Vec<SlackBlock> {
+fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, page_size: usize) -> Vec<SlackBlock> {
     let mut blocks = Vec::new();
 
     let last_updated_formatted = DateTime::parse_from_rfc3339(&task.last_updated_at)
@@ -117,28 +118,38 @@ fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize) -> Vec<SlackBlo
         .unwrap_or_else(|| task.last_updated_at.clone());
 
     let text_content = format!(
-        "*#{}* | *@{}*\nScheduled at: `{}` `{}`\nUpdated At: `{}`\nNext Run: `{}`",
+        "*#{}* | *@{}* by <@{}>\nScheduled at: `{}` `{}`\nUpdated At: `{}`\nNext Run: `{}`",
         task.channel_name,
         task.user_group_handle,
+        task.created_by_user_id,
         task.cron,
         task.timezone,
         last_updated_formatted,
         task.next_update_time,
     );
 
+    let delete_value = serde_json::json!({
+        "team_id": task.team_id,
+        "enterprise_id": task.enterprise_id,
+        "task_id": task.task_id,
+        "page": page,
+        "page_size": page_size,
+    }).to_string();
+
     let delete_button = SlackBlockButtonElement::new(
-        format!("delete_schedule_{}", encode_schedule_id(task)).into(),
+        "delete_schedule".into(),
         SlackBlockPlainTextOnly::from(
             SlackBlockPlainText::new("Delete".into()).with_emoji(true)
         )
     )
+    .with_value(delete_value.into())
     .with_style("danger".into())
     .with_confirm(
         SlackBlockConfirmItem::new(
             SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Delete Schedule?".into())),
             md!(format!(
-                "Are you sure you want to delete the schedule for *#{}* / *@{}*?",
-                task.channel_name, task.user_group_handle
+                "Are you sure you want to delete the schedule for #{} / @{}?\nLast updated at {}",
+                task.channel_name, task.user_group_handle, last_updated_formatted
             )),
             SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Delete".into())),
             SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Cancel".into()))
@@ -155,54 +166,70 @@ fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize) -> Vec<SlackBlo
         )
     );
 
-    // Divider
     blocks.push(SlackBlock::Divider(SlackDividerBlock::new()));
 
     blocks
 }
 
-/// Build pagination control blocks
-fn build_pagination_blocks(current_page: usize, total_pages: usize) -> Vec<SlackBlock> {
+fn build_pagination_blocks(current_page: usize, total_pages: usize, page_size: usize) -> Vec<SlackBlock> {
     let mut blocks = Vec::new();
 
     let mut button_elements = Vec::new();
 
     // Refresh button
+    let refresh_value = serde_json::json!({
+        "page": current_page,
+        "page_size": page_size,
+    }).to_string();
+
     button_elements.push(
         SlackActionBlockElement::Button(
             SlackBlockButtonElement::new(
-                format!("refresh_page_{}", current_page).into(),
+                "refresh".into(),
                 SlackBlockPlainTextOnly::from(
                     SlackBlockPlainText::new("🔄 Refresh".into()).with_emoji(true)
                 )
             )
+            .with_value(refresh_value.into())
         )
     );
 
     // Previous button
     if current_page > 0 {
+        let prev_value = serde_json::json!({
+            "page": current_page - 1,
+            "page_size": page_size,
+        }).to_string();
+
         button_elements.push(
             SlackActionBlockElement::Button(
                 SlackBlockButtonElement::new(
-                    format!("page_{}", current_page - 1).into(),
+                    "page_previous".into(),
                     SlackBlockPlainTextOnly::from(
                         SlackBlockPlainText::new("← Previous".into()).with_emoji(true)
                     )
                 )
+                .with_value(prev_value.into())
             )
         );
     }
 
     // Next button
     if current_page + 1 < total_pages {
+        let next_value = serde_json::json!({
+            "page": current_page + 1,
+            "page_size": page_size,
+        }).to_string();
+
         button_elements.push(
             SlackActionBlockElement::Button(
                 SlackBlockButtonElement::new(
-                    format!("page_{}", current_page + 1).into(),
+                    "page_next".into(),
                     SlackBlockPlainTextOnly::from(
                         SlackBlockPlainText::new("Next →".into()).with_emoji(true)
                     )
                 )
+                .with_value(next_value.into())
             )
         );
     }
@@ -235,32 +262,6 @@ fn current_time_markdown() -> String {
     format!("<!date^{}^{{date_pretty}} {{time_secs}}|{}>", now.timestamp(), now.to_rfc3339())
 }
 
-/// Encode schedule identifiers into action_id payload
-fn encode_schedule_id(task: &ScheduledTask) -> String {
-    // Format: team_id:enterprise_id:task_id
-    // We use base64 to handle any special characters
-    let payload = format!("{}:{}:{}", task.team_id, task.enterprise_id, task.task_id);
-    use base64::{Engine as _, engine::general_purpose};
-    general_purpose::STANDARD.encode(payload.as_bytes())
-}
-
-/// Decode schedule identifiers from action_id payload
-pub fn decode_schedule_id(encoded: &str) -> Option<(String, String, String)> {
-    use base64::{Engine as _, engine::general_purpose};
-    let decoded = general_purpose::STANDARD.decode(encoded.as_bytes()).ok()?;
-    let payload = String::from_utf8(decoded).ok()?;
-    let parts: Vec<&str> = payload.split(':').collect();
-
-    if parts.len() != 3 {
-        return None;
-    }
-
-    Some((
-        parts[0].to_string(),
-        parts[1].to_string(),
-        parts[2].to_string(),
-    ))
-}
 
 #[cfg(test)]
 mod tests {
@@ -291,17 +292,6 @@ mod tests {
             created_at: Utc::now().to_rfc3339(),
             last_updated_at: Utc::now().to_rfc3339(),
         }
-    }
-
-    #[test]
-    fn test_encode_decode_schedule_id() {
-        let task = create_test_task("general", "oncall");
-        let encoded = encode_schedule_id(&task);
-        let decoded = decode_schedule_id(&encoded).unwrap();
-
-        assert_eq!(decoded.0, task.team_id);
-        assert_eq!(decoded.1, task.enterprise_id);
-        assert_eq!(decoded.2, task.task_id);
     }
 
     #[test]

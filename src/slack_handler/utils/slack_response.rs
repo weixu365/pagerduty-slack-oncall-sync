@@ -14,3 +14,16 @@ pub fn response(status_code: i64, body: String) -> Result<ApiGatewayProxyRespons
     
     Ok(response)
 }
+
+
+pub fn markdown_section(contents: Vec<String>) -> String {
+    let sections = contents
+        .into_iter()
+        .map(|p| format!(r#"{{"type": "section", "text": {{ "type": "mrkdwn", "text": "{}" }} }}"#, p))
+        .collect::<Vec<String>>()
+        .join(",\n");
+
+    let response_payload = format!(r#"{{ "blocks": [{}] }}"#, sections);
+    
+    response_payload
+}

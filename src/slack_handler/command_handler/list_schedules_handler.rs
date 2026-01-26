@@ -1,15 +1,16 @@
 use crate::{db::ScheduledTaskRepository, errors::AppError};
-use super::block_kit::{build_schedule_list_blocks, ScheduleListResponse};
+use crate::slack_handler::utils::block_kit::{build_schedule_list_blocks, ScheduleListResponse};
 
 pub async fn handle_list_schedules_command(
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     page: Option<usize>,
     page_size: usize,
+    user_id: String,
 ) -> Result<ScheduleListResponse, AppError> {
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
     let page = page.unwrap_or(0);
 
-    Ok(build_schedule_list_blocks(&tasks, page, page_size))
+    Ok(build_schedule_list_blocks(&tasks, page, page_size, user_id))
 }
 
 #[cfg(test)]
@@ -44,6 +45,15 @@ mod tests {
 
         async fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, AppError> {
             Ok(self.tasks.clone())
+        }
+
+        async fn get_scheduled_task(
+            &self,
+            _team_id: &str,
+            _workspace_id: &str,
+            _task_id: &str,
+        ) -> Result<ScheduledTask, AppError> {
+            Ok(self.tasks.first().cloned().ok_or_else(|| AppError::ScheduleNotFoundError("No tasks available".to_string()))?)
         }
 
         async fn delete_scheduled_task(
@@ -94,7 +104,7 @@ mod tests {
     async fn test_handle_list_schedules_command_empty() -> Result<(), AppError> {
         let mock_db = MockScheduledTaskRepository { tasks: vec![] };
 
-        let response = handle_list_schedules_command(&mock_db, None, 5).await?;
+        let response = handle_list_schedules_command(&mock_db, None, 5, "".to_string()).await?;
         assert_eq!(response.total_pages, 0);
 
         // Verify it's a Modal view with blocks
@@ -113,7 +123,7 @@ mod tests {
         let task = create_test_task("general", "oncall", "0 9 * * *", "2024-01-15T09:00:00Z");
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
-        let response = handle_list_schedules_command(&mock_db, None, 5).await?;
+        let response = handle_list_schedules_command(&mock_db, None, 5, "".to_string()).await?;
         assert_eq!(response.total_pages, 1);
 
         // Verify it's a Modal view with blocks
@@ -143,7 +153,7 @@ mod tests {
             tasks: vec![task1, task2, task3],
         };
 
-        let response = handle_list_schedules_command(&mock_db, None, 5).await?;
+        let response = handle_list_schedules_command(&mock_db, None, 5, "".to_string()).await?;
         assert_eq!(response.total_pages, 1);
 
         // Verify it's a Modal view with blocks
@@ -170,7 +180,7 @@ mod tests {
         let task = create_test_task("my-channel", "my-group", "0 */2 * * *", "2024-12-25T14:00:00Z");
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
-        let response = handle_list_schedules_command(&mock_db, None, 5).await?;
+        let response = handle_list_schedules_command(&mock_db, None, 5, "".to_string()).await?;
         assert_eq!(response.total_pages, 1);
 
         // Verify it's a Modal view with blocks

@@ -6,7 +6,7 @@ use crate::{
     errors::AppError,
     service_provider::slack::swap_slack_access_token,
     utils::http_client::build_http_client,
-    slack_handler::slack_response::response,
+    slack_handler::utils::slack_response::response,
 };
 
 pub async fn handle_slack_oauth(
