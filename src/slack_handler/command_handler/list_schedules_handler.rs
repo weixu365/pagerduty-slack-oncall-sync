@@ -1,20 +1,26 @@
+use crate::slack_handler::utils::block_kit::{ScheduleFilter, ScheduleListResponse, build_schedule_list_blocks};
 use crate::{db::ScheduledTaskRepository, errors::AppError};
 
 pub async fn handle_list_schedules_command(
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
-) -> Result<Vec<String>, AppError> {
+    page: Option<usize>,
+    page_size: usize,
+    user_id: String,
+    channel_id: String,
+    next_trigger_timestamp: Option<i64>,
+) -> Result<ScheduleListResponse, AppError> {
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
-    let schedules = tasks
-        .into_iter()
-        .map(|t| {
-            format!(
-                "## {}\nUpdate {} on {} {}\nLast updated at: {}. Next schedule: {}",
-                t.channel_name, t.user_group_handle, t.cron, t.timezone, t.last_updated_at, t.next_update_time
-            )
-        })
-        .collect();
+    let page = page.unwrap_or(0);
 
-    Ok(schedules)
+    Ok(build_schedule_list_blocks(
+        &tasks,
+        page,
+        page_size,
+        &user_id,
+        &channel_id,
+        &ScheduleFilter::Auto,
+        next_trigger_timestamp,
+    ))
 }
 
 #[cfg(test)]
@@ -23,6 +29,7 @@ mod tests {
     use crate::db::ScheduledTask;
     use async_trait::async_trait;
     use chrono::Utc;
+    use slack_morphism::prelude::*;
 
     struct MockScheduledTaskRepository {
         tasks: Vec<ScheduledTask>,
@@ -48,6 +55,19 @@ mod tests {
 
         async fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, AppError> {
             Ok(self.tasks.clone())
+        }
+
+        async fn get_scheduled_task(
+            &self,
+            _team_id: &str,
+            _workspace_id: &str,
+            _task_id: &str,
+        ) -> Result<ScheduledTask, AppError> {
+            Ok(self
+                .tasks
+                .first()
+                .cloned()
+                .ok_or_else(|| AppError::ScheduleNotFoundError("No tasks available".to_string()))?)
         }
 
         async fn delete_scheduled_task(
@@ -98,8 +118,17 @@ mod tests {
     async fn test_handle_list_schedules_command_empty() -> Result<(), AppError> {
         let mock_db = MockScheduledTaskRepository { tasks: vec![] };
 
-        let schedules = handle_list_schedules_command(&mock_db).await?;
-        assert_eq!(schedules.len(), 0);
+        let response =
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+        assert_eq!(response.total_pages, 0);
+
+        // Verify it's a Modal view with blocks
+        match &response.slack_view {
+            SlackView::Modal(modal) => {
+                assert!(!modal.blocks.is_empty());
+            }
+            _ => panic!("Expected SlackView::Modal"),
+        }
 
         Ok(())
     }
@@ -109,11 +138,23 @@ mod tests {
         let task = create_test_task("general", "oncall", "0 9 * * *", "2024-01-15T09:00:00Z");
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
-        let schedules = handle_list_schedules_command(&mock_db).await?;
-        assert_eq!(schedules.len(), 1);
-        assert!(schedules[0].contains("## general"));
-        assert!(schedules[0].contains("Update oncall on 0 9 * * *"));
-        assert!(schedules[0].contains("Next schedule: 2024-01-15T09:00:00Z"));
+        let response =
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+        assert_eq!(response.total_pages, 1);
+
+        // Verify it's a Modal view with blocks
+        match &response.slack_view {
+            SlackView::Modal(modal) => {
+                assert!(!modal.blocks.is_empty());
+
+                // Check that blocks contain schedule info
+                let blocks_json = serde_json::to_string(&modal.blocks).unwrap();
+                assert!(blocks_json.contains("general"));
+                assert!(blocks_json.contains("oncall"));
+                assert!(blocks_json.contains("0 9 * * *"));
+            }
+            _ => panic!("Expected SlackView::Modal"),
+        }
 
         Ok(())
     }
@@ -128,15 +169,25 @@ mod tests {
             tasks: vec![task1, task2, task3],
         };
 
-        let schedules = handle_list_schedules_command(&mock_db).await?;
-        assert_eq!(schedules.len(), 3);
+        let response =
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+        assert_eq!(response.total_pages, 1);
 
-        assert!(schedules[0].contains("## general"));
-        assert!(schedules[0].contains("oncall"));
-        assert!(schedules[1].contains("## engineering"));
-        assert!(schedules[1].contains("on-call-eng"));
-        assert!(schedules[2].contains("## ops"));
-        assert!(schedules[2].contains("ops-team"));
+        // Verify it's a Modal view with blocks
+        match &response.slack_view {
+            SlackView::Modal(modal) => {
+                assert!(!modal.blocks.is_empty());
+
+                let blocks_json = serde_json::to_string(&modal.blocks).unwrap();
+                assert!(blocks_json.contains("general"));
+                assert!(blocks_json.contains("oncall"));
+                assert!(blocks_json.contains("engineering"));
+                assert!(blocks_json.contains("on-call-eng"));
+                assert!(blocks_json.contains("ops"));
+                assert!(blocks_json.contains("ops-team"));
+            }
+            _ => panic!("Expected SlackView::Modal"),
+        }
 
         Ok(())
     }
@@ -146,14 +197,21 @@ mod tests {
         let task = create_test_task("my-channel", "my-group", "0 */2 * * *", "2024-12-25T14:00:00Z");
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
-        let schedules = handle_list_schedules_command(&mock_db).await?;
-        assert_eq!(schedules.len(), 1);
+        let response =
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+        assert_eq!(response.total_pages, 1);
 
-        let schedule_text = &schedules[0];
-        assert!(schedule_text.starts_with("## "));
-        assert!(schedule_text.contains("my-channel"));
-        assert!(schedule_text.contains("\nUpdate my-group on 0 */2 * * *\n"));
-        assert!(schedule_text.contains("Next schedule: 2024-12-25T14:00:00Z"));
+        // Verify it's a Modal view with blocks
+        match &response.slack_view {
+            SlackView::Modal(modal) => {
+                let blocks_json = serde_json::to_string(&modal.blocks).unwrap();
+                assert!(blocks_json.contains("my-channel"));
+                assert!(blocks_json.contains("my-group"));
+                assert!(blocks_json.contains("0 */2 * * *"));
+                assert!(blocks_json.contains("2024-12-25T14:00:00Z"));
+            }
+            _ => panic!("Expected SlackView::Modal"),
+        }
 
         Ok(())
     }

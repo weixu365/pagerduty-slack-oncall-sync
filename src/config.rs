@@ -60,12 +60,12 @@ impl Config {
 
     pub async fn secrets(&self) -> Result<&Secrets, AppError> {
         tracing::info!(secret_name = %self.secret_name, "Loading secrets");
-        let result = self.secrets_cache
+        let result = self
+            .secrets_cache
             .get_or_try_init(|| async {
                 tracing::info!(secret_name = %self.secret_name, "Loading secrets from AWS Secrets Manager");
                 let secrets_client = SecretsClient::new(&self.aws_config);
                 secrets_client.get_secret(&self.secret_name).await
-
             })
             .await;
 

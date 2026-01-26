@@ -74,6 +74,9 @@ pub enum AppError {
     #[error("Failed to scan DynamoDB table: `{0:?}`")]
     DynamoDBScanError(#[from] SdkError<ScanError>),
 
+    #[error("Schedule doesn't exist: `{0:?}`")]
+    ScheduleNotFoundError(String),
+
     #[error("Failed to create schedule in AWS Scheduler: `{0:?}`")]
     CreateScheduleError(#[from] SdkError<CreateScheduleError>),
 
@@ -118,6 +121,9 @@ pub enum AppError {
 
     #[error("Unexpected error: `{0:?}`")]
     UnexpectedError(String),
+
+    #[error("{0:?}")]
+    Unauthorized(String),
 
     #[error("Error: `{0:?}`")]
     Error(String),

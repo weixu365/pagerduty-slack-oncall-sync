@@ -3,7 +3,7 @@ use crate::{
     db::{ScheduledTask, ScheduledTaskRepository, SlackInstallationRepository},
     errors::AppError,
     service_provider::pager_duty::PagerDuty,
-    slack_handler::slack_request::{ScheduleArgs, SlackCommandRequest},
+    slack_handler::command_handler::slack_request::{ScheduleArgs, SlackCommandRequest},
     utils::cron::get_next_schedule_from,
     utils::http_client::build_http_client,
 };

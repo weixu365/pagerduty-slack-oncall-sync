@@ -137,7 +137,7 @@ async fn test_get_next_schedule_returns_valid_schedule() -> Result<(), AppError>
         },
     ];
 
-    let result = scheduler.get_next_schedule(&schedules, future_time_2 + 1);
+    let result = scheduler.next_schedule(&schedules, future_time_2 + 1);
     assert!(result.is_some());
     let next = result.unwrap();
     assert_eq!(next.name, Some("schedule-1".to_string()));
@@ -167,7 +167,7 @@ async fn test_get_next_schedule_returns_none_when_no_valid_schedule() -> Result<
     }];
 
     // Looking for a schedule before the only available one
-    let result = scheduler.get_next_schedule(&schedules, future_time - 1);
+    let result = scheduler.next_schedule(&schedules, future_time - 1);
     assert!(result.is_none());
 
     Ok(())
@@ -205,7 +205,7 @@ async fn test_get_next_schedule_ignores_past_schedules() -> Result<(), AppError>
         },
     ];
 
-    let result = scheduler.get_next_schedule(&schedules, future_time + 1);
+    let result = scheduler.next_schedule(&schedules, future_time + 1);
     assert!(result.is_some());
     let next = result.unwrap();
     assert_eq!(next.name, Some("future-schedule".to_string()));

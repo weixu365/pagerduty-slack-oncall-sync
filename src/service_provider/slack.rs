@@ -4,6 +4,8 @@ use derive_more::Display;
 use reqwest::{Client, Method};
 use serde_derive::Deserialize;
 use serde_json::{Error, Value, json};
+use slack_morphism::blocks::{SlackBlock, SlackView};
+use tracing::{error, info};
 
 use crate::{errors::AppError, utils::base64::encode_with_pad};
 
@@ -292,4 +294,57 @@ pub async fn swap_slack_access_token(
         tracing::error!(status = response.status().as_u16(), "Failed sending request to Slack");
         Err(AppError::SlackError(format!("Failed sending request to Slack, status: {}", response.status())))
     }
+}
+
+pub async fn send_slack_view(response_url: &str, slack_view: SlackView) -> Result<(), AppError> {
+    let blocks = match slack_view {
+        SlackView::Modal(modal) => modal.blocks,
+        _ => return Err(AppError::InvalidData("Expected modal view".to_string())),
+    };
+
+    send_slack_blocks(response_url, &blocks).await
+}
+
+pub async fn send_slack_blocks(response_url: &str, blocks: &Vec<SlackBlock>) -> Result<(), AppError> {
+    let response_payload = json!({
+        "replace_original": true,
+        "blocks": blocks,
+    })
+    .to_string();
+
+    send_slack_message(response_url, response_payload).await
+}
+
+pub async fn send_slack_message(response_url: &str, response_payload: String) -> Result<(), AppError> {
+    let payload_size = response_payload.len();
+
+    info!(response_url, replace_original = true, payload_size = payload_size, "Posting message to Slack response_url");
+
+    let client = reqwest::Client::new();
+    match client
+        .post(response_url)
+        .header("Content-Type", "application/json")
+        .body(response_payload.clone())
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let status = resp.status();
+            let body = resp
+                .text()
+                .await
+                .unwrap_or_else(|_| "Failed to read response body".to_string());
+
+            if status.is_success() {
+                info!(response_body = body, "Successfully sent interactive response to Slack");
+            } else {
+                error!(status = %status, response_body = body, response_payload, "Failed to send interactive response to Slack");
+            }
+        }
+        Err(err) => {
+            error!(%err, response_payload, "Error sending interactive response to Slack");
+        }
+    }
+
+    Ok(())
 }

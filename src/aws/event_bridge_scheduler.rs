@@ -36,31 +36,49 @@ impl EventBridgeScheduler {
         }
     }
 
-    pub async fn update_next_schedule(&self, next_task_schedule: &CronSchedule) -> Result<(), AppError> {
-        tracing::info!(?next_task_schedule, "Updating next schedule in EventBridge Scheduler");
+    pub async fn get_current_schedules(&self) -> Result<Vec<EventBridgeSchedule>, AppError> {
+        tracing::info!("Getting the next schedules in EventBridge Scheduler");
 
-        let mut current_schedules: Vec<_> = self
+        let current_schedules: Vec<_> = self
             .list_schedules()
             .await?
             .iter()
             .map(|s| self.convert_to_schedule(s))
             .collect();
 
-        current_schedules.sort_by(|a, b| a.next_scheduled_timestamp_utc.cmp(&b.next_scheduled_timestamp_utc));
-
         tracing::info!(?current_schedules, "Found existing schedules");
 
-        let next_schedule = self.get_next_schedule(&current_schedules, next_task_schedule.next_timestamp_utc);
-        let mut next_schedule_timestamp = next_schedule
+        Ok(current_schedules)
+    }
+
+    pub async fn get_current_schedule(&self) -> Result<Option<EventBridgeSchedule>, AppError> {
+        tracing::info!("Getting the next schedule in EventBridge Scheduler");
+
+        let now = Utc::now().timestamp();
+        let current_schedules = self.get_current_schedules().await?;
+
+        match self.next_schedule(&current_schedules, now) {
+            Some(schedule) => Ok(Some(schedule)),
+            None => Ok(None),
+        }
+    }
+
+    pub async fn update_next_schedule(&self, next_task_schedule: &CronSchedule) -> Result<(), AppError> {
+        let now = Utc::now().timestamp();
+        let current_schedules = self.get_current_schedules().await?;
+        let current_schedule = self.next_schedule(&current_schedules, now);
+
+        let mut current_schedule_timestamp = current_schedule
             .as_ref()
             .and_then(|s| s.next_scheduled_timestamp_utc)
             .unwrap_or(i64::MAX);
         tracing::info!(
-            existing_scheduled_time = next_schedule_timestamp,
-            next_schedule = next_task_schedule.next_timestamp_utc,
-            "Found the current schedule",
+            existing_scheduled_time = current_schedule_timestamp,
+            next_schedule = ?next_task_schedule,
+            "Updating schedule in EventBridge Scheduler",
         );
-        if next_task_schedule.next_timestamp_utc < next_schedule_timestamp {
+
+        if next_task_schedule.next_timestamp_utc < current_schedule_timestamp {
             let next_schedule = next_task_schedule.next_datetime.format("%FT%T");
             tracing::info!(%next_schedule, "Updating schedule");
             let flexible_time_window = FlexibleTimeWindow::builder()
@@ -84,9 +102,9 @@ impl EventBridgeScheduler {
                 .target(target)
                 .send()
                 .await?;
-            next_schedule_timestamp = next_task_schedule.next_timestamp_utc;
+            current_schedule_timestamp = next_task_schedule.next_timestamp_utc;
         } else {
-            let next_schedule_info = next_schedule
+            let next_schedule_info = current_schedule
                 .and_then(|s| {
                     let expression = s.expression?;
                     let timestamp = s.next_scheduled_timestamp_utc?;
@@ -98,26 +116,25 @@ impl EventBridgeScheduler {
         }
 
         // clean up schedules to keep only the earliest
-        self.cleanup_schedules(current_schedules, next_schedule_timestamp)
+        self.cleanup_schedules(current_schedules, current_schedule_timestamp)
             .await?;
 
         Ok(())
     }
 
-    pub(crate) fn get_next_schedule(
-        &self,
-        schedules: &Vec<EventBridgeSchedule>,
-        before: i64,
-    ) -> Option<EventBridgeSchedule> {
-        let now = Utc::now().timestamp();
+    pub(crate) fn next_schedule(&self, schedules: &Vec<EventBridgeSchedule>, from: i64) -> Option<EventBridgeSchedule> {
+        let mut earliest: Option<&EventBridgeSchedule> = None;
+        let mut earliest_timestamp = i64::MAX;
+
         for schedule in schedules {
             let scheduled_timestamp = schedule.next_scheduled_timestamp_utc.unwrap_or_default();
-            if scheduled_timestamp > now && scheduled_timestamp <= before {
-                return Some(schedule.clone());
+            if scheduled_timestamp > from && scheduled_timestamp < earliest_timestamp {
+                earliest = Some(schedule);
+                earliest_timestamp = scheduled_timestamp;
             }
         }
 
-        None
+        earliest.cloned()
     }
 
     pub(crate) fn convert_to_schedule(&self, schedule: &GetScheduleOutput) -> EventBridgeSchedule {
