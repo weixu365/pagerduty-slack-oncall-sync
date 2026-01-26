@@ -10,6 +10,7 @@ pub async fn handle_refresh(
     payload: &InteractivePayload,
     action: &BlockAction,
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
+    next_trigger_timestamp: Option<i64>,
 ) -> Result<SlackView, AppError> {
     tracing::info!(action = ?action, "Refreshing page");
 
@@ -20,7 +21,7 @@ pub async fn handle_refresh(
         .map_err(|e| AppError::InvalidData(format!("Failed to parse refresh value: {}", e)))?;
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
-    let response = build_schedule_list_blocks(&tasks, value.page, value.page_size, &payload.user.id);
+    let response = build_schedule_list_blocks(&tasks, value.page, value.page_size, &payload.user.id, &payload.channel.id, &value.filter, next_trigger_timestamp);
 
     Ok(response.slack_view)
 }

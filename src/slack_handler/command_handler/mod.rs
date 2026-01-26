@@ -51,8 +51,13 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
             send_slack_message(&response_url, markdown_section(response_body)).await?;
         }
         Some(Command::ListSchedules(args)) => {
+            let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
+            let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
+            let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
+            let next_trigger_timestamp = scheduler.get_current_schedule().await?.and_then(|s| s.next_scheduled_timestamp_utc);
+
             let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor);
-            let response = handle_list_schedules_command(&scheduled_tasks_db, args.page, args.page_size, params.user_id).await?;
+            let response = handle_list_schedules_command(&scheduled_tasks_db, args.page, args.page_size, params.user_id, params.channel_id, next_trigger_timestamp).await?;
 
             send_slack_view(&response_url, response.slack_view).await?;
         }

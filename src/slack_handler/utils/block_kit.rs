@@ -3,8 +3,73 @@ use slack_morphism::prelude::*;
 use chrono::{DateTime, SecondsFormat};
 use chrono_tz::Tz;
 use serde_json;
+use serde::{Deserialize, Serialize, Deserializer, Serializer};
 
 pub const DEFAULT_PAGE_SIZE: usize = 5;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScheduleFilter {
+    Auto,
+    All,
+    User,
+    Channel,
+}
+
+impl Serialize for ScheduleFilter {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = match self {
+            ScheduleFilter::All => "all",
+            ScheduleFilter::User => "user",
+            ScheduleFilter::Channel => "channel",
+            ScheduleFilter::Auto => "auto",
+        };
+        serializer.serialize_str(s)
+    }
+}
+
+impl<'de> Deserialize<'de> for ScheduleFilter {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(if s == "all" {
+            ScheduleFilter::All
+        } else if s == "user" {
+            ScheduleFilter::User
+        } else if s == "channel" {
+            ScheduleFilter::Channel
+        } else {
+            ScheduleFilter::Auto
+        })
+    }
+}
+
+impl ScheduleFilter {
+    pub fn to_string(&self) -> String {
+        match self {
+            ScheduleFilter::All => "all".to_string(),
+            ScheduleFilter::User => "user".to_string(),
+            ScheduleFilter::Channel => "channel".to_string(),
+            ScheduleFilter::Auto => "auto".to_string(),
+        }
+    }
+
+    pub fn from_string(s: &str) -> Self {
+        if s == "all" {
+            ScheduleFilter::All
+        } else if s == "user" {
+            ScheduleFilter::User
+        } else if s == "channel" {
+            ScheduleFilter::Channel
+        } else {
+            ScheduleFilter::Auto
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ScheduleListResponse {
@@ -19,14 +84,27 @@ pub fn build_schedule_list_blocks(
     page: usize,
     page_size: usize,
     user_id: &str,
+    channel_id: &str,
+    filter: &ScheduleFilter,
+    next_trigger_timestamp: Option<i64>,
 ) -> ScheduleListResponse {
-    let total_items = tasks.len();
+    // Filter tasks based on the selected filter
+    let filtered_tasks: Vec<&ScheduledTask> = match filter {
+        ScheduleFilter::All => tasks.iter().collect(),
+        ScheduleFilter::User => tasks.iter().filter(|t| t.created_by_user_id == user_id).collect(),
+        ScheduleFilter::Channel => tasks.iter().filter(|t| t.channel_id == channel_id).collect(),
+        ScheduleFilter::Auto => tasks.iter().filter(|t| {
+            t.created_by_user_id == user_id || t.channel_id == channel_id
+        }).collect(),
+    };
+
+    let total_items = filtered_tasks.len();
     let total_pages = (total_items + page_size - 1) / page_size; // Ceiling division
     let current_page = page.min(total_pages.saturating_sub(1));
 
     let start_idx = current_page * page_size;
     let end_idx = (start_idx + page_size).min(total_items);
-    let page_tasks = &tasks[start_idx..end_idx];
+    let page_tasks = &filtered_tasks[start_idx..end_idx];
 
     let mut blocks: Vec<SlackBlock> = Vec::new();
 
@@ -56,43 +134,98 @@ pub fn build_schedule_list_blocks(
         };
     }
 
+    // Filter dropdown
+    let filter_label = match filter {
+        ScheduleFilter::All => "All Schedules",
+        ScheduleFilter::User => "My Schedules",
+        ScheduleFilter::Channel => "Channel Schedules",
+        ScheduleFilter::Auto => "Auto (My + Channel)",
+    };
+
+    let filter_select = SlackBlockStaticSelectElement::new("filter_select".into())
+        .with_placeholder(SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Filter by".into())))
+        .with_options(vec![
+            SlackBlockChoiceItem::new(
+                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Auto (My + Channel)".into())),
+                serde_json::json!({
+                    "filter": "auto",
+                    "page_size": page_size,
+                }).to_string()
+            ),
+            SlackBlockChoiceItem::new(
+                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("All Schedules".into())),
+                serde_json::json!({
+                    "filter": "all",
+                    "page_size": page_size,
+                }).to_string()
+            ),
+            SlackBlockChoiceItem::new(
+                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("My Schedules".into())),
+                serde_json::json!({
+                    "filter": "user",
+                    "page_size": page_size,
+                }).to_string()
+            ),
+            SlackBlockChoiceItem::new(
+                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Channel Schedules".into())),
+                serde_json::json!({
+                    "filter": "channel",
+                    "page_size": page_size,
+                }).to_string()
+            ),
+        ])
+        .with_initial_option(SlackBlockChoiceItem::new(
+            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new(filter_label.into())),
+            serde_json::json!({
+                "filter": filter.to_string(),
+                "page_size": page_size,
+            }).to_string()
+        ));
+
     let page_size_select = SlackBlockStaticSelectElement::new("page_size_select".into())
         .with_placeholder(SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Items per page".into())))
         .with_options(vec![
             SlackBlockChoiceItem::new(
                 SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("5".into())),
-                "5".into()
+                serde_json::json!({
+                    "page_size": 5,
+                    "filter": filter,
+                }).to_string()
             ),
             SlackBlockChoiceItem::new(
                 SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("10".into())),
-                "10".into()
+                serde_json::json!({
+                    "page_size": 10,
+                    "filter": filter,
+                }).to_string()
             ),
         ])
         .with_initial_option(SlackBlockChoiceItem::new(
             SlackBlockPlainTextOnly::from(SlackBlockPlainText::new(format!("{}", page_size))),
-            format!("{}", page_size)
+            serde_json::json!({
+                "page_size": page_size,
+                "filter": filter,
+            }).to_string()
         ));
-
+    
     blocks.push(
-        SlackBlock::Section(
-            SlackSectionBlock::new()
-                .with_text(md!(format!("Showing {} - {} of {} schedules", start_idx + 1, end_idx, total_items)))
-                .with_accessory(SlackSectionBlockElement::StaticSelect(page_size_select))
-                ,
-        )
+        SlackBlock::Actions(SlackActionsBlock::new(vec![
+            SlackActionBlockElement::StaticSelect(filter_select),
+            SlackActionBlockElement::StaticSelect(page_size_select),
+        ]))
     );
 
     blocks.push(SlackBlock::Divider(SlackDividerBlock::new()));
 
     // Schedule items
     for (idx, task) in page_tasks.iter().enumerate() {
-        let blocks_for_task = build_schedule_item_blocks(task, idx, current_page, page_size, user_id);
+        let blocks_for_task = build_schedule_item_blocks(task, idx, current_page, page_size, user_id, filter);
         blocks.extend(blocks_for_task);
     }
 
     // Pagination controls
     if total_pages > 1 || true {  // Always show controls for refresh button
-        let pagination_blocks = build_pagination_blocks(current_page, total_pages, page_size);
+        let pagination_blocks = build_pagination_blocks(start_idx, end_idx, total_items, current_page, total_pages, page_size, filter, next_trigger_timestamp);
         blocks.extend(pagination_blocks);
     }
 
@@ -107,7 +240,7 @@ pub fn build_schedule_list_blocks(
     }
 }
 
-fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, page_size: usize, user_id: &str) -> Vec<SlackBlock> {
+fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, page_size: usize, user_id: &str, filter: &ScheduleFilter) -> Vec<SlackBlock> {
     let mut blocks = Vec::new();
 
     let last_updated_formatted = DateTime::parse_from_rfc3339(&task.last_updated_at)
@@ -136,6 +269,7 @@ fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, pa
             "task_id": task.task_id,
             "page": page,
             "page_size": page_size,
+            "filter": filter,
         }).to_string();
 
         let delete_button = SlackBlockButtonElement::new(
@@ -175,7 +309,16 @@ fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, pa
     blocks
 }
 
-fn build_pagination_blocks(current_page: usize, total_pages: usize, page_size: usize) -> Vec<SlackBlock> {
+fn build_pagination_blocks(
+    start_idx: usize,
+    end_idx: usize,
+    total_items: usize,
+    current_page: usize,
+    total_pages: usize,
+    page_size: usize,
+    filter: &ScheduleFilter,
+    next_trigger_timestamp: Option<i64>,
+) -> Vec<SlackBlock> {
     let mut blocks = Vec::new();
 
     let mut button_elements = Vec::new();
@@ -184,6 +327,7 @@ fn build_pagination_blocks(current_page: usize, total_pages: usize, page_size: u
     let refresh_value = serde_json::json!({
         "page": current_page,
         "page_size": page_size,
+        "filter": filter.to_string(),
     }).to_string();
 
     button_elements.push(
@@ -203,6 +347,7 @@ fn build_pagination_blocks(current_page: usize, total_pages: usize, page_size: u
         let prev_value = serde_json::json!({
             "page": current_page - 1,
             "page_size": page_size,
+            "filter": filter.to_string(),
         }).to_string();
 
         button_elements.push(
@@ -223,6 +368,7 @@ fn build_pagination_blocks(current_page: usize, total_pages: usize, page_size: u
         let next_value = serde_json::json!({
             "page": current_page + 1,
             "page_size": page_size,
+            "filter": filter.to_string(),
         }).to_string();
 
         button_elements.push(
@@ -248,7 +394,16 @@ fn build_pagination_blocks(current_page: usize, total_pages: usize, page_size: u
             SlackContextBlock::new(vec![
                 SlackContextBlockElement::MarkDown(
                     SlackBlockMarkDownText::new(
-                        format!("Loaded page {} of {}. Updated {}", current_page + 1, total_pages, current_time_markdown())
+                        format!(
+                            "{}: Showing {} - {} of {} schedules on page {} of {}. Next trigger: {}", 
+                            current_time_markdown(),
+                            start_idx + 1,
+                            end_idx,
+                            total_items,
+                            current_page + 1,
+                            total_pages,
+                            timestamp_markdown(next_trigger_timestamp),
+                        )
                     )
                 )
             ])
@@ -262,10 +417,21 @@ fn build_pagination_blocks(current_page: usize, total_pages: usize, page_size: u
 /// https://docs.slack.dev/messaging/formatting-message-text/#date-formatting
 fn current_time_markdown() -> String {
     let now = chrono::Utc::now();
-
+    
     format!("<!date^{}^{{date_pretty}} {{time_secs}}|{}>", now.timestamp(), now.to_rfc3339())
 }
 
+/// Generate a Slack markdown timestamp for the current time
+/// https://docs.slack.dev/messaging/formatting-message-text/#date-formatting
+fn timestamp_markdown(timestamp: Option<i64>) -> String {
+    if let Some(timestamp_seconds) = timestamp {
+        if let Some(time) = chrono::DateTime::from_timestamp(timestamp_seconds, 0) {
+            return format!("<!date^{}^{{date_pretty}} {{time_secs}}|{}>", time.timestamp(), time.to_rfc3339());
+        }
+    }
+    
+    "".to_string()
+}
 
 #[cfg(test)]
 mod tests {
@@ -301,7 +467,7 @@ mod tests {
     #[test]
     fn test_build_schedule_list_empty() {
         let tasks: Vec<ScheduledTask> = vec![];
-        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123");
+        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", "C123", &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -321,7 +487,7 @@ mod tests {
             create_test_task("general", "oncall"),
             create_test_task("engineering", "eng-oncall"),
         ];
-        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123");
+        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", "C123", &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -344,7 +510,7 @@ mod tests {
         }
 
         // Page 0
-        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123");
+        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", "C123", &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -358,7 +524,7 @@ mod tests {
         assert_eq!(response.total_pages, 3); // 25 tasks / 10 per page = 3 pages
 
         // Page 1
-        let response = build_schedule_list_blocks(&tasks, 1, 10, "U123");
+        let response = build_schedule_list_blocks(&tasks, 1, 10, "U123", "C123", &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {

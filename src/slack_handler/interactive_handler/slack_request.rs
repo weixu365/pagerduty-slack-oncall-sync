@@ -2,6 +2,7 @@ use aws_lambda_events::http::{HeaderMap, HeaderValue};
 use tracing::warn;
 
 use crate::{config::Config, errors::AppError, slack_handler::utils::request_utils::validate_request};
+use crate::slack_handler::utils::block_kit::ScheduleFilter;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -53,11 +54,25 @@ pub struct DeleteScheduleValue {
     pub task_id: String,
     pub page: usize,
     pub page_size: usize,
+    pub filter: ScheduleFilter,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct PaginationValue {
     pub page: usize,
+    pub page_size: usize,
+    pub filter: ScheduleFilter,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct PageSizeChangeValue {
+    pub page_size: usize,
+    pub filter: ScheduleFilter,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct FilterChangeValue {
+    pub filter: ScheduleFilter,
     pub page_size: usize,
 }
 

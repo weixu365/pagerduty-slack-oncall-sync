@@ -4,12 +4,13 @@ use crate::{
     slack_handler::interactive_handler::slack_request::{BlockAction, DeleteScheduleValue, InteractivePayload},
 };
 use slack_morphism::prelude::*;
-use crate::slack_handler::utils::block_kit::{build_schedule_list_blocks};
+use crate::slack_handler::utils::block_kit::build_schedule_list_blocks;
 
 pub async fn handle_delete_schedule(
     payload: &InteractivePayload,
     action: &BlockAction,
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
+    next_trigger_timestamp: Option<i64>,
 ) -> Result<SlackView, AppError> {
     tracing::info!(action = ?action, user=?payload.user, "Deleting schedule");
 
@@ -24,12 +25,12 @@ pub async fn handle_delete_schedule(
         return Err(AppError::Unauthorized("You are not authorized to delete this schedule".to_string()));
     }
 
-    // scheduled_tasks_db
-    //     .delete_scheduled_task(&value.team_id, &value.enterprise_id, &value.task_id)
-    //     .await?;
+    scheduled_tasks_db
+        .delete_scheduled_task(&value.team_id, &value.enterprise_id, &value.task_id)
+        .await?;
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
-    let response = build_schedule_list_blocks(&tasks, value.page, value.page_size, &payload.user.id);
+    let response = build_schedule_list_blocks(&tasks, value.page, value.page_size, &payload.user.id, &payload.channel.id, &value.filter, next_trigger_timestamp);
 
     Ok(response.slack_view)
 }
