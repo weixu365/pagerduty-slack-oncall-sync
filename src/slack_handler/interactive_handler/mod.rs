@@ -38,9 +38,9 @@ pub async fn handle_slack_interactive_async(config: &Arc<Config>, event: ApiGate
     if let Some(action) = payload.actions.first() {
         let slack_view = match action.action_id.as_str() {
             "delete_schedule" => handle_delete_schedule(&payload, action, &scheduled_tasks_db).await,
-            "refresh" => handle_refresh(action, &scheduled_tasks_db).await,
-            "page_size_select" => handle_page_size_change(action, &scheduled_tasks_db).await,
-            "page_previous" | "page_next" => handle_pagination(action, &scheduled_tasks_db).await,
+            "refresh" => handle_refresh(&payload, action, &scheduled_tasks_db).await,
+            "page_size_select" => handle_page_size_change(&payload, action, &scheduled_tasks_db).await,
+            "page_previous" | "page_next" => handle_pagination(&payload, action, &scheduled_tasks_db).await,
             _ => Err(AppError::InvalidData(format!("Unknown action_id: {}", action.action_id))),
         }?;
         send_slack_view(&response_url, slack_view).await?;

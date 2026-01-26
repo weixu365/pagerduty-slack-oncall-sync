@@ -18,6 +18,7 @@ pub fn build_schedule_list_blocks(
     tasks: &[ScheduledTask],
     page: usize,
     page_size: usize,
+    user_id: &str,
 ) -> ScheduleListResponse {
     let total_items = tasks.len();
     let total_pages = (total_items + page_size - 1) / page_size; // Ceiling division
@@ -85,7 +86,7 @@ pub fn build_schedule_list_blocks(
 
     // Schedule items
     for (idx, task) in page_tasks.iter().enumerate() {
-        let blocks_for_task = build_schedule_item_blocks(task, idx, current_page, page_size);
+        let blocks_for_task = build_schedule_item_blocks(task, idx, current_page, page_size, user_id);
         blocks.extend(blocks_for_task);
     }
 
@@ -106,7 +107,7 @@ pub fn build_schedule_list_blocks(
     }
 }
 
-fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, page_size: usize) -> Vec<SlackBlock> {
+fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, page_size: usize, user_id: &str) -> Vec<SlackBlock> {
     let mut blocks = Vec::new();
 
     let last_updated_formatted = DateTime::parse_from_rfc3339(&task.last_updated_at)
@@ -128,43 +129,46 @@ fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, pa
         task.next_update_time,
     );
 
-    let delete_value = serde_json::json!({
-        "team_id": task.team_id,
-        "enterprise_id": task.enterprise_id,
-        "task_id": task.task_id,
-        "page": page,
-        "page_size": page_size,
-    }).to_string();
+    let section = if user_id == task.created_by_user_id {
+        let delete_value = serde_json::json!({
+            "team_id": task.team_id,
+            "enterprise_id": task.enterprise_id,
+            "task_id": task.task_id,
+            "page": page,
+            "page_size": page_size,
+        }).to_string();
 
-    let delete_button = SlackBlockButtonElement::new(
-        "delete_schedule".into(),
-        SlackBlockPlainTextOnly::from(
-            SlackBlockPlainText::new("Delete".into()).with_emoji(true)
+        let delete_button = SlackBlockButtonElement::new(
+            "delete_schedule".into(),
+            SlackBlockPlainTextOnly::from(
+                SlackBlockPlainText::new("Delete".into()).with_emoji(true)
+            )
         )
-    )
-    .with_value(delete_value.into())
-    .with_style("danger".into())
-    .with_confirm(
-        SlackBlockConfirmItem::new(
-            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Delete Schedule?".into())),
-            md!(format!(
-                "Are you sure you want to delete the schedule for #{} / @{}?\nLast updated at {}",
-                task.channel_name, task.user_group_handle, last_updated_formatted
-            )),
-            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Delete".into())),
-            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Cancel".into()))
-        )
+        .with_value(delete_value.into())
         .with_style("danger".into())
-    );
+        .with_confirm(
+            SlackBlockConfirmItem::new(
+                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Delete Schedule?".into())),
+                md!(format!(
+                    "Are you sure you want to delete the schedule for #{} / @{}?\nLast updated at {}",
+                    task.channel_name, task.user_group_handle, last_updated_formatted
+                )),
+                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Delete".into())),
+                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Cancel".into()))
+            )
+            .with_style("danger".into())
+        );
+
+        SlackSectionBlock::new()
+            .with_text(md!(text_content))
+            .with_accessory(SlackSectionBlockElement::Button(delete_button))
+    } else {
+        SlackSectionBlock::new()
+            .with_text(md!(text_content))
+    };
 
     // Main info section
-    blocks.push(
-        SlackBlock::Section(
-            SlackSectionBlock::new()
-                .with_text(md!(text_content))
-                .with_accessory(SlackSectionBlockElement::Button(delete_button))
-        )
-    );
+    blocks.push(SlackBlock::Section(section));
 
     blocks.push(SlackBlock::Divider(SlackDividerBlock::new()));
 
@@ -297,7 +301,7 @@ mod tests {
     #[test]
     fn test_build_schedule_list_empty() {
         let tasks: Vec<ScheduledTask> = vec![];
-        let response = build_schedule_list_blocks(&tasks, 0, 10);
+        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123");
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -317,7 +321,7 @@ mod tests {
             create_test_task("general", "oncall"),
             create_test_task("engineering", "eng-oncall"),
         ];
-        let response = build_schedule_list_blocks(&tasks, 0, 10);
+        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123");
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -340,7 +344,7 @@ mod tests {
         }
 
         // Page 0
-        let response = build_schedule_list_blocks(&tasks, 0, 10);
+        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123");
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -354,7 +358,7 @@ mod tests {
         assert_eq!(response.total_pages, 3); // 25 tasks / 10 per page = 3 pages
 
         // Page 1
-        let response = build_schedule_list_blocks(&tasks, 1, 10);
+        let response = build_schedule_list_blocks(&tasks, 1, 10, "U123");
 
         // Verify it's a Modal view
         match &response.slack_view {

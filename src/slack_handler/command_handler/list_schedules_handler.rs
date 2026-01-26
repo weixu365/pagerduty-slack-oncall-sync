@@ -10,7 +10,7 @@ pub async fn handle_list_schedules_command(
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
     let page = page.unwrap_or(0);
 
-    Ok(build_schedule_list_blocks(&tasks, page, page_size, user_id))
+    Ok(build_schedule_list_blocks(&tasks, page, page_size, &user_id))
 }
 
 #[cfg(test)]

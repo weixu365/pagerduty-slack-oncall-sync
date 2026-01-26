@@ -24,12 +24,12 @@ pub async fn handle_delete_schedule(
         return Err(AppError::Unauthorized("You are not authorized to delete this schedule".to_string()));
     }
 
-    scheduled_tasks_db
-        .delete_scheduled_task(&value.team_id, &value.enterprise_id, &value.task_id)
-        .await?;
+    // scheduled_tasks_db
+    //     .delete_scheduled_task(&value.team_id, &value.enterprise_id, &value.task_id)
+    //     .await?;
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
-    let response = build_schedule_list_blocks(&tasks, value.page, value.page_size);
+    let response = build_schedule_list_blocks(&tasks, value.page, value.page_size, &payload.user.id);
 
     Ok(response.slack_view)
 }

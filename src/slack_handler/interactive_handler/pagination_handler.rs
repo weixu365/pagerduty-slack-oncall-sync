@@ -1,12 +1,13 @@
 use crate::{
     db::ScheduledTaskRepository,
     errors::AppError,
-    slack_handler::interactive_handler::slack_request::{BlockAction, PaginationValue},
+    slack_handler::interactive_handler::slack_request::{BlockAction, InteractivePayload, PaginationValue},
 };
 use slack_morphism::prelude::*;
 use crate::slack_handler::utils::block_kit::{build_schedule_list_blocks};
 
 pub async fn handle_pagination(
+    payload: &InteractivePayload,
     action: &BlockAction,
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
 ) -> Result<SlackView, AppError> {
@@ -19,7 +20,7 @@ pub async fn handle_pagination(
         .map_err(|e| AppError::InvalidData(format!("Failed to parse pagination value: {}", e)))?;
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
-    let response = build_schedule_list_blocks(&tasks, value.page, value.page_size);
+    let response = build_schedule_list_blocks(&tasks, value.page, value.page_size, &payload.user.id);
 
     Ok(response.slack_view)
 }
