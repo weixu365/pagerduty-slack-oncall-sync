@@ -1,74 +1,19 @@
 use crate::db::ScheduledTask;
 use chrono::{DateTime, SecondsFormat};
 use chrono_tz::Tz;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use serde_json;
 use slack_morphism::prelude::*;
 
 pub const DEFAULT_PAGE_SIZE: usize = 5;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ScheduleFilter {
     Auto,
     All,
     User,
     Channel,
-}
-
-impl Serialize for ScheduleFilter {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = match self {
-            ScheduleFilter::All => "all",
-            ScheduleFilter::User => "user",
-            ScheduleFilter::Channel => "channel",
-            ScheduleFilter::Auto => "auto",
-        };
-        serializer.serialize_str(s)
-    }
-}
-
-impl<'de> Deserialize<'de> for ScheduleFilter {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Ok(if s == "all" {
-            ScheduleFilter::All
-        } else if s == "user" {
-            ScheduleFilter::User
-        } else if s == "channel" {
-            ScheduleFilter::Channel
-        } else {
-            ScheduleFilter::Auto
-        })
-    }
-}
-
-impl ScheduleFilter {
-    pub fn to_string(&self) -> String {
-        match self {
-            ScheduleFilter::All => "all".to_string(),
-            ScheduleFilter::User => "user".to_string(),
-            ScheduleFilter::Channel => "channel".to_string(),
-            ScheduleFilter::Auto => "auto".to_string(),
-        }
-    }
-
-    pub fn from_string(s: &str) -> Self {
-        if s == "all" {
-            ScheduleFilter::All
-        } else if s == "user" {
-            ScheduleFilter::User
-        } else if s == "channel" {
-            ScheduleFilter::Channel
-        } else {
-            ScheduleFilter::Auto
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -179,7 +124,7 @@ pub fn build_schedule_list_blocks(
         .with_initial_option(SlackBlockChoiceItem::new(
             SlackBlockPlainTextOnly::from(SlackBlockPlainText::new(filter_label.into())),
             serde_json::json!({
-                "filter": filter.to_string(),
+                "filter": filter,
                 "page_size": page_size,
             })
             .to_string(),
@@ -348,7 +293,7 @@ fn build_pagination_blocks(
     let refresh_value = serde_json::json!({
         "page": current_page,
         "page_size": page_size,
-        "filter": filter.to_string(),
+        "filter": filter,
     })
     .to_string();
 
@@ -365,7 +310,7 @@ fn build_pagination_blocks(
         let prev_value = serde_json::json!({
             "page": current_page - 1,
             "page_size": page_size,
-            "filter": filter.to_string(),
+            "filter": filter,
         })
         .to_string();
 
@@ -383,7 +328,7 @@ fn build_pagination_blocks(
         let next_value = serde_json::json!({
             "page": current_page + 1,
             "page_size": page_size,
-            "filter": filter.to_string(),
+            "filter": filter,
         })
         .to_string();
 
