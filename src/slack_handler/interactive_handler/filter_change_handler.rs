@@ -1,10 +1,10 @@
+use crate::slack_handler::utils::block_kit::build_schedule_list_blocks;
 use crate::{
     db::ScheduledTaskRepository,
     errors::AppError,
-    slack_handler::interactive_handler::slack_request::{BlockAction, InteractivePayload, FilterChangeValue},
+    slack_handler::interactive_handler::slack_request::{BlockAction, FilterChangeValue, InteractivePayload},
 };
 use slack_morphism::prelude::*;
-use crate::slack_handler::utils::block_kit::build_schedule_list_blocks;
 
 pub async fn handle_filter_change(
     payload: &InteractivePayload,
@@ -24,7 +24,15 @@ pub async fn handle_filter_change(
         .map_err(|e| AppError::InvalidData(format!("Failed to parse filter change value: {}", e)))?;
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
-    let response = build_schedule_list_blocks(&tasks, 0, value.page_size, &payload.user.id, &payload.channel.id, &value.filter, next_trigger_timestamp);
+    let response = build_schedule_list_blocks(
+        &tasks,
+        0,
+        value.page_size,
+        &payload.user.id,
+        &payload.channel.id,
+        &value.filter,
+        next_trigger_timestamp,
+    );
 
     Ok(response.slack_view)
 }

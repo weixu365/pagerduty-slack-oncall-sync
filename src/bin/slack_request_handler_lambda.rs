@@ -1,17 +1,14 @@
 use std::env;
 
 use aws_lambda_events::event::apigw::{ApiGatewayProxyRequest, ApiGatewayProxyResponse};
-use lambda_runtime::{service_fn, LambdaEvent, Error};
+use lambda_runtime::{Error, LambdaEvent, service_fn};
 use on_call_support::slack_handler::command_handler::handle_slack_command_async;
 use on_call_support::slack_handler::interactive_handler::handle_slack_interactive_async;
 use on_call_support::{
     config::Config,
     db::dynamodb::SlackInstallationsDynamoDb,
     errors::AppError,
-    slack_handler::{
-        oauth_handler::oauth_handler::handle_slack_oauth,
-        utils::slack_response::response,
-    },
+    slack_handler::{oauth_handler::oauth_handler::handle_slack_oauth, utils::slack_response::response},
     utils::lambda_client::{invoke_slack_command_async_handler, is_async_processing_requested},
     utils::logging,
 };
@@ -42,7 +39,7 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
     let (event, _context) = event.into_parts();
 
     let env = env::var("ENV").unwrap_or("dev".to_string());
-    info!(path=event.path, "Received Slack request");
+    info!(path = event.path, "Received Slack request");
 
     let config = Config::get_or_init(&env).await?;
 
@@ -52,7 +49,7 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
         Some("/slack/oauth") => {
             info!("Processing Slack OAuth callback");
             // TODO: Return error if not allowed to install app based on ENV
-            
+
             let secrets = config.secrets().await?;
             let encryptor = config.build_encryptor().await?;
             let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());

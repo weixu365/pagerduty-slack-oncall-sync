@@ -1,8 +1,8 @@
 use aws_lambda_events::http::{HeaderMap, HeaderValue};
 use tracing::warn;
 
-use crate::{config::Config, errors::AppError, slack_handler::utils::request_utils::validate_request};
 use crate::slack_handler::utils::block_kit::ScheduleFilter;
+use crate::{config::Config, errors::AppError, slack_handler::utils::request_utils::validate_request};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -95,10 +95,7 @@ fn parse_slack_action_payload(request_body: &str) -> Result<InteractivePayload, 
     }
 
     if payload.payload_type != "block_actions" {
-        return Err(AppError::InvalidData(format!(
-            "Unsupported payload type: {}",
-            payload.payload_type
-        )));
+        return Err(AppError::InvalidData(format!("Unsupported payload type: {}", payload.payload_type)));
     }
 
     if payload.actions.is_empty() {
@@ -132,30 +129,31 @@ mod tests {
 
         let payload = parse_slack_action_payload(request_body)?;
 
-        assert_eq!(payload, InteractivePayload {
-            payload_type: "block_actions".to_string(),
-            user: InteractiveUser {
-                id: "USER_ID".to_string(),
-                username: "nnn".to_string(),
-            },
-            team: InteractiveTeam {
-                id: "ddd".to_string(),
-                domain: "seekchat".to_string(),
-            },
-            channel: InteractiveChannel {
-                id: "C0000001".to_string(),
-                name: "privategroup".to_string(),
-            },
-            actions: vec![
-                BlockAction {
+        assert_eq!(
+            payload,
+            InteractivePayload {
+                payload_type: "block_actions".to_string(),
+                user: InteractiveUser {
+                    id: "USER_ID".to_string(),
+                    username: "nnn".to_string(),
+                },
+                team: InteractiveTeam {
+                    id: "ddd".to_string(),
+                    domain: "seekchat".to_string(),
+                },
+                channel: InteractiveChannel {
+                    id: "C0000001".to_string(),
+                    name: "privategroup".to_string(),
+                },
+                actions: vec![BlockAction {
                     action_id: "refresh_page_0".to_string(),
                     block_id: Some("3Ahe0".to_string()),
                     value: None,
                     selected_option: None,
-                }
-            ],
-            response_url: "https://hooks.slack.com/actions/ddd/abcabc/defdef".to_string(),
-        });
+                }],
+                response_url: "https://hooks.slack.com/actions/ddd/abcabc/defdef".to_string(),
+            }
+        );
         Ok(())
     }
 

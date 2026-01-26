@@ -1,10 +1,10 @@
+use crate::slack_handler::utils::block_kit::build_schedule_list_blocks;
 use crate::{
     db::ScheduledTaskRepository,
     errors::AppError,
     slack_handler::interactive_handler::slack_request::{BlockAction, InteractivePayload, PaginationValue},
 };
 use slack_morphism::prelude::*;
-use crate::slack_handler::utils::block_kit::build_schedule_list_blocks;
 
 pub async fn handle_pagination(
     payload: &InteractivePayload,
@@ -14,14 +14,24 @@ pub async fn handle_pagination(
 ) -> Result<SlackView, AppError> {
     tracing::info!(action = ?action, "Paginating to page");
 
-    let value_str = action.value.as_ref()
+    let value_str = action
+        .value
+        .as_ref()
         .ok_or_else(|| AppError::InvalidData("Missing value in pagination action".to_string()))?;
 
     let value: PaginationValue = serde_json::from_str(value_str)
         .map_err(|e| AppError::InvalidData(format!("Failed to parse pagination value: {}", e)))?;
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
-    let response = build_schedule_list_blocks(&tasks, value.page, value.page_size, &payload.user.id, &payload.channel.id, &value.filter, next_trigger_timestamp);
+    let response = build_schedule_list_blocks(
+        &tasks,
+        value.page,
+        value.page_size,
+        &payload.user.id,
+        &payload.channel.id,
+        &value.filter,
+        next_trigger_timestamp,
+    );
 
     Ok(response.slack_view)
 }

@@ -1,9 +1,9 @@
 use crate::db::ScheduledTask;
-use slack_morphism::prelude::*;
 use chrono::{DateTime, SecondsFormat};
 use chrono_tz::Tz;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json;
-use serde::{Deserialize, Serialize, Deserializer, Serializer};
+use slack_morphism::prelude::*;
 
 pub const DEFAULT_PAGE_SIZE: usize = 5;
 
@@ -93,9 +93,10 @@ pub fn build_schedule_list_blocks(
         ScheduleFilter::All => tasks.iter().collect(),
         ScheduleFilter::User => tasks.iter().filter(|t| t.created_by_user_id == user_id).collect(),
         ScheduleFilter::Channel => tasks.iter().filter(|t| t.channel_id == channel_id).collect(),
-        ScheduleFilter::Auto => tasks.iter().filter(|t| {
-            t.created_by_user_id == user_id || t.channel_id == channel_id
-        }).collect(),
+        ScheduleFilter::Auto => tasks
+            .iter()
+            .filter(|t| t.created_by_user_id == user_id || t.channel_id == channel_id)
+            .collect(),
     };
 
     let total_items = filtered_tasks.len();
@@ -109,23 +110,20 @@ pub fn build_schedule_list_blocks(
     let mut blocks: Vec<SlackBlock> = Vec::new();
 
     // Header
-    blocks.push(
-        SlackBlock::Header(
-            SlackHeaderBlock::new(
-                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("📋 Scheduled Tasks".into()).with_emoji(true))
-            ).with_block_id(format!("header_{}", chrono::Utc::now()).into())
-        )
-    );
+    blocks.push(SlackBlock::Header(
+        SlackHeaderBlock::new(SlackBlockPlainTextOnly::from(
+            SlackBlockPlainText::new("📋 Scheduled Tasks".into()).with_emoji(true),
+        ))
+        .with_block_id(format!("header_{}", chrono::Utc::now()).into()),
+    ));
 
     if page_tasks.is_empty() {
         blocks.push(SlackBlock::Section(SlackSectionBlock::new().with_text(md!("_No scheduled tasks found._"))));
 
-        let slack_view = SlackView::Modal(
-            SlackModalView::new(
-                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Scheduled Tasks".into())),
-                blocks
-            )
-        );
+        let slack_view = SlackView::Modal(SlackModalView::new(
+            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Scheduled Tasks".into())),
+            blocks,
+        ));
 
         return ScheduleListResponse {
             slack_view: slack_view,
@@ -150,28 +148,32 @@ pub fn build_schedule_list_blocks(
                 serde_json::json!({
                     "filter": "auto",
                     "page_size": page_size,
-                }).to_string()
+                })
+                .to_string(),
             ),
             SlackBlockChoiceItem::new(
                 SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("All Schedules".into())),
                 serde_json::json!({
                     "filter": "all",
                     "page_size": page_size,
-                }).to_string()
+                })
+                .to_string(),
             ),
             SlackBlockChoiceItem::new(
                 SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("My Schedules".into())),
                 serde_json::json!({
                     "filter": "user",
                     "page_size": page_size,
-                }).to_string()
+                })
+                .to_string(),
             ),
             SlackBlockChoiceItem::new(
                 SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Channel Schedules".into())),
                 serde_json::json!({
                     "filter": "channel",
                     "page_size": page_size,
-                }).to_string()
+                })
+                .to_string(),
             ),
         ])
         .with_initial_option(SlackBlockChoiceItem::new(
@@ -179,7 +181,8 @@ pub fn build_schedule_list_blocks(
             serde_json::json!({
                 "filter": filter.to_string(),
                 "page_size": page_size,
-            }).to_string()
+            })
+            .to_string(),
         ));
 
     let page_size_select = SlackBlockStaticSelectElement::new("page_size_select".into())
@@ -190,14 +193,16 @@ pub fn build_schedule_list_blocks(
                 serde_json::json!({
                     "page_size": 5,
                     "filter": filter,
-                }).to_string()
+                })
+                .to_string(),
             ),
             SlackBlockChoiceItem::new(
                 SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("10".into())),
                 serde_json::json!({
                     "page_size": 10,
                     "filter": filter,
-                }).to_string()
+                })
+                .to_string(),
             ),
         ])
         .with_initial_option(SlackBlockChoiceItem::new(
@@ -205,15 +210,14 @@ pub fn build_schedule_list_blocks(
             serde_json::json!({
                 "page_size": page_size,
                 "filter": filter,
-            }).to_string()
+            })
+            .to_string(),
         ));
-    
-    blocks.push(
-        SlackBlock::Actions(SlackActionsBlock::new(vec![
-            SlackActionBlockElement::StaticSelect(filter_select),
-            SlackActionBlockElement::StaticSelect(page_size_select),
-        ]))
-    );
+
+    blocks.push(SlackBlock::Actions(SlackActionsBlock::new(vec![
+        SlackActionBlockElement::StaticSelect(filter_select),
+        SlackActionBlockElement::StaticSelect(page_size_select),
+    ])));
 
     blocks.push(SlackBlock::Divider(SlackDividerBlock::new()));
 
@@ -224,14 +228,25 @@ pub fn build_schedule_list_blocks(
     }
 
     // Pagination controls
-    if total_pages > 1 || true {  // Always show controls for refresh button
-        let pagination_blocks = build_pagination_blocks(start_idx, end_idx, total_items, current_page, total_pages, page_size, filter, next_trigger_timestamp);
+    if total_pages > 1 || true {
+        // Always show controls for refresh button
+        let pagination_blocks = build_pagination_blocks(
+            start_idx,
+            end_idx,
+            total_items,
+            current_page,
+            total_pages,
+            page_size,
+            filter,
+            next_trigger_timestamp,
+        );
         blocks.extend(pagination_blocks);
     }
 
-    let slack_view = SlackView::Modal(
-        SlackModalView::new(SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Scheduled Tasks".into())), blocks)
-    );
+    let slack_view = SlackView::Modal(SlackModalView::new(
+        SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Scheduled Tasks".into())),
+        blocks,
+    ));
 
     ScheduleListResponse {
         slack_view,
@@ -240,14 +255,22 @@ pub fn build_schedule_list_blocks(
     }
 }
 
-fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, page_size: usize, user_id: &str, filter: &ScheduleFilter) -> Vec<SlackBlock> {
+fn build_schedule_item_blocks(
+    task: &ScheduledTask,
+    _idx: usize,
+    page: usize,
+    page_size: usize,
+    user_id: &str,
+    filter: &ScheduleFilter,
+) -> Vec<SlackBlock> {
     let mut blocks = Vec::new();
 
     let last_updated_formatted = DateTime::parse_from_rfc3339(&task.last_updated_at)
         .ok()
         .and_then(|dt| {
             let tz: Result<Tz, _> = task.timezone.parse();
-            tz.ok().map(|tz| dt.with_timezone(&tz).to_rfc3339_opts(SecondsFormat::Secs, true))
+            tz.ok()
+                .map(|tz| dt.with_timezone(&tz).to_rfc3339_opts(SecondsFormat::Secs, true))
         })
         .unwrap_or_else(|| task.last_updated_at.clone());
 
@@ -270,13 +293,12 @@ fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, pa
             "page": page,
             "page_size": page_size,
             "filter": filter,
-        }).to_string();
+        })
+        .to_string();
 
         let delete_button = SlackBlockButtonElement::new(
             "delete_schedule".into(),
-            SlackBlockPlainTextOnly::from(
-                SlackBlockPlainText::new("Delete".into()).with_emoji(true)
-            )
+            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Delete".into()).with_emoji(true)),
         )
         .with_value(delete_value.into())
         .with_style("danger".into())
@@ -288,17 +310,16 @@ fn build_schedule_item_blocks(task: &ScheduledTask, _idx: usize, page: usize, pa
                     task.channel_name, task.user_group_handle, last_updated_formatted
                 )),
                 SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Delete".into())),
-                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Cancel".into()))
+                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Cancel".into())),
             )
-            .with_style("danger".into())
+            .with_style("danger".into()),
         );
 
         SlackSectionBlock::new()
             .with_text(md!(text_content))
             .with_accessory(SlackSectionBlockElement::Button(delete_button))
     } else {
-        SlackSectionBlock::new()
-            .with_text(md!(text_content))
+        SlackSectionBlock::new().with_text(md!(text_content))
     };
 
     // Main info section
@@ -328,19 +349,16 @@ fn build_pagination_blocks(
         "page": current_page,
         "page_size": page_size,
         "filter": filter.to_string(),
-    }).to_string();
+    })
+    .to_string();
 
-    button_elements.push(
-        SlackActionBlockElement::Button(
-            SlackBlockButtonElement::new(
-                "refresh".into(),
-                SlackBlockPlainTextOnly::from(
-                    SlackBlockPlainText::new("🔄 Refresh".into()).with_emoji(true)
-                )
-            )
-            .with_value(refresh_value.into())
+    button_elements.push(SlackActionBlockElement::Button(
+        SlackBlockButtonElement::new(
+            "refresh".into(),
+            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("🔄 Refresh".into()).with_emoji(true)),
         )
-    );
+        .with_value(refresh_value.into()),
+    ));
 
     // Previous button
     if current_page > 0 {
@@ -348,19 +366,16 @@ fn build_pagination_blocks(
             "page": current_page - 1,
             "page_size": page_size,
             "filter": filter.to_string(),
-        }).to_string();
+        })
+        .to_string();
 
-        button_elements.push(
-            SlackActionBlockElement::Button(
-                SlackBlockButtonElement::new(
-                    "page_previous".into(),
-                    SlackBlockPlainTextOnly::from(
-                        SlackBlockPlainText::new("← Previous".into()).with_emoji(true)
-                    )
-                )
-                .with_value(prev_value.into())
+        button_elements.push(SlackActionBlockElement::Button(
+            SlackBlockButtonElement::new(
+                "page_previous".into(),
+                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("← Previous".into()).with_emoji(true)),
             )
-        );
+            .with_value(prev_value.into()),
+        ));
     }
 
     // Next button
@@ -369,46 +384,33 @@ fn build_pagination_blocks(
             "page": current_page + 1,
             "page_size": page_size,
             "filter": filter.to_string(),
-        }).to_string();
+        })
+        .to_string();
 
-        button_elements.push(
-            SlackActionBlockElement::Button(
-                SlackBlockButtonElement::new(
-                    "page_next".into(),
-                    SlackBlockPlainTextOnly::from(
-                        SlackBlockPlainText::new("Next →".into()).with_emoji(true)
-                    )
-                )
-                .with_value(next_value.into())
+        button_elements.push(SlackActionBlockElement::Button(
+            SlackBlockButtonElement::new(
+                "page_next".into(),
+                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Next →".into()).with_emoji(true)),
             )
-        );
+            .with_value(next_value.into()),
+        ));
     }
 
     // Actions block with buttons
-    blocks.push(
-        SlackBlock::Actions(SlackActionsBlock::new(button_elements))
-    );
+    blocks.push(SlackBlock::Actions(SlackActionsBlock::new(button_elements)));
 
-    blocks.push(
-        SlackBlock::Context(
-            SlackContextBlock::new(vec![
-                SlackContextBlockElement::MarkDown(
-                    SlackBlockMarkDownText::new(
-                        format!(
-                            "{}: Showing {} - {} of {} schedules on page {} of {}. Next trigger: {}", 
-                            current_time_markdown(),
-                            start_idx + 1,
-                            end_idx,
-                            total_items,
-                            current_page + 1,
-                            total_pages,
-                            timestamp_markdown(next_trigger_timestamp),
-                        )
-                    )
-                )
-            ])
-        )
-    );
+    blocks.push(SlackBlock::Context(SlackContextBlock::new(vec![SlackContextBlockElement::MarkDown(
+        SlackBlockMarkDownText::new(format!(
+            "{}: Showing {} - {} of {} schedules on page {} of {}. Next trigger: {}",
+            current_time_markdown(),
+            start_idx + 1,
+            end_idx,
+            total_items,
+            current_page + 1,
+            total_pages,
+            timestamp_markdown(next_trigger_timestamp),
+        )),
+    )])));
 
     blocks
 }
@@ -417,7 +419,7 @@ fn build_pagination_blocks(
 /// https://docs.slack.dev/messaging/formatting-message-text/#date-formatting
 fn current_time_markdown() -> String {
     let now = chrono::Utc::now();
-    
+
     format!("<!date^{}^{{date_pretty}} {{time_secs}}|{}>", now.timestamp(), now.to_rfc3339())
 }
 
@@ -429,7 +431,7 @@ fn timestamp_markdown(timestamp: Option<i64>) -> String {
             return format!("<!date^{}^{{date_pretty}} {{time_secs}}|{}>", time.timestamp(), time.to_rfc3339());
         }
     }
-    
+
     "".to_string()
 }
 

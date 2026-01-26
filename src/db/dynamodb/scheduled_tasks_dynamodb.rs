@@ -189,19 +189,29 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
         Ok(scheduled_tasks)
     }
 
-    async fn get_scheduled_task(&self, team_id: &str, workspace_id: &str, task_id: &str) -> Result<ScheduledTask, AppError> {
+    async fn get_scheduled_task(
+        &self,
+        team_id: &str,
+        workspace_id: &str,
+        task_id: &str,
+    ) -> Result<ScheduledTask, AppError> {
         let request = self
             .client
             .get_item()
             .key("team", AttributeValue::S(self.team(team_id, workspace_id)))
             .key("task_id", AttributeValue::S(task_id.to_string()))
             .table_name(&self.table_name)
-            .send().await?;
+            .send()
+            .await?;
 
         tracing::info!(team_id, workspace_id, task_id, "Deleting scheduled task from DynamoDB");
-        let item = request.item()
-            .ok_or_else(|| AppError::ScheduleNotFoundError(format!("team_id: {}, workspace_id: {}, task_id: {}", team_id, workspace_id, task_id)))?;
-        
+        let item = request.item().ok_or_else(|| {
+            AppError::ScheduleNotFoundError(format!(
+                "team_id: {}, workspace_id: {}, task_id: {}",
+                team_id, workspace_id, task_id
+            ))
+        })?;
+
         let task = self.parse_scheduled_task(&item).await?;
         Ok(task)
     }

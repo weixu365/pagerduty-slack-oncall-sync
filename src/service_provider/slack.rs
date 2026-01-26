@@ -309,7 +309,8 @@ pub async fn send_slack_blocks(response_url: &str, blocks: &Vec<SlackBlock>) -> 
     let response_payload = json!({
         "replace_original": true,
         "blocks": blocks,
-    }).to_string();
+    })
+    .to_string();
 
     send_slack_message(response_url, response_payload).await
 }
@@ -317,12 +318,7 @@ pub async fn send_slack_blocks(response_url: &str, blocks: &Vec<SlackBlock>) -> 
 pub async fn send_slack_message(response_url: &str, response_payload: String) -> Result<(), AppError> {
     let payload_size = response_payload.len();
 
-    info!(
-        response_url,
-        replace_original = true,
-        payload_size = payload_size,
-        "Posting message to Slack response_url"
-    );
+    info!(response_url, replace_original = true, payload_size = payload_size, "Posting message to Slack response_url");
 
     let client = reqwest::Client::new();
     match client
@@ -334,7 +330,10 @@ pub async fn send_slack_message(response_url: &str, response_payload: String) ->
     {
         Ok(resp) => {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_else(|_| "Failed to read response body".to_string());
+            let body = resp
+                .text()
+                .await
+                .unwrap_or_else(|_| "Failed to read response body".to_string());
 
             if status.is_success() {
                 info!(response_body = body, "Successfully sent interactive response to Slack");

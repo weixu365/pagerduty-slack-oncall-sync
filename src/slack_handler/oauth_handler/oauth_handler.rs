@@ -5,8 +5,8 @@ use crate::{
     db::{SlackInstallation, SlackInstallationRepository, dynamodb::SlackInstallationsDynamoDb},
     errors::AppError,
     service_provider::slack::swap_slack_access_token,
-    utils::http_client::build_http_client,
     slack_handler::utils::slack_response::response,
+    utils::http_client::build_http_client,
 };
 
 pub async fn handle_slack_oauth(

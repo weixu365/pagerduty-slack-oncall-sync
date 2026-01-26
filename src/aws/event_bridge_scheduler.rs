@@ -56,7 +56,7 @@ impl EventBridgeScheduler {
 
         let now = Utc::now().timestamp();
         let current_schedules = self.get_current_schedules().await?;
-        
+
         match self.next_schedule(&current_schedules, now) {
             Some(schedule) => Ok(Some(schedule)),
             None => Ok(None),
@@ -122,11 +122,7 @@ impl EventBridgeScheduler {
         Ok(())
     }
 
-    pub(crate) fn next_schedule(
-        &self,
-        schedules: &Vec<EventBridgeSchedule>,
-        from: i64,
-    ) -> Option<EventBridgeSchedule> {
+    pub(crate) fn next_schedule(&self, schedules: &Vec<EventBridgeSchedule>, from: i64) -> Option<EventBridgeSchedule> {
         let mut earliest: Option<&EventBridgeSchedule> = None;
         let mut earliest_timestamp = i64::MAX;
 

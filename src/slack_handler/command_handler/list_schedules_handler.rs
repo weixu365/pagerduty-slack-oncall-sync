@@ -1,5 +1,5 @@
+use crate::slack_handler::utils::block_kit::{ScheduleFilter, ScheduleListResponse, build_schedule_list_blocks};
 use crate::{db::ScheduledTaskRepository, errors::AppError};
-use crate::slack_handler::utils::block_kit::{build_schedule_list_blocks, ScheduleListResponse, ScheduleFilter};
 
 pub async fn handle_list_schedules_command(
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
@@ -12,7 +12,15 @@ pub async fn handle_list_schedules_command(
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
     let page = page.unwrap_or(0);
 
-    Ok(build_schedule_list_blocks(&tasks, page, page_size, &user_id, &channel_id, &ScheduleFilter::Auto, next_trigger_timestamp))
+    Ok(build_schedule_list_blocks(
+        &tasks,
+        page,
+        page_size,
+        &user_id,
+        &channel_id,
+        &ScheduleFilter::Auto,
+        next_trigger_timestamp,
+    ))
 }
 
 #[cfg(test)]
@@ -26,7 +34,7 @@ mod tests {
     struct MockScheduledTaskRepository {
         tasks: Vec<ScheduledTask>,
     }
-    
+
     #[async_trait]
     impl ScheduledTaskRepository for MockScheduledTaskRepository {
         async fn save_scheduled_task(&self, _task: &ScheduledTask) -> Result<(), AppError> {
@@ -55,7 +63,11 @@ mod tests {
             _workspace_id: &str,
             _task_id: &str,
         ) -> Result<ScheduledTask, AppError> {
-            Ok(self.tasks.first().cloned().ok_or_else(|| AppError::ScheduleNotFoundError("No tasks available".to_string()))?)
+            Ok(self
+                .tasks
+                .first()
+                .cloned()
+                .ok_or_else(|| AppError::ScheduleNotFoundError("No tasks available".to_string()))?)
         }
 
         async fn delete_scheduled_task(
@@ -106,7 +118,8 @@ mod tests {
     async fn test_handle_list_schedules_command_empty() -> Result<(), AppError> {
         let mock_db = MockScheduledTaskRepository { tasks: vec![] };
 
-        let response = handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+        let response =
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
         assert_eq!(response.total_pages, 0);
 
         // Verify it's a Modal view with blocks
@@ -125,7 +138,8 @@ mod tests {
         let task = create_test_task("general", "oncall", "0 9 * * *", "2024-01-15T09:00:00Z");
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
-        let response = handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+        let response =
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
         assert_eq!(response.total_pages, 1);
 
         // Verify it's a Modal view with blocks
@@ -155,7 +169,8 @@ mod tests {
             tasks: vec![task1, task2, task3],
         };
 
-        let response = handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+        let response =
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
         assert_eq!(response.total_pages, 1);
 
         // Verify it's a Modal view with blocks
@@ -182,7 +197,8 @@ mod tests {
         let task = create_test_task("my-channel", "my-group", "0 */2 * * *", "2024-12-25T14:00:00Z");
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
-        let response = handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+        let response =
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
         assert_eq!(response.total_pages, 1);
 
         // Verify it's a Modal view with blocks

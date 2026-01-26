@@ -70,10 +70,10 @@ pub enum AppError {
 
     #[error("Failed to get item from DynamoDB: `{0:?}`")]
     DynamoDBGetItemError(#[from] SdkError<GetItemError>),
-    
+
     #[error("Failed to scan DynamoDB table: `{0:?}`")]
     DynamoDBScanError(#[from] SdkError<ScanError>),
-    
+
     #[error("Schedule doesn't exist: `{0:?}`")]
     ScheduleNotFoundError(String),
 
