@@ -1,10 +1,12 @@
 pub mod list_schedules_handler;
 pub mod new_schedule_handler;
+pub mod new_schedule_wizard_handler;
 pub mod setup_pagerduty_handler;
 pub mod slack_request;
 
 use list_schedules_handler::handle_list_schedules_command;
 use new_schedule_handler::handle_schedule_command;
+use new_schedule_wizard_handler::handle_new_schedule_wizard;
 use setup_pagerduty_handler::handle_setup_pagerduty_command;
 use slack_request::{Command, parse_slack_command, parse_slack_request};
 use std::env;
@@ -73,8 +75,10 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
             send_slack_view(&response_url, response.slack_view).await?;
         }
         Some(Command::New) => {
-            let response_body = markdown_section(vec![format!("Show wizard to add new schedule")]);
-            send_slack_message(&response_url, response_body).await?;
+            let encryptor = config.build_encryptor().await?;
+            let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor);
+
+            handle_new_schedule_wizard(&params, &params.trigger_id, &slack_installations_db).await?;
         }
         None => {
             let response_body = markdown_section(vec![format!("default command")]);

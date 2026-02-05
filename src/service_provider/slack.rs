@@ -348,3 +348,68 @@ pub async fn send_slack_message(response_url: &str, response_payload: String) ->
 
     Ok(())
 }
+
+pub async fn open_slack_modal(trigger_id: &str, modal: &SlackView, bot_access_token: &str) -> Result<(), AppError> {
+    info!("Opening Slack modal");
+
+    let modal_json = serde_json::to_value(modal)
+        .map_err(|e| AppError::InvalidData(format!("Failed to serialize modal: {}", e)))?;
+
+    let payload = json!({
+        "trigger_id": trigger_id,
+        "view": modal_json
+    });
+
+    info!(payload=%payload, "Opening Slack modal");
+    send_slack_request("https://slack.com/api/views.open", &payload, bot_access_token).await?;
+    Ok(())
+}
+
+pub async fn update_slack_modal(view_id: &str, hash: &str, modal: &SlackView, bot_access_token: &str) -> Result<(), AppError> {
+    info!("Updating Slack modal");
+
+    let modal_json = serde_json::to_value(modal)
+        .map_err(|e| AppError::InvalidData(format!("Failed to serialize modal: {}", e)))?;
+
+    let payload = json!({
+        "view_id": view_id,
+        "hash": hash,
+        "view": modal_json,
+    });
+
+    send_slack_request("https://slack.com/api/views.update", &payload, bot_access_token).await?;
+    Ok(())
+}
+
+pub async fn send_slack_request(url: &str, payload: &Value, bot_access_token: &str) -> Result<(), AppError> {
+    info!(payload=%payload, "Sending Slack request to {}", url);
+    
+    let client = reqwest::Client::new();
+    let response = client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", bot_access_token))
+        .json(&payload)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        let response_body = response.text().await?;
+        let json_response: Value = serde_json::from_str(&response_body)
+            .map_err(|e| AppError::SlackError(format!("Failed to parse response: {}", e)))?;
+
+        if json_response["ok"].as_bool().unwrap_or(false) {
+            info!("Successfully sent Slack request");
+            Ok(())
+        } else {
+            let error_msg = json_response["error"]
+                .as_str()
+                .unwrap_or("Unknown error");
+            error!(error = error_msg, response = %response_body, "Failed to send Slack request");
+            Err(AppError::SlackError(format!("Failed to send Slack request: {}", error_msg)))
+        }
+    } else {
+        error!(status = response.status().as_u16(), "Failed to send Slack request");
+        Err(AppError::SlackError(format!("HTTP error: {}", response.status())))
+    }
+}

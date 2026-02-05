@@ -2,12 +2,12 @@ use crate::slack_handler::utils::block_kit::build_schedule_list_blocks;
 use crate::{
     db::ScheduledTaskRepository,
     errors::AppError,
-    slack_handler::interactive_handler::slack_request::{BlockAction, InteractivePayload, PaginationValue},
+    slack_handler::interactive_handler::slack_request::{BlockAction, InteractiveRequest, PaginationValue},
 };
 use slack_morphism::prelude::*;
 
 pub async fn handle_refresh(
-    payload: &InteractivePayload,
+    request: &InteractiveRequest,
     action: &BlockAction,
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     next_trigger_timestamp: Option<i64>,
@@ -27,8 +27,8 @@ pub async fn handle_refresh(
         &tasks,
         value.page,
         value.page_size,
-        &payload.user.id,
-        &payload.channel.id,
+        &request.user.id,
+        request.channel.as_ref().map(|c| &c.id),
         &value.filter,
         next_trigger_timestamp,
     );

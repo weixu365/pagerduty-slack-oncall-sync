@@ -17,7 +17,7 @@ pub async fn handle_list_schedules_command(
         page,
         page_size,
         &user_id,
-        &channel_id,
+        Some(&channel_id),
         &ScheduleFilter::Auto,
         next_trigger_timestamp,
     ))

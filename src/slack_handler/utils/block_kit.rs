@@ -29,7 +29,7 @@ pub fn build_schedule_list_blocks(
     page: usize,
     page_size: usize,
     user_id: &str,
-    channel_id: &str,
+    channel_id: Option<&String>,
     filter: &ScheduleFilter,
     next_trigger_timestamp: Option<i64>,
 ) -> ScheduleListResponse {
@@ -37,10 +37,10 @@ pub fn build_schedule_list_blocks(
     let filtered_tasks: Vec<&ScheduledTask> = match filter {
         ScheduleFilter::All => tasks.iter().collect(),
         ScheduleFilter::User => tasks.iter().filter(|t| t.created_by_user_id == user_id).collect(),
-        ScheduleFilter::Channel => tasks.iter().filter(|t| t.channel_id == channel_id).collect(),
+        ScheduleFilter::Channel => tasks.iter().filter(|t| channel_id == Some(&t.channel_id)).collect(),
         ScheduleFilter::Auto => tasks
             .iter()
-            .filter(|t| t.created_by_user_id == user_id || t.channel_id == channel_id)
+            .filter(|t| t.created_by_user_id == user_id || channel_id == Some(&t.channel_id))
             .collect(),
     };
 
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn test_build_schedule_list_empty() {
         let tasks: Vec<ScheduledTask> = vec![];
-        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", "C123", &ScheduleFilter::Auto, None);
+        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -434,7 +434,7 @@ mod tests {
             create_test_task("general", "oncall"),
             create_test_task("engineering", "eng-oncall"),
         ];
-        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", "C123", &ScheduleFilter::Auto, None);
+        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -457,7 +457,7 @@ mod tests {
         }
 
         // Page 0
-        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", "C123", &ScheduleFilter::Auto, None);
+        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -471,7 +471,7 @@ mod tests {
         assert_eq!(response.total_pages, 3); // 25 tasks / 10 per page = 3 pages
 
         // Page 1
-        let response = build_schedule_list_blocks(&tasks, 1, 10, "U123", "C123", &ScheduleFilter::Auto, None);
+        let response = build_schedule_list_blocks(&tasks, 1, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {
