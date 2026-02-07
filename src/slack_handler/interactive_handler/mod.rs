@@ -1,20 +1,17 @@
-pub mod delete_schedule_handler;
-pub mod filter_change_handler;
-pub mod page_size_change_handlers;
-pub mod pagerduty_schedule_change_handler;
-pub mod pagination_handler;
-pub mod refresh_handlers;
+pub mod new_schedule_modal;
 pub mod slack_request;
-
+pub mod schedule_list;
 use std::env;
 use std::sync::Arc;
 
-use delete_schedule_handler::handle_delete_schedule;
-use filter_change_handler::handle_filter_change;
-use page_size_change_handlers::handle_page_size_change;
-use pagerduty_schedule_change_handler::handle_pagerduty_schedule_change;
-use pagination_handler::handle_pagination;
-use refresh_handlers::handle_refresh;
+use new_schedule_modal::pagerduty_schedule_change_handler::handle_pagerduty_schedule_change;
+use schedule_list::{
+    delete_schedule_handler::handle_delete_schedule,
+    filter_change_handler::handle_filter_change,
+    page_size_change_handlers::handle_page_size_change,
+    pagination_handler::handle_pagination,
+    refresh_handlers::handle_refresh,
+};
 use slack_morphism::SlackResponseUrl;
 use crate::slack_handler::slack_events::SlackInteractionEvent;
 use slack_request::parse_slack_request;
