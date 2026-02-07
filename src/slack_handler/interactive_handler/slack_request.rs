@@ -1,6 +1,7 @@
 use crate::slack_handler::utils::block_kit::ScheduleFilter;
 use crate::errors::AppError;
 use serde::Deserialize;
+use crate::slack_handler::slack_events::SlackInteractionEvent;
 
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -93,16 +94,12 @@ pub struct SlackInteractiveActionRequest {
 
 pub fn parse_slack_request(
     request_body: &str,
-) -> Result<InteractiveRequest, AppError> {
+) -> Result<SlackInteractionEvent, AppError> {
     let params: SlackInteractiveActionRequest = serde_urlencoded::from_str(request_body)
         .map_err(|e| AppError::InvalidData(format!("Failed to parse request body: {}", e)))?;
 
-    let request: InteractiveRequest = serde_json::from_str(&params.payload)
+    let request: SlackInteractionEvent = serde_json::from_str(&params.payload)
         .map_err(|e| AppError::InvalidData(format!("Failed to parse payload JSON: {}", e)))?;
-
-    if request.actions.is_empty() {
-        return Err(AppError::InvalidData("Empty actions list".to_string()));
-    }
 
     Ok(request)
 }
@@ -118,35 +115,18 @@ mod tests {
 
         let request = parse_slack_request(request_body)?;
 
-        assert_eq!(
-            request,
-            InteractiveRequest {
-                user: InteractiveUser {
-                    id: "USER_ID".to_string(),
-                    username: "nnn".to_string(),
-                },
-                team: InteractiveTeam {
-                    id: "ddd".to_string(),
-                    domain: "seekchat".to_string(),
-                },
-                channel: Some(InteractiveChannel {
-                    id: "C0000001".to_string(),
-                    name: "privategroup".to_string(),
-                }),
-                enterprise: Some(InteractiveEnterprise {
-                    id: "aaa".to_string(),
-                    name: "bbb".to_string(),
-                }),
-                actions: vec![BlockAction {
-                    action_id: "refresh_page_0".to_string(),
-                    block_id: Some("3Ahe0".to_string()),
-                    value: None,
-                    selected_option: None,
-                }],
-                view: None,
-                response_url: Some("https://hooks.slack.com/actions/ddd/abcabc/defdef".to_string()),
+        // Verify that we successfully parsed a SlackInteractionEvent::BlockActions
+        match request {
+            SlackInteractionEvent::BlockActions(event) => {
+                assert_eq!(event.user.as_ref().map(|u| u.id.0.as_str()), Some("USER_ID"));
+                assert_eq!(event.team.id.0.as_str(), "ddd");
+                assert_eq!(event.channel.as_ref().map(|c| c.id.0.as_str()), Some("C0000001"));
+                assert_eq!(event.response_url.as_ref().map(|u| u.0.as_str()), Some("https://hooks.slack.com/actions/ddd/abcabc/defdef"));
+                assert_eq!(event.actions.as_ref().map(|a| a.len()), Some(1));
+                assert_eq!(event.actions.as_ref().and_then(|a| a.first()).map(|a| a.action_id.0.as_str()), Some("refresh_page_0"));
             }
-        );
+            _ => panic!("Expected BlockActions event"),
+        }
         Ok(())
     }
 

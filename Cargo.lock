@@ -2575,6 +2575,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_urlencoded",
+ "serde_with",
  "serial_test",
  "shlex",
  "slack-morphism",
