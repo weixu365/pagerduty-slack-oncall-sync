@@ -4,6 +4,7 @@ use crate::{
     db::ScheduledTaskRepository, errors::AppError, slack_handler::interactive_handler::slack_request::FilterChangeValue,
 };
 use slack_morphism::prelude::*;
+use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 
 pub async fn handle_filter_change(
     request: &SlackInteractionBlockActionsEvent,

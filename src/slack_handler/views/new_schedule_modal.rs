@@ -1,5 +1,7 @@
 use slack_morphism::prelude::*;
-use crate::slack_handler::morphism_patches::slack_events::SlackInteractionBlockActionsEvent;
+use crate::slack_handler::morphism_patches::{
+    blocks_kit::{SlackBlock, SlackBlockConversationsSelectElement, SlackConversationSelectFilter, SlackInputBlock, SlackInputBlockElement, SlackModalView, SlackView}, slack_events::SlackInteractionBlockActionsEvent
+};
 
 #[rustfmt::skip]
 pub(crate) fn build_new_schedule_modal_with_oncall(on_call_text: &str, request: Option<&SlackInteractionBlockActionsEvent>) -> SlackView {
@@ -65,6 +67,11 @@ pub(crate) fn build_new_schedule_modal_with_oncall(on_call_text: &str, request: 
                         initial_conversation: request
                             .and_then(|r| r.get_state("channel_value"))
                             .and_then(|state| state.selected_conversation.clone()),
+                        filter: Some(SlackConversationSelectFilter {
+                            include: Some(vec!["public".into(), "private".into()]),
+                            exclude_external_shared_channels: Some(true),
+                            exclude_bot_users: Some(true),
+                        }),
                         confirm: None,
                         response_url_enabled: None,
                         focus_on_load: None,

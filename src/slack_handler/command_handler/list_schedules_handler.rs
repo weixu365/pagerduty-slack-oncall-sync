@@ -29,7 +29,7 @@ mod tests {
     use crate::db::ScheduledTask;
     use async_trait::async_trait;
     use chrono::Utc;
-    use slack_morphism::prelude::*;
+    use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 
     struct MockScheduledTaskRepository {
         tasks: Vec<ScheduledTask>,

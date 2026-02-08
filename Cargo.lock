@@ -2571,6 +2571,7 @@ dependencies = [
  "regex",
  "reqwest",
  "ring",
+ "rsb_derive",
  "rvstruct",
  "serde",
  "serde_derive",

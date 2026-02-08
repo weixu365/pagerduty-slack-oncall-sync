@@ -46,6 +46,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", default-features = false, features = ["fmt", "ansi", "env-filter", "tracing-log", "json"] }
 serde_with = {version = "3.16.1", features = ["json"]}
 rvstruct = "0.3.2"
+rsb_derive = "0.5.1"
 
 [dev-dependencies]
 serial_test = "3.3.1"

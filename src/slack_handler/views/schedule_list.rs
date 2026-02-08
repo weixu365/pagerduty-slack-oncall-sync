@@ -4,6 +4,7 @@ use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use slack_morphism::prelude::*;
+use crate::slack_handler::morphism_patches::blocks_kit::{SlackBlock, SlackView, SlackModalView};
 
 pub const DEFAULT_PAGE_SIZE: usize = 5;
 
@@ -384,6 +385,7 @@ fn timestamp_markdown(timestamp: Option<i64>) -> String {
 mod tests {
     use super::*;
     use chrono::Utc;
+    use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 
     fn create_test_task(channel: &str, group: &str) -> ScheduledTask {
         ScheduledTask {
