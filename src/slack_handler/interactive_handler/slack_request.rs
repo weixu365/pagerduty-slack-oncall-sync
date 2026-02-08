@@ -1,8 +1,7 @@
-use crate::slack_handler::utils::block_kit::ScheduleFilter;
 use crate::errors::AppError;
-use serde::Deserialize;
 use crate::slack_handler::slack_events::SlackInteractionEvent;
-
+use crate::slack_handler::utils::block_kit::ScheduleFilter;
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct InteractiveRequest {
@@ -92,9 +91,7 @@ pub struct SlackInteractiveActionRequest {
     pub payload: String,
 }
 
-pub fn parse_slack_request(
-    request_body: &str,
-) -> Result<SlackInteractionEvent, AppError> {
+pub fn parse_slack_request(request_body: &str) -> Result<SlackInteractionEvent, AppError> {
     let params: SlackInteractiveActionRequest = serde_urlencoded::from_str(request_body)
         .map_err(|e| AppError::InvalidData(format!("Failed to parse request body: {}", e)))?;
 
@@ -121,9 +118,19 @@ mod tests {
                 assert_eq!(event.user.as_ref().map(|u| u.id.0.as_str()), Some("USER_ID"));
                 assert_eq!(event.team.id.0.as_str(), "ddd");
                 assert_eq!(event.channel.as_ref().map(|c| c.id.0.as_str()), Some("C0000001"));
-                assert_eq!(event.response_url.as_ref().map(|u| u.0.as_str()), Some("https://hooks.slack.com/actions/ddd/abcabc/defdef"));
+                assert_eq!(
+                    event.response_url.as_ref().map(|u| u.0.as_str()),
+                    Some("https://hooks.slack.com/actions/ddd/abcabc/defdef")
+                );
                 assert_eq!(event.actions.as_ref().map(|a| a.len()), Some(1));
-                assert_eq!(event.actions.as_ref().and_then(|a| a.first()).map(|a| a.action_id.0.as_str()), Some("refresh_page_0"));
+                assert_eq!(
+                    event
+                        .actions
+                        .as_ref()
+                        .and_then(|a| a.first())
+                        .map(|a| a.action_id.0.as_str()),
+                    Some("refresh_page_0")
+                );
             }
             _ => panic!("Expected BlockActions event"),
         }

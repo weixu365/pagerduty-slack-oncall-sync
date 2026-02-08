@@ -1,11 +1,9 @@
+use crate::slack_handler::slack_events::SlackInteractionBlockActionsEvent;
 use crate::slack_handler::utils::block_kit::build_schedule_list_blocks;
 use crate::{
-    db::ScheduledTaskRepository,
-    errors::AppError,
-    slack_handler::interactive_handler::slack_request::FilterChangeValue,
+    db::ScheduledTaskRepository, errors::AppError, slack_handler::interactive_handler::slack_request::FilterChangeValue,
 };
 use slack_morphism::prelude::*;
-use crate::slack_handler::slack_events::SlackInteractionBlockActionsEvent;
 
 pub async fn handle_filter_change(
     request: &SlackInteractionBlockActionsEvent,
@@ -15,14 +13,18 @@ pub async fn handle_filter_change(
 ) -> Result<SlackView, AppError> {
     tracing::info!(action = ?action, "Changing filter");
 
-    let value_str = action.selected_option.as_ref()
+    let value_str = action
+        .selected_option
+        .as_ref()
         .map(|opt| opt.value.as_str())
         .ok_or_else(|| AppError::InvalidData("Missing value in filter change action".to_string()))?;
 
     let value: FilterChangeValue = serde_json::from_str(value_str)
         .map_err(|e| AppError::InvalidData(format!("Failed to parse filter change value: {}", e)))?;
 
-    let user_id = request.user.as_ref()
+    let user_id = request
+        .user
+        .as_ref()
         .map(|u| &u.id.0)
         .ok_or_else(|| AppError::InvalidData("Missing user in request".to_string()))?;
 

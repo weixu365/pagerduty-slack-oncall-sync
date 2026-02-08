@@ -1,11 +1,9 @@
+use crate::slack_handler::slack_events::SlackInteractionBlockActionsEvent;
 use crate::slack_handler::utils::block_kit::build_schedule_list_blocks;
 use crate::{
-    db::ScheduledTaskRepository,
-    errors::AppError,
-    slack_handler::interactive_handler::slack_request::PaginationValue,
+    db::ScheduledTaskRepository, errors::AppError, slack_handler::interactive_handler::slack_request::PaginationValue,
 };
 use slack_morphism::prelude::*;
-use crate::slack_handler::slack_events::SlackInteractionBlockActionsEvent;
 
 pub async fn handle_pagination(
     request: &SlackInteractionBlockActionsEvent,
@@ -23,7 +21,9 @@ pub async fn handle_pagination(
     let value: PaginationValue = serde_json::from_str(value_str.as_str())
         .map_err(|e| AppError::InvalidData(format!("Failed to parse pagination value: {}", e)))?;
 
-    let user_id = request.user.as_ref()
+    let user_id = request
+        .user
+        .as_ref()
         .map(|u| &u.id.0)
         .ok_or_else(|| AppError::InvalidData("Missing user in request".to_string()))?;
 

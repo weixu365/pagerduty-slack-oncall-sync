@@ -1,11 +1,10 @@
+use crate::slack_handler::slack_events::SlackInteractionBlockActionsEvent;
 use crate::slack_handler::utils::block_kit::build_schedule_list_blocks;
 use crate::{
-    db::ScheduledTaskRepository,
-    errors::AppError,
+    db::ScheduledTaskRepository, errors::AppError,
     slack_handler::interactive_handler::slack_request::DeleteScheduleValue,
 };
 use slack_morphism::prelude::*;
-use crate::slack_handler::slack_events::SlackInteractionBlockActionsEvent;
 
 pub async fn handle_delete_schedule(
     request: &SlackInteractionBlockActionsEvent,
@@ -26,7 +25,9 @@ pub async fn handle_delete_schedule(
     let scheduled_task = scheduled_tasks_db
         .get_scheduled_task(&value.team_id, &value.enterprise_id, &value.task_id)
         .await?;
-    let user_id = request.user.as_ref()
+    let user_id = request
+        .user
+        .as_ref()
         .map(|u| &u.id.0)
         .ok_or_else(|| AppError::InvalidData("Missing user in request".to_string()))?;
 

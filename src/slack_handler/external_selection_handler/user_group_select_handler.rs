@@ -1,14 +1,10 @@
 use std::sync::Arc;
 
-use crate::{
-    db::SlackInstallationRepository,
-    errors::AppError,
-    service_provider::slack::Slack,
-};
 use super::{
     options::{OptionItem, OptionsResponse, TextObject},
     slack_request::ExternalSelectRequest,
 };
+use crate::{db::SlackInstallationRepository, errors::AppError, service_provider::slack::Slack};
 
 pub async fn handle_user_group_options(
     request: &ExternalSelectRequest,
@@ -17,11 +13,7 @@ pub async fn handle_user_group_options(
 ) -> Result<OptionsResponse, AppError> {
     tracing::info!(action_id = %request.action_id, "Fetching user group options");
 
-    let enterprise_id = request
-        .enterprise
-        .as_ref()
-        .map(|e| e.id.clone())
-        .unwrap_or_default();
+    let enterprise_id = request.enterprise.as_ref().map(|e| e.id.clone()).unwrap_or_default();
 
     let installation = slack_installations_db
         .get_slack_installation(&request.team.id, &enterprise_id)

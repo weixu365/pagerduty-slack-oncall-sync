@@ -4,3 +4,4 @@ pub mod interactive_handler;
 pub mod oauth_handler;
 pub mod slack_events;
 pub mod utils;
+pub mod views;

@@ -1,14 +1,10 @@
 use std::sync::Arc;
 
-use crate::{
-    db::SlackInstallationRepository,
-    errors::AppError,
-    service_provider::pager_duty::PagerDuty,
-};
 use super::{
     options::{OptionItem, OptionsResponse, TextObject},
     slack_request::ExternalSelectRequest,
 };
+use crate::{db::SlackInstallationRepository, errors::AppError, service_provider::pager_duty::PagerDuty};
 
 pub async fn handle_pagerduty_schedule_options(
     request: &ExternalSelectRequest,
@@ -17,11 +13,7 @@ pub async fn handle_pagerduty_schedule_options(
 ) -> Result<OptionsResponse, AppError> {
     tracing::info!(action_id = %request.action_id, "Fetching PagerDuty schedule options");
 
-    let enterprise_id = request
-        .enterprise
-        .as_ref()
-        .map(|e| e.id.clone())
-        .unwrap_or_default();
+    let enterprise_id = request.enterprise.as_ref().map(|e| e.id.clone()).unwrap_or_default();
 
     let installation = slack_installations_db
         .get_slack_installation(&request.team.id, &enterprise_id)
@@ -34,9 +26,7 @@ pub async fn handle_pagerduty_schedule_options(
     })?;
 
     let pager_duty = PagerDuty::new(http_client, pagerduty_token, "".into());
-    let schedules = pager_duty
-        .list_schedules(request.value.as_deref())
-        .await?;
+    let schedules = pager_duty.list_schedules(request.value.as_deref()).await?;
 
     let options = schedules
         .into_iter()

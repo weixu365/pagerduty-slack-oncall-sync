@@ -32,9 +32,7 @@ struct SlackInteractiveActionRequest {
     pub payload: String,
 }
 
-pub fn parse_slack_request(
-    request_body: &str,
-) -> Result<ExternalSelectRequest, AppError> {
+pub fn parse_slack_request(request_body: &str) -> Result<ExternalSelectRequest, AppError> {
     let params: SlackInteractiveActionRequest = serde_urlencoded::from_str(request_body)
         .map_err(|e| AppError::InvalidData(format!("Failed to parse request body: {}", e)))?;
 

@@ -98,10 +98,7 @@ impl PagerDuty {
         }
     }
 
-    pub async fn list_schedules(
-        &self,
-        query: Option<&str>,
-    ) -> Result<Vec<PagerDutySchedule>, AppError> {
+    pub async fn list_schedules(&self, query: Option<&str>) -> Result<Vec<PagerDutySchedule>, AppError> {
         tracing::info!("Fetching PagerDuty schedules");
 
         let mut request = self

@@ -414,7 +414,8 @@ mod tests {
     #[test]
     fn test_build_schedule_list_empty() {
         let tasks: Vec<ScheduledTask> = vec![];
-        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+        let response =
+            build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -434,7 +435,8 @@ mod tests {
             create_test_task("general", "oncall"),
             create_test_task("engineering", "eng-oncall"),
         ];
-        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+        let response =
+            build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -457,7 +459,8 @@ mod tests {
         }
 
         // Page 0
-        let response = build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+        let response =
+            build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {
@@ -471,7 +474,8 @@ mod tests {
         assert_eq!(response.total_pages, 3); // 25 tasks / 10 per page = 3 pages
 
         // Page 1
-        let response = build_schedule_list_blocks(&tasks, 1, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+        let response =
+            build_schedule_list_blocks(&tasks, 1, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
 
         // Verify it's a Modal view
         match &response.slack_view {

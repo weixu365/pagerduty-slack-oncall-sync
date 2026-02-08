@@ -1,19 +1,17 @@
 pub mod new_schedule_modal;
-pub mod slack_request;
 pub mod schedule_list;
+pub mod slack_request;
 use std::env;
 use std::sync::Arc;
 
+use crate::slack_handler::slack_events::SlackInteractionEvent;
 use new_schedule_modal::pagerduty_schedule_change_handler::handle_pagerduty_schedule_change;
 use schedule_list::{
-    delete_schedule_handler::handle_delete_schedule,
-    filter_change_handler::handle_filter_change,
-    page_size_change_handlers::handle_page_size_change,
-    pagination_handler::handle_pagination,
+    delete_schedule_handler::handle_delete_schedule, filter_change_handler::handle_filter_change,
+    page_size_change_handlers::handle_page_size_change, pagination_handler::handle_pagination,
     refresh_handlers::handle_refresh,
 };
 use slack_morphism::SlackResponseUrl;
-use crate::slack_handler::slack_events::SlackInteractionEvent;
 use slack_request::parse_slack_request;
 
 use crate::aws::event_bridge_scheduler::EventBridgeScheduler;
@@ -63,25 +61,58 @@ pub async fn handle_slack_interactive_async(
 
                 match &response_url {
                     None => {
-                        if action_id == "pagerduty_schedule_suggestion" && block_actions_event.view.is_some(){
-                            handle_pagerduty_schedule_change(&block_actions_event, action, &slack_installations_db).await?;
+                        if action_id == "pagerduty_schedule_suggestion" && block_actions_event.view.is_some() {
+                            handle_pagerduty_schedule_change(&block_actions_event, action, &slack_installations_db)
+                                .await?;
                             return response(200, r#"{"status": "completed"}"#.to_string());
                         }
                     }
                     Some(SlackResponseUrl(url)) => {
                         let slack_view = match action_id {
                             "delete_schedule" => {
-                                handle_delete_schedule(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp).await
+                                handle_delete_schedule(
+                                    &block_actions_event,
+                                    action,
+                                    &scheduled_tasks_db,
+                                    next_trigger_timestamp,
+                                )
+                                .await
                             }
-                            "refresh" => handle_refresh(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp).await,
+                            "refresh" => {
+                                handle_refresh(
+                                    &block_actions_event,
+                                    action,
+                                    &scheduled_tasks_db,
+                                    next_trigger_timestamp,
+                                )
+                                .await
+                            }
                             "filter_select" => {
-                                handle_filter_change(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp).await
+                                handle_filter_change(
+                                    &block_actions_event,
+                                    action,
+                                    &scheduled_tasks_db,
+                                    next_trigger_timestamp,
+                                )
+                                .await
                             }
                             "page_size_select" => {
-                                handle_page_size_change(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp).await
+                                handle_page_size_change(
+                                    &block_actions_event,
+                                    action,
+                                    &scheduled_tasks_db,
+                                    next_trigger_timestamp,
+                                )
+                                .await
                             }
                             "page_previous" | "page_next" => {
-                                handle_pagination(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp).await
+                                handle_pagination(
+                                    &block_actions_event,
+                                    action,
+                                    &scheduled_tasks_db,
+                                    next_trigger_timestamp,
+                                )
+                                .await
                             }
                             _ => Err(AppError::InvalidData(format!("Unknown action_id: {}", action_id))),
                         }?;
@@ -101,6 +132,6 @@ pub async fn handle_slack_interactive_async(
             return response(200, r#"{"status": "ignored"}"#.to_string());
         }
     }
-    
+
     response(200, r#"{"status": "completed"}"#.to_string())
 }
