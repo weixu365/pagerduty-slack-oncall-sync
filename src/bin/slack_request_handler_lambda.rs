@@ -3,6 +3,7 @@ use std::env;
 use aws_lambda_events::event::apigw::{ApiGatewayProxyRequest, ApiGatewayProxyResponse};
 use lambda_runtime::{Error, LambdaEvent, service_fn};
 use on_call_support::slack_handler::command_handler::handle_slack_command_async;
+use on_call_support::slack_handler::external_selection_handler::handle_slack_external_select;
 use on_call_support::slack_handler::interactive_handler::handle_slack_interactive_async;
 use on_call_support::{
     config::Config,
@@ -66,6 +67,12 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
             }
         }
 
+        Some("/slack/external_select") => {
+            // Handle block_suggestion synchronously - Slack requires response within 3 seconds
+            info!("Handling block_suggestion synchronously");
+            handle_slack_external_select(&config, event).await
+        }
+
         Some("/slack/command") => {
             info!("Processing Slack command");
 
@@ -81,6 +88,8 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
 
         Some("/slack/interactive") => {
             info!("Processing Slack interactive action");
+
+            // Handle block_actions asynchronously
             let is_handling_slack_command = is_async_processing_requested(&event.headers);
             if !is_handling_slack_command {
                 invoke_slack_command_async_handler(&config, event).await?;

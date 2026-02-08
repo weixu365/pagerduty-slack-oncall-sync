@@ -1,4 +1,4 @@
-use crate::slack_handler::utils::block_kit::{ScheduleFilter, ScheduleListResponse, build_schedule_list_blocks};
+use crate::slack_handler::views::schedule_list::{ScheduleFilter, ScheduleListResponse, build_schedule_list_blocks};
 use crate::{db::ScheduledTaskRepository, errors::AppError};
 
 pub async fn handle_list_schedules_command(
@@ -17,7 +17,7 @@ pub async fn handle_list_schedules_command(
         page,
         page_size,
         &user_id,
-        &channel_id,
+        Some(&channel_id),
         &ScheduleFilter::Auto,
         next_trigger_timestamp,
     ))
@@ -27,9 +27,9 @@ pub async fn handle_list_schedules_command(
 mod tests {
     use super::*;
     use crate::db::ScheduledTask;
+    use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
     use async_trait::async_trait;
     use chrono::Utc;
-    use slack_morphism::prelude::*;
 
     struct MockScheduledTaskRepository {
         tasks: Vec<ScheduledTask>,

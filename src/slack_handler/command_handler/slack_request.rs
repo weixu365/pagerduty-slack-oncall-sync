@@ -78,6 +78,8 @@ pub struct SlackCommandRequest {
     pub text: String,
     #[serde(default)]
     pub response_url: String,
+    #[serde(default)]
+    pub trigger_id: String,
 }
 
 fn parse_slack_command_request(request_body: &str) -> Result<SlackCommandRequest, AppError> {

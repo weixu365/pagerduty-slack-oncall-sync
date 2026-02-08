@@ -4,7 +4,7 @@ use crate::{
     aws::secrets_client::Secrets,
     db::{SlackInstallation, SlackInstallationRepository, dynamodb::SlackInstallationsDynamoDb},
     errors::AppError,
-    service_provider::slack::swap_slack_access_token,
+    service::slack::swap_slack_access_token,
     slack_handler::utils::slack_response::response,
     utils::http_client::build_http_client,
 };

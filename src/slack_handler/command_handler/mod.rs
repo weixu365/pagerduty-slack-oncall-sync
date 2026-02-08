@@ -1,16 +1,18 @@
 pub mod list_schedules_handler;
 pub mod new_schedule_handler;
+pub mod new_schedule_wizard_handler;
 pub mod setup_pagerduty_handler;
 pub mod slack_request;
 
 use list_schedules_handler::handle_list_schedules_command;
 use new_schedule_handler::handle_schedule_command;
+use new_schedule_wizard_handler::handle_new_schedule_wizard;
 use setup_pagerduty_handler::handle_setup_pagerduty_command;
 use slack_request::{Command, parse_slack_command, parse_slack_request};
 use std::env;
 use std::sync::Arc;
 
-use crate::service_provider::slack::{send_slack_message, send_slack_view};
+use crate::service::slack::{send_slack_message, send_slack_view};
 use crate::slack_handler::utils::slack_response::markdown_section;
 use crate::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
@@ -50,7 +52,19 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
 
             send_slack_message(&response_url, markdown_section(response_body)).await?;
         }
-        Some(Command::ListSchedules(args)) => {
+        Some(Command::New) => {
+            let encryptor = config.build_encryptor().await?;
+            let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor);
+
+            handle_new_schedule_wizard(&params, &params.trigger_id, &slack_installations_db).await?;
+        }
+        Some(Command::ListSchedules(_)) | _ => {
+            let (page, page_size) = match &arg.command {
+                Some(Command::ListSchedules(args)) => (args.page, args.page_size),
+                None => (None, 5), // Defaults: page 0, 5 items per page
+                _ => unreachable!(),
+            };
+
             let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
             let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
             let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
@@ -62,8 +76,8 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
             let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor);
             let response = handle_list_schedules_command(
                 &scheduled_tasks_db,
-                args.page,
-                args.page_size,
+                page,
+                page_size,
                 params.user_id,
                 params.channel_id,
                 next_trigger_timestamp,
@@ -71,14 +85,6 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
             .await?;
 
             send_slack_view(&response_url, response.slack_view).await?;
-        }
-        Some(Command::New) => {
-            let response_body = markdown_section(vec![format!("Show wizard to add new schedule")]);
-            send_slack_message(&response_url, response_body).await?;
-        }
-        None => {
-            let response_body = markdown_section(vec![format!("default command")]);
-            send_slack_message(&response_url, response_body).await?;
         }
     };
 

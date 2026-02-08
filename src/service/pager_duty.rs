@@ -17,6 +17,17 @@ pub struct PagerDutyUsersResponse {
     pub users: Vec<PagerDutyUser>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PagerDutySchedule {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PagerDutySchedulesResponse {
+    pub schedules: Vec<PagerDutySchedule>,
+}
+
 pub struct PagerDuty {
     http_client: Arc<Client>,
     api_token: String,
@@ -82,6 +93,37 @@ impl PagerDuty {
 
             Err(err) => {
                 tracing::error!(%err, "Error calling PagerDuty API");
+                Err(AppError::PagerDutyError(err.to_string()))
+            }
+        }
+    }
+
+    pub async fn list_schedules(&self, query: Option<&str>) -> Result<Vec<PagerDutySchedule>, AppError> {
+        tracing::info!("Fetching PagerDuty schedules");
+
+        let mut request = self
+            .http_client
+            .get(&format!("{}/schedules", self.base_url))
+            .header("Authorization", format!("Token token={}", self.api_token))
+            .header("Accept", "application/vnd.pagerduty+json;version=2")
+            .query(&[("limit", "100")]);
+
+        if let Some(search) = query {
+            let trimmed = search.trim();
+            if !trimmed.is_empty() {
+                request = request.query(&[("query", trimmed)]);
+            }
+        }
+
+        let response = request.send().await?;
+
+        match response.error_for_status() {
+            Ok(res) => {
+                let schedules_response: PagerDutySchedulesResponse = res.json().await?;
+                Ok(schedules_response.schedules)
+            }
+            Err(err) => {
+                tracing::error!(%err, "Error fetching PagerDuty schedules");
                 Err(AppError::PagerDutyError(err.to_string()))
             }
         }
