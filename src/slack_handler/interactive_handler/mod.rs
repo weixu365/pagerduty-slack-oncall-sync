@@ -26,13 +26,12 @@ use crate::{
     slack_handler::utils::slack_response::response,
 };
 use aws_lambda_events::event::apigw::{ApiGatewayProxyRequest, ApiGatewayProxyResponse};
-use tracing::info;
 
 pub async fn handle_slack_interactive_async(
     config: &Arc<Config>,
     event: ApiGatewayProxyRequest,
 ) -> Result<ApiGatewayProxyResponse, AppError> {
-    info!(payload=?event, "Processing slack request");
+    tracing::debug!(payload=?event, "Processing slack request");
 
     let request_body = event.body.as_deref().unwrap_or("");
 
@@ -55,9 +54,9 @@ pub async fn handle_slack_interactive_async(
 
     match slack_request {
         SlackInteractionEvent::BlockActions(block_actions_event) => {
-            info!(?block_actions_event, "Received BlockActions request");
+            tracing::info!(?block_actions_event, "Received BlockActions request");
             let response_url = block_actions_event.response_url.clone();
-            info!(payload_response_url = ?block_actions_event.response_url, "Handling block_actions request");
+            tracing::info!(payload_response_url = ?block_actions_event.response_url, "Handling block_actions request");
 
             if let Some(action) = block_actions_event.actions.as_ref().and_then(|v| v.first()) {
                 let action_id = action.action_id.0.as_str();
@@ -131,7 +130,7 @@ pub async fn handle_slack_interactive_async(
             }
         }
         SlackInteractionEvent::ViewSubmission(view_submission_event) => {
-            info!("Received ViewSubmission event");
+            tracing::info!("Received ViewSubmission event");
             let modal_callback_id = match &view_submission_event.view.view {
                 SlackView::Modal(modal_view) => modal_view.callback_id.clone(),
                 _ => None,
@@ -151,10 +150,10 @@ pub async fn handle_slack_interactive_async(
             }
         }
         SlackInteractionEvent::ViewClosed(_) => {
-            info!("Received ViewClosed event");
+            tracing::info!("Received ViewClosed event");
         }
         _ => {
-            info!("Received unsupported interaction event type");
+            tracing::info!("Received unsupported interaction event type");
             return response(200, r#"{"status": "ignored"}"#.to_string());
         }
     }
