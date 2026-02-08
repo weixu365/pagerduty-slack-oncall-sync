@@ -4,7 +4,7 @@ pub mod slack_request;
 use std::env;
 use std::sync::Arc;
 
-use crate::slack_handler::slack_events::SlackInteractionEvent;
+use crate::slack_handler::morphism_patches::slack_events::SlackInteractionEvent;
 use new_schedule_modal::pagerduty_schedule_change_handler::handle_pagerduty_schedule_change;
 use schedule_list::{
     delete_schedule_handler::handle_delete_schedule, filter_change_handler::handle_filter_change,

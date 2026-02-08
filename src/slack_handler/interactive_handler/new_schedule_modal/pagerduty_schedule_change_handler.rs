@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use chrono::Utc;
 
-use crate::slack_handler::slack_events::SlackInteractionBlockActionsEvent;
+use crate::slack_handler::morphism_patches::slack_events::SlackInteractionBlockActionsEvent;
 use crate::{
     db::SlackInstallationRepository,
     errors::AppError,

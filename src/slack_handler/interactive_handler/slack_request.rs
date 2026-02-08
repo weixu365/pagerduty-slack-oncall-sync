@@ -1,5 +1,5 @@
 use crate::errors::AppError;
-use crate::slack_handler::slack_events::SlackInteractionEvent;
+use crate::slack_handler::morphism_patches::slack_events::SlackInteractionEvent;
 use crate::slack_handler::views::schedule_list::ScheduleFilter;
 use serde::Deserialize;
 
