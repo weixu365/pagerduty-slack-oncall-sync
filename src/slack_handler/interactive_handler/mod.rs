@@ -8,6 +8,7 @@ use crate::slack_handler::morphism_patches::slack_events::SlackInteractionEvent;
 use new_schedule_modal::pagerduty_schedule_change_handler::handle_pagerduty_schedule_change;
 use schedule_list::{
     delete_schedule_handler::handle_delete_schedule, filter_change_handler::handle_filter_change,
+    new_schedule_button_handler::handle_new_schedule_button,
     page_size_change_handlers::handle_page_size_change, pagination_handler::handle_pagination,
     refresh_handlers::handle_refresh,
 };
@@ -68,6 +69,12 @@ pub async fn handle_slack_interactive_async(
                         }
                     }
                     Some(SlackResponseUrl(url)) => {
+                        if action_id == "new_schedule" {
+                            handle_new_schedule_button(&block_actions_event, &slack_installations_db).await?;
+                            return response(200, r#"{"status": "completed"}"#.to_string());
+                        }
+
+                        // Other actions that update the current view
                         let slack_view = match action_id {
                             "delete_schedule" => {
                                 handle_delete_schedule(

@@ -160,9 +160,17 @@ pub fn build_schedule_list_blocks(
             .to_string(),
         ));
 
+    // Add "New" button
+    let new_button = SlackBlockButtonElement::new(
+        "new_schedule".into(),
+        SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("➕ New".into()).with_emoji(true)),
+    )
+    .with_style("primary".into());
+
     blocks.push(SlackBlock::Actions(SlackActionsBlock::new(vec![
         SlackActionBlockElement::StaticSelect(filter_select),
         SlackActionBlockElement::StaticSelect(page_size_select),
+        SlackActionBlockElement::Button(new_button),
     ])));
 
     blocks.push(SlackBlock::Divider(SlackDividerBlock::new()));

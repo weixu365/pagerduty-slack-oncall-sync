@@ -61,6 +61,8 @@ pub async fn handle_view_submission(
         Err(AppError::InvalidData(format!("Missing value for action_id: {}", action_id)))
     };
 
+    let cron = get_value("cron_value")?;
+    let timezone = get_value("timezone_suggestion")?;
     let user_group_value = get_value("user_group_suggestion")?;
     let (user_group_id, user_group_handle) = parse_user_group(&user_group_value)?;
     
@@ -70,27 +72,52 @@ pub async fn handle_view_submission(
     let channel_name = get_channel_name(&team_id, &enterprise_id, slack_installations_db, &channel_id).await?;
 
     let create_request = CreateScheduleRequest {
-        enterprise_id,
+        enterprise_id: enterprise_id.clone(),
         enterprise_name: event.team.enterprise_name.clone().unwrap_or_default(),
         is_enterprise_install: event.is_enterprise_install,
-        team_id,
+        team_id: team_id.clone(),
         team_domain: event.team.domain.clone().unwrap_or_default(),
-        channel_id,
+        channel_id: channel_id.clone(),
         channel_name,
-        user_group_id,
+        user_group_id: user_group_id.clone(),
         user_group_handle,
         pagerduty_schedule_id: get_value("pagerduty_schedule_suggestion")?,
-        cron: get_value("cron_value")?,
-        timezone: get_value("timezone_suggestion")?,
+        cron: cron.clone(),
+        timezone: timezone.clone(),
         user_id: event.user.id.0.clone(),
         user_name: event.user.name.clone().unwrap_or_default(),
         pagerduty_api_key: None,
     };
 
-    if let Err(err) = create_new_schedule(create_request, slack_installations_db, scheduled_tasks_db, scheduler).await {
+    // Create the schedule
+    if let Err(err) = create_new_schedule(
+        create_request,
+        slack_installations_db,
+        scheduled_tasks_db,
+        scheduler
+    ).await {
         tracing::error!(%err, "Failed to create schedule");
         return Err(AppError::Error(format!("Failed to save schedule task\n{}", err)));
     }
 
-    Ok(())
+    let installation = slack_installations_db
+        .get_slack_installation(&team_id, &enterprise_id)
+        .await?;
+
+    let http_client = Arc::new(build_http_client()?);
+    let slack = Slack::new(http_client, installation.access_token);
+
+    let success_message = format!(
+        "✅ Schedule created successfully!\n• Channel: <#{}>\n• User Group: <@{}>\n• Cron: `{}`\n• Timezone: {}",
+        channel_id,
+        user_group_id,
+        cron,
+        timezone
+    );
+
+    if let Err(err) = slack.send_message(&channel_id, &success_message).await {
+        tracing::warn!(%err, "Failed to send confirmation message, but schedule was created");
+    }
+
+    Ok(())  // Modal closes automatically
 }
