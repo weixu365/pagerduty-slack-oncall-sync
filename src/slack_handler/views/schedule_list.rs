@@ -163,7 +163,7 @@ pub fn build_schedule_list_blocks(
     // Add "New" button
     let new_button = SlackBlockButtonElement::new(
         "new_schedule".into(),
-        SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("➕ New".into()).with_emoji(true)),
+        SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Create New".into()).with_emoji(true)),
     )
     .with_style("primary".into());
 
@@ -229,8 +229,8 @@ fn build_schedule_item_blocks(
         .unwrap_or_else(|| task.last_updated_at.clone());
 
     let text_content = format!(
-        "*#{}* | *@{}* by <@{}>\nScheduled at: `{}` `{}`\nUpdated At: `{}`\nNext Run: `{}`",
-        task.channel_name,
+        "*<#{}>* | *@{}* by <@{}>\nScheduled at: `{}` `{}`\nUpdated At: `{}`\nNext Run: `{}`",
+        task.channel_id,
         task.user_group_handle,
         task.created_by_user_id,
         task.cron,

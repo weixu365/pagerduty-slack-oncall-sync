@@ -4,7 +4,9 @@ use crate::aws::event_bridge_scheduler::EventBridgeScheduler;
 use crate::db::ScheduledTaskRepository;
 use crate::service::schedule::{CreateScheduleRequest, create_new_schedule, parse_user_group};
 use crate::service::slack::Slack;
+use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::slack_events::SlackInteractionViewSubmissionEvent;
+use crate::slack_handler::views::schedule_list::{ScheduleFilter, DEFAULT_PAGE_SIZE, build_schedule_list_blocks};
 use crate::utils::http_client::build_http_client;
 use crate::{
     db::SlackInstallationRepository,
@@ -24,20 +26,26 @@ async fn get_channel_name(
     let http_client = Arc::new(build_http_client()?);
     let slack = Slack::new(http_client, installation.access_token);
 
-    let channel = slack
+    // Need groups.read and channels:read scopes, so fallback to channel ID if API call fails
+    let get_channel_result = slack
         .get_channel_by_id(&channel_id)
-        .await?
-        .ok_or_else(|| AppError::InvalidData(format!("Channel not found: {}", channel_id)))?;
+        .await;
+    let channel_name = match get_channel_result {
+        Ok(Some(channel)) => channel.name,
+        _ => channel_id.to_string(),
+        // Ok(None) => return Err(AppError::InvalidData(format!("Channel not found: {}", channel_id))),
+        // Err(err) => return Err(err),
+    };
 
-    Ok(channel.name)
+    Ok(channel_name)
 }
 
-pub async fn handle_view_submission(
+async fn create_schedule(
     event: &SlackInteractionViewSubmissionEvent,
     slack_installations_db: &dyn SlackInstallationRepository,
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     scheduler: EventBridgeScheduler,
-) -> Result<(), AppError> {
+) -> Result<CreateScheduleRequest, AppError> {
     let state = event.view.state_params.state.as_ref()
         .ok_or_else(|| AppError::InvalidData("Missing view state".to_string()))?;
 
@@ -53,12 +61,12 @@ pub async fn handle_view_submission(
                     return Ok(value.clone());
                 }
 
-                if let Some(channel_id) = &action_state.selected_channel {
+                if let Some(channel_id) = &action_state.selected_conversation {
                     return Ok(channel_id.0.clone());
                 }
             }
         }
-        Err(AppError::InvalidData(format!("Missing value for action_id: {}", action_id)))
+        Err(AppError::InvalidData(format!("Missing previous value for action_id: {}", action_id)))
     };
 
     let cron = get_value("cron_value")?;
@@ -91,7 +99,7 @@ pub async fn handle_view_submission(
 
     // Create the schedule
     if let Err(err) = create_new_schedule(
-        create_request,
+        create_request.clone(),
         slack_installations_db,
         scheduled_tasks_db,
         scheduler
@@ -100,24 +108,64 @@ pub async fn handle_view_submission(
         return Err(AppError::Error(format!("Failed to save schedule task\n{}", err)));
     }
 
+    Ok(create_request)
+}
+
+async fn send_schedule_list(
+    request: CreateScheduleRequest,
+    slack_installations_db: &dyn SlackInstallationRepository,
+    scheduled_tasks_db: &dyn ScheduledTaskRepository,
+    next_trigger_timestamp: Option<i64>,
+) -> Result<(), AppError> {
     let installation = slack_installations_db
-        .get_slack_installation(&team_id, &enterprise_id)
+        .get_slack_installation(&request.team_id, &request.enterprise_id)
         .await?;
 
     let http_client = Arc::new(build_http_client()?);
-    let slack = Slack::new(http_client, installation.access_token);
+    let slack = Slack::new(http_client, installation.access_token.clone());
 
-    let success_message = format!(
-        "✅ Schedule created successfully!\n• Channel: <#{}>\n• User Group: <@{}>\n• Cron: `{}`\n• Timezone: {}",
-        channel_id,
-        user_group_id,
-        cron,
-        timezone
+    let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
+    let response = build_schedule_list_blocks(
+        &tasks,
+        0,
+        DEFAULT_PAGE_SIZE,
+        &request.user_id,
+        Some(&request.channel_id),
+        &ScheduleFilter::Auto,
+        next_trigger_timestamp,
     );
 
-    if let Err(err) = slack.send_message(&channel_id, &success_message).await {
-        tracing::warn!(%err, "Failed to send confirmation message, but schedule was created");
-    }
+    let blocks = match response.slack_view {
+        SlackView::Modal(modal) => modal.blocks,
+        _ => return Err(AppError::InvalidData("Expected modal view".to_string())),
+    };
 
-    Ok(())  // Modal closes automatically
+    let blocks_json = serde_json::to_value(&blocks)
+        .map_err(|e| AppError::InvalidData(format!("Failed to serialize blocks: {}", e)))?;
+
+    let message_payload = serde_json::json!({
+        "channel": request.channel_id,
+        "user": request.user_id,
+        "text": "📋 Scheduled Tasks",
+        "blocks": blocks_json,
+    });
+    
+    tracing::info!(payload=?message_payload, "Sending schedule list message to channel");
+    slack.send_ephemeral_message(&message_payload).await?;
+
+    Ok(())
+}
+
+pub async fn handle_view_submission(
+    event: &SlackInteractionViewSubmissionEvent,
+    slack_installations_db: &dyn SlackInstallationRepository,
+    scheduled_tasks_db: &dyn ScheduledTaskRepository,
+    scheduler: EventBridgeScheduler,
+    next_trigger_timestamp: Option<i64>,
+) -> Result<(), AppError> {
+    let request = create_schedule(event, slack_installations_db, scheduled_tasks_db, scheduler).await?;
+
+    send_schedule_list(request, slack_installations_db, scheduled_tasks_db, next_trigger_timestamp).await?;
+
+    Ok(())
 }

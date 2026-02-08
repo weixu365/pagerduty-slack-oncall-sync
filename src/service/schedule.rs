@@ -21,6 +21,7 @@ fn build_task_id(
     format!("{}:{}:{}:{}:{}", channel_name, channel_id, user_group_handle, user_group_id, pagerduty_schedule)
 }
 
+#[derive(Debug, Clone)]
 pub struct CreateScheduleRequest {
     pub enterprise_id: String,
     pub enterprise_name: String,

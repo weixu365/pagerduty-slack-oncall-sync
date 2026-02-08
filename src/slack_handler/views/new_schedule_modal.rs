@@ -131,15 +131,15 @@ pub(crate) fn build_new_schedule_modal_with_oncall(on_call_text: &str, request: 
                             request
                                 .and_then(|r| r.get_state("cron_value"))
                                 .and_then(|state| state.value)
-                                .unwrap_or_else(|| "0 9 * * MON-FRI".into())
+                                .unwrap_or_else(|| "0 9 * * MON-FRI *".into())
                         )
                         .with_placeholder(SlackBlockPlainTextOnly::from(
-                            SlackBlockPlainText::new("e.g., 0 9 * * MON-FRI (9 AM on weekdays)".into())
+                            SlackBlockPlainText::new("e.g., 0 9 * * MON-FRI * (9 AM on weekdays)".into())
                         ))
                 )
             )
             .with_hint(SlackBlockPlainTextOnly::from(
-                SlackBlockPlainText::new("Create your own using cron builder: [https://crontab.cronhub.io/]()".into())
+                SlackBlockPlainText::new("Syntax: minutes hours day-of-month month day-of-week year".into())
             ))
         ),
 

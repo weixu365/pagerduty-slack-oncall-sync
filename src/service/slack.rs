@@ -86,6 +86,11 @@ impl Slack {
             .await
     }
 
+    pub async fn send_ephemeral_message(&self, payload: &Value) -> Result<(), AppError> {
+        self.send_request::<_, ()>("chat.postEphemeral", Method::POST, None, Some(&payload))
+            .await
+    }
+
     pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>, AppError> {
         let params = json!({
             "email": email,
@@ -214,14 +219,14 @@ impl Slack {
                 tracing::debug!("Slack request finished successfully");
                 Ok(json_response.data)
             } else if let Some(err) = json_response.error {
-                tracing::error!(err, "Failed to call Slack API");
+                tracing::error!(err, endpoint, "Failed to call Slack API");
                 Err(AppError::SlackError(err))
             } else {
-                tracing::error!("SlackClient: Unknown error occurred");
+                tracing::error!(endpoint, "SlackClient: Unknown error occurred");
                 Err(AppError::SlackError("Unknown error".to_string()))
             }
         } else {
-            tracing::error!(status = response.status().as_u16(), "Failed sending request to Slack");
+            tracing::error!(status = response.status().as_u16(), endpoint, "Failed sending request to Slack");
             Err(AppError::SlackError(format!("Failed sending request to Slack, status: {}", response.status())))
         }
     }
