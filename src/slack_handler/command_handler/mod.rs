@@ -12,7 +12,7 @@ use slack_request::{Command, parse_slack_command, parse_slack_request};
 use std::env;
 use std::sync::Arc;
 
-use crate::service_provider::slack::{send_slack_message, send_slack_view};
+use crate::service::slack::{send_slack_message, send_slack_view};
 use crate::slack_handler::utils::slack_response::markdown_section;
 use crate::{
     aws::event_bridge_scheduler::EventBridgeScheduler,

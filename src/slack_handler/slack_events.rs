@@ -4,7 +4,7 @@ use slack_morphism::blocks::{SlackActionState, SlackStatefulView, SlackViewState
 use slack_morphism::events::{
     SlackInteractionActionContainer, SlackInteractionActionInfo, SlackInteractionBlockSuggestionEvent,
     SlackInteractionDialogueSubmissionEvent, SlackInteractionMessageActionEvent, SlackInteractionShortcutEvent,
-    SlackInteractionViewClosedEvent, SlackInteractionViewSubmissionEvent,
+    SlackInteractionViewClosedEvent,
 };
 use slack_morphism::{
     SlackAppId, SlackBasicChannelInfo, SlackBasicUserInfo, SlackHistoryMessage, SlackResponseUrl, SlackTeamId, SlackTriggerId
@@ -58,6 +58,16 @@ impl SlackInteractionBlockActionsEvent {
 
         None
     }
+}
+
+#[skip_serializing_none]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct SlackInteractionViewSubmissionEvent {
+    pub team: SlackTeamInfo,
+    pub user: SlackBasicUserInfo,
+    pub view: SlackStatefulView,
+    pub trigger_id: Option<SlackTriggerId>,
+    pub is_enterprise_install: bool,
 }
 
 #[skip_serializing_none]
@@ -276,7 +286,7 @@ mod tests {
                         }
                     ],
                     "private_metadata": "",
-                    "callback_id": "new_schedule_submit",
+                    "callback_id": "new_schedule_form",
                     "state": {
                         "values": {
                             "BQiXA": {

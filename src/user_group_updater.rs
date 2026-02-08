@@ -8,7 +8,7 @@ use crate::{
         dynamodb::{ScheduledTasksDynamodb, SlackInstallationsDynamoDb},
     },
     errors::AppError,
-    service_provider::{pager_duty::PagerDuty, slack::Slack},
+    service::{pager_duty::PagerDuty, slack::Slack},
     utils::http_client::build_http_client,
 };
 use futures::{StreamExt, TryStreamExt};

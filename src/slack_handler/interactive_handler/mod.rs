@@ -16,7 +16,7 @@ use slack_request::parse_slack_request;
 
 use crate::aws::event_bridge_scheduler::EventBridgeScheduler;
 use crate::db::dynamodb::SlackInstallationsDynamoDb;
-use crate::service_provider::slack::send_slack_view;
+use crate::service::slack::send_slack_view;
 use crate::slack_handler::utils::request_utils::validate_request;
 use crate::{
     config::Config, db::dynamodb::ScheduledTasksDynamodb, errors::AppError,
@@ -29,7 +29,7 @@ pub async fn handle_slack_interactive_async(
     config: &Arc<Config>,
     event: ApiGatewayProxyRequest,
 ) -> Result<ApiGatewayProxyResponse, AppError> {
-    info!(payload=?event, "Processing external select request");
+    info!(payload=?event, "Processing slack request");
 
     let request_body = event.body.as_deref().unwrap_or("");
 

@@ -4,7 +4,7 @@ use super::{
     options::{OptionItem, OptionsResponse, TextObject},
     slack_request::ExternalSelectRequest,
 };
-use crate::{db::SlackInstallationRepository, errors::AppError, service_provider::pager_duty::PagerDuty};
+use crate::{db::SlackInstallationRepository, errors::AppError, service::pager_duty::PagerDuty};
 
 pub async fn handle_pagerduty_schedule_options(
     request: &ExternalSelectRequest,

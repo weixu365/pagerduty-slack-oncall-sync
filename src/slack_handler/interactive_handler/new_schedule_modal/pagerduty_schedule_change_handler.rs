@@ -6,13 +6,13 @@ use crate::slack_handler::slack_events::SlackInteractionBlockActionsEvent;
 use crate::{
     db::SlackInstallationRepository,
     errors::AppError,
-    service_provider::{pager_duty::PagerDuty, slack::update_slack_modal},
+    service::{pager_duty::PagerDuty, slack::update_slack_modal},
     slack_handler::views::new_schedule_modal::build_new_schedule_modal_with_oncall,
     utils::http_client::build_http_client,
 };
 use slack_morphism::prelude::*;
 
-fn build_oncall_text(schedule_id: &str, users: Vec<crate::service_provider::pager_duty::PagerDutyUser>) -> String {
+fn build_oncall_text(schedule_id: &str, users: Vec<crate::service::pager_duty::PagerDutyUser>) -> String {
     if users.is_empty() {
         return format!("ℹ️ No on-call users found for schedule {}", schedule_id);
     }

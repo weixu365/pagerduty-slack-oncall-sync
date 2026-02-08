@@ -1,6 +1,6 @@
 use crate::errors::AppError;
 use crate::slack_handler::slack_events::SlackInteractionEvent;
-use crate::slack_handler::utils::block_kit::ScheduleFilter;
+use crate::slack_handler::views::schedule_list::ScheduleFilter;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq)]

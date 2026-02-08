@@ -1,7 +1,7 @@
 use crate::{
     db::SlackInstallationRepository,
     errors::AppError,
-    service_provider::slack::open_slack_modal,
+    service::slack::open_slack_modal,
     slack_handler::{
         command_handler::slack_request::SlackCommandRequest,
         views::new_schedule_modal::build_new_schedule_modal_with_oncall,

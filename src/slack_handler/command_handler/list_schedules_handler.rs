@@ -1,4 +1,4 @@
-use crate::slack_handler::utils::block_kit::{ScheduleFilter, ScheduleListResponse, build_schedule_list_blocks};
+use crate::slack_handler::views::schedule_list::{ScheduleFilter, ScheduleListResponse, build_schedule_list_blocks};
 use crate::{db::ScheduledTaskRepository, errors::AppError};
 
 pub async fn handle_list_schedules_command(

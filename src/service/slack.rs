@@ -108,6 +108,17 @@ impl Slack {
         Ok(response.user)
     }
 
+    pub async fn get_channel_by_id(&self, channel_id: &str) -> Result<Option<Channel>, AppError> {
+        let params = json!({
+            "channel": channel_id,
+        });
+
+        let response: ChannelResponse = self
+            .send_request("conversations.info", Method::GET, Some(&params), None)
+            .await?;
+        Ok(response.channel)
+    }
+
     pub async fn get_user_group(&self, name: &str) -> Result<UserGroup, AppError> {
         let user_groups = self.list_user_groups().await?;
 

@@ -180,6 +180,6 @@ pub(crate) fn build_new_schedule_modal_with_oncall(on_call_text: &str, request: 
         .with_title(SlackBlockPlainTextOnly::from("Create Schedule"))
         .with_submit(SlackBlockPlainTextOnly::from("Submit"))
         .with_close(SlackBlockPlainTextOnly::from("Cancel"))
-        .with_callback_id("new_schedule_submit".into())
+        .with_callback_id("new_schedule_form".into())
     )
 }

@@ -4,7 +4,7 @@ use super::{
     options::{OptionItem, OptionsResponse, TextObject},
     slack_request::ExternalSelectRequest,
 };
-use crate::{db::SlackInstallationRepository, errors::AppError, service_provider::slack::Slack};
+use crate::{db::SlackInstallationRepository, errors::AppError, service::slack::Slack};
 
 pub async fn handle_user_group_options(
     request: &ExternalSelectRequest,
