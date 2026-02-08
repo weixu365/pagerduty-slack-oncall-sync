@@ -61,7 +61,7 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
         Some(Command::ListSchedules(_)) | _ => {
             let (page, page_size) = match &arg.command {
                 Some(Command::ListSchedules(args)) => (args.page, args.page_size),
-                None => (None, 5),  // Defaults: page 0, 5 items per page
+                None => (None, 5), // Defaults: page 0, 5 items per page
                 _ => unreachable!(),
             };
 

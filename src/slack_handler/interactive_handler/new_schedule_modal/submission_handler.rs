@@ -6,12 +6,9 @@ use crate::service::schedule::{CreateScheduleRequest, create_new_schedule, parse
 use crate::service::slack::Slack;
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::slack_events::SlackInteractionViewSubmissionEvent;
-use crate::slack_handler::views::schedule_list::{ScheduleFilter, DEFAULT_PAGE_SIZE, build_schedule_list_blocks};
+use crate::slack_handler::views::schedule_list::{DEFAULT_PAGE_SIZE, ScheduleFilter, build_schedule_list_blocks};
 use crate::utils::http_client::build_http_client;
-use crate::{
-    db::SlackInstallationRepository,
-    errors::AppError,
-};
+use crate::{db::SlackInstallationRepository, errors::AppError};
 
 async fn get_channel_name(
     team_id: &str,
@@ -27,9 +24,7 @@ async fn get_channel_name(
     let slack = Slack::new(http_client, installation.access_token);
 
     // Need groups.read and channels:read scopes, so fallback to channel ID if API call fails
-    let get_channel_result = slack
-        .get_channel_by_id(&channel_id)
-        .await;
+    let get_channel_result = slack.get_channel_by_id(&channel_id).await;
     let channel_name = match get_channel_result {
         Ok(Some(channel)) => channel.name,
         _ => channel_id.to_string(),
@@ -46,7 +41,11 @@ async fn create_schedule(
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     scheduler: EventBridgeScheduler,
 ) -> Result<CreateScheduleRequest, AppError> {
-    let state = event.view.state_params.state.as_ref()
+    let state = event
+        .view
+        .state_params
+        .state
+        .as_ref()
         .ok_or_else(|| AppError::InvalidData("Missing view state".to_string()))?;
 
     let get_value = |action_id: &str| -> Result<String, AppError> {
@@ -73,7 +72,7 @@ async fn create_schedule(
     let timezone = get_value("timezone_suggestion")?;
     let user_group_value = get_value("user_group_suggestion")?;
     let (user_group_id, user_group_handle) = parse_user_group(&user_group_value)?;
-    
+
     let team_id = event.team.id.0.clone();
     let enterprise_id = event.team.enterprise_id.clone().unwrap_or_default();
     let channel_id = get_value("channel_value")?;
@@ -98,12 +97,9 @@ async fn create_schedule(
     };
 
     // Create the schedule
-    if let Err(err) = create_new_schedule(
-        create_request.clone(),
-        slack_installations_db,
-        scheduled_tasks_db,
-        scheduler
-    ).await {
+    if let Err(err) =
+        create_new_schedule(create_request.clone(), slack_installations_db, scheduled_tasks_db, scheduler).await
+    {
         tracing::error!(%err, "Failed to create schedule");
         return Err(AppError::Error(format!("Failed to save schedule task\n{}", err)));
     }
@@ -149,7 +145,7 @@ async fn send_schedule_list(
         "text": "📋 Scheduled Tasks",
         "blocks": blocks_json,
     });
-    
+
     tracing::info!(payload=?message_payload, "Sending schedule list message to channel");
     slack.send_ephemeral_message(&message_payload).await?;
 

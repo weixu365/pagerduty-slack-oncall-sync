@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
+use crate::slack_handler::morphism_patches::blocks_kit::{SlackBlock, SlackView};
 use derive_more::Display;
 use reqwest::{Client, Method};
 use serde_derive::Deserialize;
 use serde_json::{Error, Value, json};
-use crate::slack_handler::morphism_patches::blocks_kit::{SlackBlock, SlackView};
 use tracing::{error, info};
 
 use crate::{errors::AppError, utils::base64::encode_with_pad};

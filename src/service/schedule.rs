@@ -62,11 +62,12 @@ pub async fn create_new_schedule(
     };
 
     // Validate PagerDuty token and schedule by making a test API call
-    let pager_duty = PagerDuty::new(http_client.clone(), pagerduty_token.clone(), request.pagerduty_schedule_id.clone());
+    let pager_duty =
+        PagerDuty::new(http_client.clone(), pagerduty_token.clone(), request.pagerduty_schedule_id.clone());
     pager_duty.get_on_call_users(Utc::now()).await?;
 
-    let timezone = Tz::from_str(&request.timezone)
-        .map_err(|e| AppError::InvalidData(format!("Invalid timezone: {}", e)))?;
+    let timezone =
+        Tz::from_str(&request.timezone).map_err(|e| AppError::InvalidData(format!("Invalid timezone: {}", e)))?;
     let from = Utc::now().with_timezone(&timezone);
 
     let next_schedule = get_next_schedule_from(&request.cron, &from)?;

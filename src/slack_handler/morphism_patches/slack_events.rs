@@ -7,7 +7,8 @@ use slack_morphism::events::{
     SlackInteractionViewClosedEvent,
 };
 use slack_morphism::{
-    SlackAppId, SlackBasicChannelInfo, SlackBasicUserInfo, SlackHistoryMessage, SlackResponseUrl, SlackTeamId, SlackTriggerId
+    SlackAppId, SlackBasicChannelInfo, SlackBasicUserInfo, SlackHistoryMessage, SlackResponseUrl, SlackTeamId,
+    SlackTriggerId,
 };
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]

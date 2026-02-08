@@ -6,14 +6,12 @@ use std::sync::Arc;
 
 use crate::slack_handler::morphism_patches::slack_events::SlackInteractionEvent;
 use new_schedule_modal::{
-    pagerduty_schedule_change_handler::handle_pagerduty_schedule_change,
-    submission_handler::handle_view_submission,
+    pagerduty_schedule_change_handler::handle_pagerduty_schedule_change, submission_handler::handle_view_submission,
 };
 use schedule_list::{
     delete_schedule_handler::handle_delete_schedule, filter_change_handler::handle_filter_change,
-    new_schedule_button_handler::handle_new_schedule_button,
-    page_size_change_handlers::handle_page_size_change, pagination_handler::handle_pagination,
-    refresh_handlers::handle_refresh,
+    new_schedule_button_handler::handle_new_schedule_button, page_size_change_handlers::handle_page_size_change,
+    pagination_handler::handle_pagination, refresh_handlers::handle_refresh,
 };
 use slack_morphism::SlackResponseUrl;
 use slack_morphism::blocks::SlackView;
@@ -138,7 +136,7 @@ pub async fn handle_slack_interactive_async(
                 SlackView::Modal(modal_view) => modal_view.callback_id.clone(),
                 _ => None,
             };
-            
+
             if modal_callback_id == Some("new_schedule_form".into()) {
                 handle_view_submission(
                     &view_submission_event,
@@ -146,7 +144,8 @@ pub async fn handle_slack_interactive_async(
                     &scheduled_tasks_db,
                     scheduler,
                     next_trigger_timestamp,
-                ).await?;
+                )
+                .await?;
 
                 return response(200, r#"{"response_action":"clear"}"#.to_string());
             }

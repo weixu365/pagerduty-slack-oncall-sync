@@ -1,7 +1,7 @@
-use slack_morphism::prelude::*;
 use rsb_derive::Builder;
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, skip_serializing_none};
+use slack_morphism::prelude::*;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -67,7 +67,6 @@ pub struct SlackConversationSelectFilter {
     pub exclude_external_shared_channels: Option<bool>,
     pub exclude_bot_users: Option<bool>,
 }
-
 
 #[skip_serializing_none]
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Builder)]

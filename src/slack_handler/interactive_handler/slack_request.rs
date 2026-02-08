@@ -4,60 +4,6 @@ use crate::slack_handler::views::schedule_list::ScheduleFilter;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct InteractiveRequest {
-    pub user: InteractiveUser,
-    pub team: InteractiveTeam,
-    pub channel: Option<InteractiveChannel>,
-    pub enterprise: Option<InteractiveEnterprise>,
-    pub actions: Vec<BlockAction>,
-    pub view: Option<ModalView>,
-    pub response_url: Option<String>,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct ModalView {
-    pub id: String,
-    pub hash: String,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct InteractiveUser {
-    pub id: String,
-    pub username: String,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct InteractiveTeam {
-    pub id: String,
-    pub domain: String,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct InteractiveChannel {
-    pub id: String,
-    pub name: String,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct InteractiveEnterprise {
-    pub id: String,
-    pub name: String,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct BlockAction {
-    pub action_id: String,
-    pub block_id: Option<String>,
-    pub value: Option<String>,
-    pub selected_option: Option<SelectedOption>,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct SelectedOption {
-    pub value: String,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
 pub struct DeleteScheduleValue {
     pub team_id: String,
     pub enterprise_id: String,

@@ -1,7 +1,11 @@
-use slack_morphism::prelude::*;
 use crate::slack_handler::morphism_patches::{
-    blocks_kit::{SlackBlock, SlackBlockConversationsSelectElement, SlackConversationSelectFilter, SlackInputBlock, SlackInputBlockElement, SlackModalView, SlackView}, slack_events::SlackInteractionBlockActionsEvent
+    blocks_kit::{
+        SlackBlock, SlackBlockConversationsSelectElement, SlackConversationSelectFilter, SlackInputBlock,
+        SlackInputBlockElement, SlackModalView, SlackView,
+    },
+    slack_events::SlackInteractionBlockActionsEvent,
 };
+use slack_morphism::prelude::*;
 
 #[rustfmt::skip]
 pub(crate) fn build_new_schedule_modal_with_oncall(on_call_text: &str, request: Option<&SlackInteractionBlockActionsEvent>) -> SlackView {

@@ -27,9 +27,9 @@ pub async fn handle_list_schedules_command(
 mod tests {
     use super::*;
     use crate::db::ScheduledTask;
+    use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
     use async_trait::async_trait;
     use chrono::Utc;
-    use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 
     struct MockScheduledTaskRepository {
         tasks: Vec<ScheduledTask>,
