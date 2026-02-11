@@ -402,11 +402,7 @@ pub async fn update_slack_view(
     Ok(())
 }
 
-pub async fn publish_slack_view(
-    modal: &SlackView,
-    user_id: &str,
-    bot_access_token: &str,
-) -> Result<(), AppError> {
+pub async fn publish_slack_view(modal: &SlackView, user_id: &str, bot_access_token: &str) -> Result<(), AppError> {
     info!("Publishing Slack view");
 
     let modal_json =

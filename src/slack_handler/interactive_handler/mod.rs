@@ -5,8 +5,8 @@ use std::env;
 use std::sync::Arc;
 
 use crate::db::SlackInstallationRepository;
-use crate::utils::logging::json_tracing;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionEvent;
+use crate::utils::logging::json_tracing;
 use new_schedule_modal::{
     pagerduty_schedule_change_handler::handle_pagerduty_schedule_change, submission_handler::handle_view_submission,
 };
@@ -67,8 +67,7 @@ pub async fn handle_slack_interactive_async(
                 }
 
                 if action_id == "pagerduty_schedule_suggestion" && block_actions_event.view.is_some() {
-                    handle_pagerduty_schedule_change(&block_actions_event, action, &slack_installations_db)
-                        .await?;
+                    handle_pagerduty_schedule_change(&block_actions_event, action, &slack_installations_db).await?;
                     return response(200, r#"{"status": "completed"}"#.to_string());
                 }
 
@@ -83,22 +82,11 @@ pub async fn handle_slack_interactive_async(
                         .await
                     }
                     "refresh" => {
-                        handle_refresh(
-                            &block_actions_event,
-                            action,
-                            &scheduled_tasks_db,
-                            next_trigger_timestamp,
-                        )
-                        .await
+                        handle_refresh(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp).await
                     }
                     "filter_select" => {
-                        handle_filter_change(
-                            &block_actions_event,
-                            action,
-                            &scheduled_tasks_db,
-                            next_trigger_timestamp,
-                        )
-                        .await
+                        handle_filter_change(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp)
+                            .await
                     }
                     "page_size_select" => {
                         handle_page_size_change(
@@ -110,13 +98,8 @@ pub async fn handle_slack_interactive_async(
                         .await
                     }
                     "page_previous" | "page_next" => {
-                        handle_pagination(
-                            &block_actions_event,
-                            action,
-                            &scheduled_tasks_db,
-                            next_trigger_timestamp,
-                        )
-                        .await
+                        handle_pagination(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp)
+                            .await
                     }
                     _ => Err(AppError::InvalidData(format!("Unknown action_id: {}", action_id))),
                 }?;
@@ -127,14 +110,19 @@ pub async fn handle_slack_interactive_async(
                         if let Some(view_id) = &block_actions_event.view.as_ref().map(|v| v.state_params.id.clone()) {
                             let hash = block_actions_event.view.as_ref().map(|v| v.state_params.hash.clone());
                             let installation = slack_installations_db
-                                .get_slack_installation(&block_actions_event.team.id.0, &block_actions_event.team.enterprise_id.unwrap_or_default())
+                                .get_slack_installation(
+                                    &block_actions_event.team.id.0,
+                                    &block_actions_event.team.enterprise_id.unwrap_or_default(),
+                                )
                                 .await?;
                             update_slack_view(&view_id.0, hash, &slack_view, &installation.access_token).await?;
                         } else {
-                            return Err(AppError::InvalidData("No response URL or view ID found for updating Slack view".to_string()));
+                            return Err(AppError::InvalidData(
+                                "No response URL or view ID found for updating Slack view".to_string(),
+                            ));
                         }
                     }
-                }                
+                }
             }
         }
         SlackInteractionEvent::ViewSubmission(view_submission_event) => {

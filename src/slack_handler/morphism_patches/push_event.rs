@@ -62,7 +62,6 @@ pub enum SlackEventCallbackBody {
     AssistantThreadContextChanged(SlackAssistantThreadContextChangedEvent),
 }
 
-
 #[skip_serializing_none]
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Builder)]
 pub struct SlackAppHomeOpenedEvent {
