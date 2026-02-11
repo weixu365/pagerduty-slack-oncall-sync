@@ -136,6 +136,22 @@ pub struct SlackModalView {
     pub external_id: Option<String>,
 }
 
+#[serde_as]
+#[skip_serializing_none]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize, Builder)]
+pub struct SlackHomeView {
+    pub blocks: Vec<SlackBlock>,
+    #[serde(default)]
+    #[serde_as(as = "serde_with::NoneAsEmptyString")]
+    pub private_metadata: Option<String>,
+    #[serde(default)]
+    #[serde_as(as = "serde_with::NoneAsEmptyString")]
+    pub callback_id: Option<SlackCallbackId>,
+    #[serde(default)]
+    #[serde_as(as = "serde_with::NoneAsEmptyString")]
+    pub external_id: Option<String>,
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum SlackView {

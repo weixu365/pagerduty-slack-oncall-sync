@@ -4,7 +4,9 @@ pub mod slack_request;
 use std::env;
 use std::sync::Arc;
 
-use crate::slack_handler::morphism_patches::slack_events::SlackInteractionEvent;
+use crate::db::SlackInstallationRepository;
+use crate::utils::logging::json_tracing;
+use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionEvent;
 use new_schedule_modal::{
     pagerduty_schedule_change_handler::handle_pagerduty_schedule_change, submission_handler::handle_view_submission,
 };
@@ -13,13 +15,12 @@ use schedule_list::{
     new_schedule_button_handler::handle_new_schedule_button, page_size_change_handlers::handle_page_size_change,
     pagination_handler::handle_pagination, refresh_handlers::handle_refresh,
 };
-use slack_morphism::SlackResponseUrl;
 use slack_morphism::blocks::SlackView;
 use slack_request::parse_slack_request;
 
 use crate::aws::event_bridge_scheduler::EventBridgeScheduler;
 use crate::db::dynamodb::SlackInstallationsDynamoDb;
-use crate::service::slack::send_slack_view;
+use crate::service::slack::{send_slack_view, update_slack_view};
 use crate::slack_handler::utils::request_utils::validate_request;
 use crate::{
     config::Config, db::dynamodb::ScheduledTasksDynamodb, errors::AppError,
@@ -31,7 +32,7 @@ pub async fn handle_slack_interactive_async(
     config: &Arc<Config>,
     event: ApiGatewayProxyRequest,
 ) -> Result<ApiGatewayProxyResponse, AppError> {
-    tracing::debug!(payload=?event, "Processing slack request");
+    json_tracing::info!("Processing slack request", event = &event);
 
     let request_body = event.body.as_deref().unwrap_or("");
 
@@ -54,79 +55,86 @@ pub async fn handle_slack_interactive_async(
 
     match slack_request {
         SlackInteractionEvent::BlockActions(block_actions_event) => {
-            tracing::info!(?block_actions_event, "Received BlockActions request");
+            json_tracing::info!("Received BlockActions request", event = &block_actions_event);
             let response_url = block_actions_event.response_url.clone();
-            tracing::info!(payload_response_url = ?block_actions_event.response_url, "Handling block_actions request");
 
             if let Some(action) = block_actions_event.actions.as_ref().and_then(|v| v.first()) {
                 let action_id = action.action_id.0.as_str();
 
-                match &response_url {
-                    None => {
-                        if action_id == "pagerduty_schedule_suggestion" && block_actions_event.view.is_some() {
-                            handle_pagerduty_schedule_change(&block_actions_event, action, &slack_installations_db)
-                                .await?;
-                            return response(200, r#"{"status": "completed"}"#.to_string());
-                        }
-                    }
-                    Some(SlackResponseUrl(url)) => {
-                        if action_id == "new_schedule" {
-                            handle_new_schedule_button(&block_actions_event, &slack_installations_db).await?;
-                            return response(200, r#"{"status": "completed"}"#.to_string());
-                        }
-
-                        // Other actions that update the current view
-                        let slack_view = match action_id {
-                            "delete_schedule" => {
-                                handle_delete_schedule(
-                                    &block_actions_event,
-                                    action,
-                                    &scheduled_tasks_db,
-                                    next_trigger_timestamp,
-                                )
-                                .await
-                            }
-                            "refresh" => {
-                                handle_refresh(
-                                    &block_actions_event,
-                                    action,
-                                    &scheduled_tasks_db,
-                                    next_trigger_timestamp,
-                                )
-                                .await
-                            }
-                            "filter_select" => {
-                                handle_filter_change(
-                                    &block_actions_event,
-                                    action,
-                                    &scheduled_tasks_db,
-                                    next_trigger_timestamp,
-                                )
-                                .await
-                            }
-                            "page_size_select" => {
-                                handle_page_size_change(
-                                    &block_actions_event,
-                                    action,
-                                    &scheduled_tasks_db,
-                                    next_trigger_timestamp,
-                                )
-                                .await
-                            }
-                            "page_previous" | "page_next" => {
-                                handle_pagination(
-                                    &block_actions_event,
-                                    action,
-                                    &scheduled_tasks_db,
-                                    next_trigger_timestamp,
-                                )
-                                .await
-                            }
-                            _ => Err(AppError::InvalidData(format!("Unknown action_id: {}", action_id))),
-                        }?;
-                        send_slack_view(url.as_str(), slack_view).await?;
-                    }
+                if action_id == "new_schedule" {
+                    handle_new_schedule_button(&block_actions_event, &slack_installations_db).await?;
+                    return response(200, r#"{"status": "completed"}"#.to_string());
                 }
+
+                if action_id == "pagerduty_schedule_suggestion" && block_actions_event.view.is_some() {
+                    handle_pagerduty_schedule_change(&block_actions_event, action, &slack_installations_db)
+                        .await?;
+                    return response(200, r#"{"status": "completed"}"#.to_string());
+                }
+
+                let slack_view = match action_id {
+                    "delete_schedule" => {
+                        handle_delete_schedule(
+                            &block_actions_event,
+                            action,
+                            &scheduled_tasks_db,
+                            next_trigger_timestamp,
+                        )
+                        .await
+                    }
+                    "refresh" => {
+                        handle_refresh(
+                            &block_actions_event,
+                            action,
+                            &scheduled_tasks_db,
+                            next_trigger_timestamp,
+                        )
+                        .await
+                    }
+                    "filter_select" => {
+                        handle_filter_change(
+                            &block_actions_event,
+                            action,
+                            &scheduled_tasks_db,
+                            next_trigger_timestamp,
+                        )
+                        .await
+                    }
+                    "page_size_select" => {
+                        handle_page_size_change(
+                            &block_actions_event,
+                            action,
+                            &scheduled_tasks_db,
+                            next_trigger_timestamp,
+                        )
+                        .await
+                    }
+                    "page_previous" | "page_next" => {
+                        handle_pagination(
+                            &block_actions_event,
+                            action,
+                            &scheduled_tasks_db,
+                            next_trigger_timestamp,
+                        )
+                        .await
+                    }
+                    _ => Err(AppError::InvalidData(format!("Unknown action_id: {}", action_id))),
+                }?;
+
+                match response_url {
+                    Some(url) => send_slack_view(url.0.as_str(), slack_view).await?,
+                    None => {
+                        if let Some(view_id) = &block_actions_event.view.as_ref().map(|v| v.state_params.id.clone()) {
+                            let hash = block_actions_event.view.as_ref().map(|v| v.state_params.hash.clone());
+                            let installation = slack_installations_db
+                                .get_slack_installation(&block_actions_event.team.id.0, &block_actions_event.team.enterprise_id.unwrap_or_default())
+                                .await?;
+                            update_slack_view(&view_id.0, hash, &slack_view, &installation.access_token).await?;
+                        } else {
+                            return Err(AppError::InvalidData("No response URL or view ID found for updating Slack view".to_string()));
+                        }
+                    }
+                }                
             }
         }
         SlackInteractionEvent::ViewSubmission(view_submission_event) => {

@@ -20,3 +20,65 @@ pub fn init_logging() {
         _ => subscriber_builder.init(),
     }
 }
+
+use serde::Serialize;
+
+pub fn to_json<T: Serialize>(value: &T) -> String {
+    serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string())
+}
+
+/// Log a struct as a JSON string that CloudWatch can search
+///
+/// The struct must implement `serde::Serialize`.
+///
+/// Usage: `json_tracing::info!("message", field_name = &my_struct, another = &other);`
+#[macro_export]
+macro_rules! json_tracing_info {
+    ($msg:expr, $($field:tt = $structure:expr),+ $(,)?) => {
+        tracing::info!(
+            $($field = $crate::utils::logging::to_json($structure),)+
+            $msg
+        )
+    };
+}
+
+/// Log a struct as a JSON string at warn level
+#[macro_export]
+macro_rules! json_tracing_warn {
+    ($msg:expr, $($field:tt = $structure:expr),+ $(,)?) => {
+        tracing::warn!(
+            $($field = $crate::utils::logging::to_json($structure),)+
+            $msg
+        )
+    };
+}
+
+/// Log a struct as a JSON string at error level
+#[macro_export]
+macro_rules! json_tracing_error {
+    ($msg:expr, $($field:tt = $structure:expr),+ $(,)?) => {
+        tracing::error!(
+            $($field = $crate::utils::logging::to_json($structure),)+
+            $msg
+        )
+    };
+}
+
+/// Log a struct as a JSON string at debug level
+#[macro_export]
+macro_rules! json_tracing_debug {
+    ($msg:expr, $($field:tt = $structure:expr),+ $(,)?) => {
+        tracing::debug!(
+            $($field = $crate::utils::logging::to_json($structure),)+
+            $msg
+        )
+    };
+}
+
+pub mod json_tracing {
+    // Re-export the macros so they can be used as json_tracing::info!
+    pub use crate::json_tracing_debug as debug;
+    pub use crate::json_tracing_error as error;
+    pub use crate::json_tracing_info as info;
+    pub use crate::json_tracing_warn as warn;
+}

@@ -3,6 +3,7 @@ use std::env;
 use aws_lambda_events::event::apigw::{ApiGatewayProxyRequest, ApiGatewayProxyResponse};
 use lambda_runtime::{Error, LambdaEvent, service_fn};
 use on_call_support::slack_handler::command_handler::handle_slack_command_async;
+use on_call_support::slack_handler::events_handler::handle_slack_events;
 use on_call_support::slack_handler::external_selection_handler::handle_slack_external_select;
 use on_call_support::slack_handler::interactive_handler::handle_slack_interactive_async;
 use on_call_support::{
@@ -77,12 +78,12 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
             info!("Processing Slack command");
 
             let is_handling_slack_command = is_async_processing_requested(&event.headers);
-            if !is_handling_slack_command {
-                invoke_slack_command_async_handler(&config, event).await?;
-                response(200, "".to_string())
-            } else {
+            if is_handling_slack_command {
                 handle_slack_command_async(&config, event).await?;
                 response(200, r#"{"status": "completed"}"#.to_string())
+            } else {
+                invoke_slack_command_async_handler(&config, event).await?;
+                response(200, "".to_string())
             }
         }
 
@@ -91,12 +92,27 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
 
             // Handle block_actions asynchronously
             let is_handling_slack_command = is_async_processing_requested(&event.headers);
-            if !is_handling_slack_command {
-                invoke_slack_command_async_handler(&config, event).await?;
-                response(200, "".to_string())
-            } else {
+            if is_handling_slack_command {
                 handle_slack_interactive_async(&config, event).await?;
                 response(200, r#"{"status": "completed"}"#.to_string())
+            } else {
+                invoke_slack_command_async_handler(&config, event).await?;
+                response(200, "".to_string())
+            }
+        }
+
+        Some("/slack/events") => {
+            info!("Processing Slack events");
+
+            let request_body = event.body.as_deref().unwrap_or("");
+            let is_url_verification = request_body.contains("\"type\":\"url_verification\"");
+
+            let is_handling_slack_command = is_async_processing_requested(&event.headers);
+            if is_handling_slack_command || is_url_verification {
+                Ok(handle_slack_events(&config, event).await?)
+            } else {
+                invoke_slack_command_async_handler(&config, event).await?;
+                response(200, "".to_string())
             }
         }
 

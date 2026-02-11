@@ -5,7 +5,7 @@ use crate::db::ScheduledTaskRepository;
 use crate::service::schedule::{CreateScheduleRequest, create_new_schedule, parse_user_group};
 use crate::service::slack::Slack;
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
-use crate::slack_handler::morphism_patches::slack_events::SlackInteractionViewSubmissionEvent;
+use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionViewSubmissionEvent;
 use crate::slack_handler::views::schedule_list::{DEFAULT_PAGE_SIZE, ScheduleFilter, build_schedule_list_blocks};
 use crate::utils::http_client::build_http_client;
 use crate::{db::SlackInstallationRepository, errors::AppError};
