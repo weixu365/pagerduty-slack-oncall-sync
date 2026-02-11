@@ -381,9 +381,9 @@ pub async fn open_slack_modal(trigger_id: &str, modal: &SlackView, bot_access_to
     Ok(())
 }
 
-pub async fn update_slack_modal(
+pub async fn update_slack_view(
     view_id: &str,
-    hash: &str,
+    hash: Option<String>,
     modal: &SlackView,
     bot_access_token: &str,
 ) -> Result<(), AppError> {
@@ -399,6 +399,21 @@ pub async fn update_slack_modal(
     });
 
     send_slack_request("https://slack.com/api/views.update", &payload, bot_access_token).await?;
+    Ok(())
+}
+
+pub async fn publish_slack_view(modal: &SlackView, user_id: &str, bot_access_token: &str) -> Result<(), AppError> {
+    info!("Publishing Slack view");
+
+    let modal_json =
+        serde_json::to_value(modal).map_err(|e| AppError::InvalidData(format!("Failed to serialize modal: {}", e)))?;
+
+    let payload = json!({
+        "user_id": user_id,
+        "view": modal_json,
+    });
+
+    send_slack_request("https://slack.com/api/views.publish", &payload, bot_access_token).await?;
     Ok(())
 }
 

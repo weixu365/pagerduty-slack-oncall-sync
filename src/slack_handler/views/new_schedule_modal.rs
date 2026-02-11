@@ -3,7 +3,7 @@ use crate::slack_handler::morphism_patches::{
         SlackBlock, SlackBlockConversationsSelectElement, SlackConversationSelectFilter, SlackInputBlock,
         SlackInputBlockElement, SlackModalView, SlackView,
     },
-    slack_events::SlackInteractionBlockActionsEvent,
+    interaction_event::SlackInteractionBlockActionsEvent,
 };
 use slack_morphism::prelude::*;
 

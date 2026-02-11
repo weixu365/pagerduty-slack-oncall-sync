@@ -14,22 +14,23 @@ use slack_request::parse_slack_request;
 use crate::db::dynamodb::SlackInstallationsDynamoDb;
 use crate::slack_handler::utils::request_utils::validate_request;
 use crate::utils::http_client::build_http_client;
+use crate::utils::logging::json_tracing;
 use crate::{config::Config, errors::AppError, slack_handler::utils::slack_response::response};
 use aws_lambda_events::event::apigw::{ApiGatewayProxyRequest, ApiGatewayProxyResponse};
-use tracing::info;
 
 pub async fn handle_slack_external_select(
     config: &Arc<Config>,
     event: ApiGatewayProxyRequest,
 ) -> Result<ApiGatewayProxyResponse, AppError> {
-    info!(payload=?event, "Processing external select request");
+    json_tracing::info!("Processing external select request", event = &event);
+
     let request_body = event.body.as_deref().unwrap_or("");
 
     let secrets = config.secrets().await?;
     validate_request(event.headers, request_body, &secrets.slack_signing_secret)?;
 
     let request = parse_slack_request(request_body)?;
-    info!("Handling block_suggestion request for action: {}", request.action_id);
+    json_tracing::info!("Handling block_suggestion request for action", action_id = &request.action_id);
 
     match request.action_id.as_str() {
         "user_group_suggestion" => {

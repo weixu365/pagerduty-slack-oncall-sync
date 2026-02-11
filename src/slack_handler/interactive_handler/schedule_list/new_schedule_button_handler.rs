@@ -3,7 +3,7 @@ use crate::{
     errors::AppError,
     service::slack::open_slack_modal,
     slack_handler::{
-        morphism_patches::slack_events::SlackInteractionBlockActionsEvent,
+        morphism_patches::interaction_event::SlackInteractionBlockActionsEvent,
         views::new_schedule_modal::build_new_schedule_modal_with_oncall,
     },
 };

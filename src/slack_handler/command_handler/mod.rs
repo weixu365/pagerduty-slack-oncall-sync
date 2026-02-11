@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 use crate::service::slack::{send_slack_message, send_slack_view};
 use crate::slack_handler::utils::slack_response::markdown_section;
+use crate::utils::logging::json_tracing;
 use crate::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
     config::Config,
@@ -21,10 +22,9 @@ use crate::{
     errors::AppError,
 };
 use aws_lambda_events::event::apigw::ApiGatewayProxyRequest;
-use tracing::info;
 
 pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayProxyRequest) -> Result<(), AppError> {
-    info!(payload=?event, "Processing command asynchronously");
+    json_tracing::info!("Processing command asynchronously", event = &event);
 
     let request_body = event.body.as_deref().unwrap_or("");
     let params = parse_slack_request(event.headers, request_body, &config).await?;
