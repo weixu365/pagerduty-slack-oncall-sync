@@ -1,15 +1,14 @@
 use crate::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
-    db::{ScheduledTask, ScheduledTaskRepository, SlackInstallationRepository},
+    db::{ScheduledTask, ScheduledTaskRepository, SlackInstallation, SlackInstallationRepository},
     errors::AppError,
-    service::pager_duty::PagerDuty,
-    utils::cron::get_next_schedule_from,
-    utils::http_client::build_http_client,
+    service::{pager_duty::PagerDuty, slack::{self, Slack}},
+    utils::{cron::get_next_schedule_from, http_client::build_http_client},
 };
 use chrono::Utc;
 use chrono_tz::Tz;
 use regex::Regex;
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 
 fn build_task_id(
     channel_name: &str,
@@ -47,25 +46,13 @@ pub async fn create_new_schedule(
     scheduler: EventBridgeScheduler,
 ) -> Result<(), AppError> {
     let http_client = std::sync::Arc::new(build_http_client()?);
-
-    let pagerduty_token = if let Some(ref token) = request.pagerduty_api_key {
-        token.clone()
-    } else {
-        slack_installations_db
+    let slack_installation = slack_installations_db
             .get_slack_installation(&request.team_id, &request.enterprise_id)
-            .await?
-            .pager_duty_token
-            .ok_or(AppError::SlackInstallationNotFoundError(format!(
-                "No PagerDuty token setup for the current Slack installation, team: {}",
-                request.team_id
-            )))?
-    };
-
-    // Validate PagerDuty token and schedule by making a test API call
-    let pager_duty =
-        PagerDuty::new(http_client.clone(), pagerduty_token.clone(), request.pagerduty_schedule_id.clone());
-    pager_duty.get_on_call_users(Utc::now()).await?;
-
+            .await?;
+    
+    validate_pagerduty_schedule(&slack_installation, &request, http_client.clone()).await?;
+    validate_user_group(&slack_installation, &request, http_client.clone()).await?;
+    
     let timezone =
         Tz::from_str(&request.timezone).map_err(|e| AppError::InvalidData(format!("Invalid timezone: {}", e)))?;
     let from = Utc::now().with_timezone(&timezone);
@@ -118,6 +105,44 @@ pub async fn create_new_schedule(
     }
 
     Ok(())
+}
+
+async fn validate_pagerduty_schedule(slack_installation: &SlackInstallation, request: &CreateScheduleRequest, http_client: Arc<reqwest::Client>) -> Result<(), AppError> {
+    let pagerduty_token = if let Some(ref token) = request.pagerduty_api_key {
+        token.clone()
+    } else {
+        slack_installation
+            .pager_duty_token
+            .clone()
+            .ok_or(AppError::SlackInstallationNotFoundError(format!(
+                "No PagerDuty token setup for the current Slack installation, team: {}",
+                request.team_id
+            )))?
+    };
+
+    // Validate PagerDuty token and schedule by making a test API call
+    let pager_duty =
+        PagerDuty::new(http_client.clone(), pagerduty_token.clone(), request.pagerduty_schedule_id.clone());
+    pager_duty.get_on_call_users(Utc::now()).await?;
+
+    Ok(())
+}
+
+async fn validate_user_group(slack_installation: &SlackInstallation, request: &CreateScheduleRequest, http_client: Arc<reqwest::Client>) -> Result<(), AppError> {
+    let slack_api_key = slack_installation.access_token.clone();
+    let slack = Slack::new(http_client.clone(), slack_api_key);
+    let current_users = slack.get_user_group_users(&request.user_group_id).await?;
+    if current_users.len() > 2 {
+        tracing::warn!(user_group_id = %request.user_group_id, user_group_handle = %request.user_group_handle,
+            "The user group has more than 2 users, which could be wrongly configured"
+        );
+        return Err(AppError::InvalidData(format!(
+            "The user group {}|{} has more than 2 users, which could be wrongly configured",
+            request.user_group_id, request.user_group_handle
+        )));
+    }
+
+    return Ok(())
 }
 
 pub fn parse_user_group(user_group: &str) -> Result<(String, String), AppError> {
