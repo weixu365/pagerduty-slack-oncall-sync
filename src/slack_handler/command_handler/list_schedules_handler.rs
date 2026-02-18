@@ -1,4 +1,5 @@
-use crate::slack_handler::views::schedule_list::{ScheduleFilter, ScheduleListResponse, build_schedule_list_blocks};
+use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
+use crate::slack_handler::views::schedule_list::{build_schedule_list_view, ScheduleFilter};
 use crate::{db::ScheduledTaskRepository, errors::AppError};
 
 pub async fn handle_list_schedules_command(
@@ -8,11 +9,11 @@ pub async fn handle_list_schedules_command(
     user_id: String,
     channel_id: String,
     next_trigger_timestamp: Option<i64>,
-) -> Result<ScheduleListResponse, AppError> {
+) -> Result<SlackView, AppError> {
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
     let page = page.unwrap_or(0);
 
-    Ok(build_schedule_list_blocks(
+    Ok(build_schedule_list_view(
         &tasks,
         page,
         page_size,
@@ -118,12 +119,11 @@ mod tests {
     async fn test_handle_list_schedules_command_empty() -> Result<(), AppError> {
         let mock_db = MockScheduledTaskRepository { tasks: vec![] };
 
-        let response =
+        let view =
             handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
-        assert_eq!(response.total_pages, 0);
 
         // Verify it's a Modal view with blocks
-        match &response.slack_view {
+        match &view {
             SlackView::Modal(modal) => {
                 assert!(!modal.blocks.is_empty());
             }
@@ -138,12 +138,11 @@ mod tests {
         let task = create_test_task("general", "oncall", "0 9 * * *", "2024-01-15T09:00:00Z");
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
-        let response =
+        let view =
             handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
-        assert_eq!(response.total_pages, 1);
 
         // Verify it's a Modal view with blocks
-        match &response.slack_view {
+        match &view {
             SlackView::Modal(modal) => {
                 assert!(!modal.blocks.is_empty());
 
@@ -169,12 +168,11 @@ mod tests {
             tasks: vec![task1, task2, task3],
         };
 
-        let response =
+        let view =
             handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
-        assert_eq!(response.total_pages, 1);
 
         // Verify it's a Modal view with blocks
-        match &response.slack_view {
+        match &view {
             SlackView::Modal(modal) => {
                 assert!(!modal.blocks.is_empty());
 
@@ -197,12 +195,11 @@ mod tests {
         let task = create_test_task("my-channel", "my-group", "0 */2 * * *", "2024-12-25T14:00:00Z");
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
-        let response =
+        let view =
             handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
-        assert_eq!(response.total_pages, 1);
 
         // Verify it's a Modal view with blocks
-        match &response.slack_view {
+        match &view {
             SlackView::Modal(modal) => {
                 let blocks_json = serde_json::to_string(&modal.blocks).unwrap();
                 assert!(blocks_json.contains("my-channel"));

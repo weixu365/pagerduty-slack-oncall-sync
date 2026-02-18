@@ -6,7 +6,7 @@ use crate::service::schedule::{CreateScheduleRequest, create_new_schedule, parse
 use crate::service::slack::Slack;
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionViewSubmissionEvent;
-use crate::slack_handler::views::schedule_list::{DEFAULT_PAGE_SIZE, ScheduleFilter, build_schedule_list_blocks};
+use crate::slack_handler::views::schedule_list::{build_schedule_list_view, DEFAULT_PAGE_SIZE, ScheduleFilter};
 use crate::utils::http_client::build_http_client;
 use crate::{db::SlackInstallationRepository, errors::AppError};
 
@@ -121,7 +121,7 @@ async fn send_schedule_list(
     let slack = Slack::new(http_client, installation.access_token.clone());
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
-    let response = build_schedule_list_blocks(
+    let view = build_schedule_list_view(
         &tasks,
         0,
         DEFAULT_PAGE_SIZE,
@@ -131,7 +131,7 @@ async fn send_schedule_list(
         next_trigger_timestamp,
     );
 
-    let blocks = match response.slack_view {
+    let blocks = match view {
         SlackView::Modal(modal) => modal.blocks,
         _ => return Err(AppError::InvalidData("Expected modal view".to_string())),
     };

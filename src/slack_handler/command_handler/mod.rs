@@ -74,7 +74,7 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
                 .and_then(|s| s.next_scheduled_timestamp_utc);
 
             let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor);
-            let response = handle_list_schedules_command(
+            let view = handle_list_schedules_command(
                 &scheduled_tasks_db,
                 page,
                 page_size,
@@ -84,7 +84,7 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
             )
             .await?;
 
-            send_slack_view(&response_url, response.slack_view).await?;
+            send_slack_view(&response_url, view).await?;
         }
     };
 

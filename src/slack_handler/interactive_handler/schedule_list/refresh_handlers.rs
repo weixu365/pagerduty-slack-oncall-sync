@@ -1,6 +1,6 @@
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionBlockActionsEvent;
-use crate::slack_handler::views::schedule_list::build_schedule_list_blocks;
+use crate::slack_handler::views::schedule_list::build_schedule_list_view;
 use crate::{
     db::ScheduledTaskRepository, errors::AppError, slack_handler::interactive_handler::slack_request::PaginationValue,
 };
@@ -30,7 +30,7 @@ pub async fn handle_refresh(
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
     let channel_id = request.channel.as_ref().map(|c| &c.id.0);
-    let response = build_schedule_list_blocks(
+    let view = build_schedule_list_view(
         &tasks,
         value.page,
         value.page_size,
@@ -40,5 +40,5 @@ pub async fn handle_refresh(
         next_trigger_timestamp,
     );
 
-    Ok(response.slack_view)
+    Ok(view)
 }

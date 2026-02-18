@@ -2,7 +2,7 @@ use crate::aws::event_bridge_scheduler::EventBridgeScheduler;
 use crate::db::SlackInstallationRepository;
 use crate::service::slack::publish_slack_view;
 use crate::slack_handler::morphism_patches::blocks_kit::{SlackHomeView, SlackView};
-use crate::slack_handler::views::schedule_list::{ScheduleFilter, build_schedule_list_blocks};
+use crate::slack_handler::views::schedule_list::{build_schedule_list_view, ScheduleFilter};
 use crate::{db::ScheduledTaskRepository, errors::AppError};
 
 pub struct AppHomeOpenedEvent {
@@ -29,7 +29,7 @@ pub async fn app_home_opened(
         .await?
         .and_then(|s| s.next_scheduled_timestamp_utc);
 
-    let list_response = build_schedule_list_blocks(
+    let view = build_schedule_list_view(
         &tasks,
         0,
         page_size,
@@ -39,7 +39,7 @@ pub async fn app_home_opened(
         next_trigger_timestamp,
     );
 
-    if let SlackView::Modal(modal_view) = &list_response.slack_view {
+    if let SlackView::Modal(modal_view) = &view {
         let home_view = SlackView::Home(SlackHomeView::new(modal_view.blocks.clone()));
         publish_slack_view(&home_view, &event.user_id, &installation.access_token).await?;
         Ok(())
