@@ -50,8 +50,9 @@ pub async fn create_new_schedule(
             .get_slack_installation(&request.team_id, &request.enterprise_id)
             .await?;
     
-    validate_pagerduty_schedule(&slack_installation, &request, http_client.clone()).await?;
-    validate_user_group(&slack_installation, &request, http_client.clone()).await?;
+    let schedule_users = get_pagerduty_schedule_users(&slack_installation, &request, http_client.clone()).await?;
+    let user_group_users = get_user_group_users(&slack_installation, &request, http_client.clone()).await?;
+    validate_user_group_in_schedule(&schedule_users, &user_group_users, &request.user_group_handle, &request.pagerduty_schedule_id)?;
     
     let timezone =
         Tz::from_str(&request.timezone).map_err(|e| AppError::InvalidData(format!("Invalid timezone: {}", e)))?;
@@ -107,7 +108,11 @@ pub async fn create_new_schedule(
     Ok(())
 }
 
-async fn validate_pagerduty_schedule(slack_installation: &SlackInstallation, request: &CreateScheduleRequest, http_client: Arc<reqwest::Client>) -> Result<(), AppError> {
+async fn get_pagerduty_schedule_users(
+    slack_installation: &SlackInstallation,
+    request: &CreateScheduleRequest,
+    http_client: Arc<reqwest::Client>,
+) -> Result<Vec<crate::service::pager_duty::PagerDutyUser>, AppError> {
     let pagerduty_token = if let Some(ref token) = request.pagerduty_api_key {
         token.clone()
     } else {
@@ -120,20 +125,32 @@ async fn validate_pagerduty_schedule(slack_installation: &SlackInstallation, req
             )))?
     };
 
-    // Validate PagerDuty token and schedule by making a test API call
-    let pager_duty =
-        PagerDuty::new(http_client.clone(), pagerduty_token.clone(), request.pagerduty_schedule_id.clone());
-    pager_duty.get_on_call_users(Utc::now()).await?;
+    let pager_duty = PagerDuty::new(http_client.clone(), pagerduty_token.clone(), request.pagerduty_schedule_id.clone());
+    let schedule_users = pager_duty.get_on_call_users(None).await?;
 
-    Ok(())
+    tracing::info!(
+        schedule_id = %request.pagerduty_schedule_id,
+        user_count = %schedule_users.len(),
+        "Retrieved PagerDuty schedule users"
+    );
+
+    Ok(schedule_users)
 }
 
-async fn validate_user_group(slack_installation: &SlackInstallation, request: &CreateScheduleRequest, http_client: Arc<reqwest::Client>) -> Result<(), AppError> {
+async fn get_user_group_users(
+    slack_installation: &SlackInstallation,
+    request: &CreateScheduleRequest,
+    http_client: Arc<reqwest::Client>,
+) -> Result<Vec<slack::User>, AppError> {
     let slack_api_key = slack_installation.access_token.clone();
     let slack = Slack::new(http_client.clone(), slack_api_key);
-    let current_users = slack.get_user_group_users(&request.user_group_id).await?;
-    if current_users.len() > 2 {
-        tracing::warn!(user_group_id = %request.user_group_id, user_group_handle = %request.user_group_handle,
+    let user_ids = slack.get_user_group_users(&request.user_group_id).await?;
+
+    if user_ids.len() > 2 {
+        tracing::warn!(
+            user_group_id = %request.user_group_id,
+            user_group_handle = %request.user_group_handle,
+            user_count = user_ids.len(),
             "The user group has more than 2 users, which could be wrongly configured"
         );
         return Err(AppError::InvalidData(format!(
@@ -142,7 +159,86 @@ async fn validate_user_group(slack_installation: &SlackInstallation, request: &C
         )));
     }
 
-    return Ok(())
+    let mut users = Vec::new();
+    for user_id in user_ids {
+        if let Some(user) = slack.get_user_by_id(&user_id).await? {
+            tracing::info!(user_id = %user.id, user_name = %user.name, "Retrieved user from user group");
+            users.push(user);
+        } else {
+            tracing::warn!(user_id = %user_id, "User not found in Slack");
+        }
+    }
+
+    Ok(users)
+}
+
+fn validate_user_group_in_schedule(
+    pagerduty_users: &[crate::service::pager_duty::PagerDutyUser],
+    user_group_users: &[slack::User],
+    user_group_handle: &str,
+    pagerduty_schedule_id: &str,
+) -> Result<(), AppError> {
+    tracing::info!(
+        pagerduty_emails_count = pagerduty_users.len(),
+        slack_users_count = user_group_users.len(),
+        "Validating all Slack user group users exist in PagerDuty schedule"
+    );
+
+    let pagerduty_emails: std::collections::HashSet<String> =
+        pagerduty_users.iter().map(|u| u.email.to_lowercase()).collect();
+
+    let mut missing_users = Vec::new();
+    for slack_user in user_group_users {
+        let email = slack_user
+            .profile
+            .as_ref()
+            .and_then(|p| p.email.as_ref())
+            .map(|e| e.to_lowercase());
+
+        if let Some(email) = &email {
+            if !pagerduty_emails.contains(email) {
+                tracing::warn!(
+                    slack_user_id = %slack_user.id,
+                    slack_user_name = %slack_user.name,
+                    email = %email,
+                    "Slack user NOT found in PagerDuty schedule"
+                );
+                missing_users.push(slack_user.name.clone());
+            } else {
+                tracing::info!(
+                    slack_user_id = %slack_user.id,
+                    slack_user_name = %slack_user.name,
+                    email = %email,
+                    "Slack user found in PagerDuty schedule ✓"
+                );
+            }
+        } else {
+            tracing::warn!(
+                slack_user_id = %slack_user.id,
+                slack_user_name = %slack_user.name,
+                "Slack user has no email in profile"
+            );
+            missing_users.push(format!("{} (no email)", slack_user.name));
+        }
+    }
+
+    if !missing_users.is_empty() {
+        return Err(AppError::InvalidData(format!(
+            "The following users in Slack user group '@{}' are not in PagerDuty schedule '{}': {}",
+            user_group_handle,
+            pagerduty_schedule_id,
+            missing_users.join(", ")
+        )));
+    }
+
+    // All users found - success!
+    tracing::info!(
+        user_group = %user_group_handle,
+        schedule = %pagerduty_schedule_id,
+        "✓ All Slack user group users are present in PagerDuty schedule"
+    );
+
+    Ok(())
 }
 
 pub fn parse_user_group(user_group: &str) -> Result<(String, String), AppError> {

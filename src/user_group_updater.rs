@@ -14,7 +14,7 @@ use crate::{
 use futures::{StreamExt, TryStreamExt};
 use tracing::{self, instrument};
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use reqwest::Client;
 
 pub async fn update_user_group(
@@ -29,11 +29,10 @@ pub async fn update_user_group(
     tracing::info!("Getting the current on-call users");
 
     let from = pager_duty_schedule_from;
-    let until = from + Duration::minutes(10);
 
     let pager_duty = PagerDuty::new(http_client.clone(), pager_duty_api_key.into(), pager_duty_schedule_id.into());
-    let oncall_users = pager_duty.get_on_call_users(from).await?;
-    tracing::info!(?oncall_users, %from, %until, "Found users on call from PagerDuty");
+    let oncall_users = pager_duty.get_on_call_users(Some(from)).await?;
+    tracing::info!(?oncall_users, %from, "Found users on call from PagerDuty");
 
     let slack = Arc::new(Slack::new(http_client.clone(), slack_api_key.to_string()));
 

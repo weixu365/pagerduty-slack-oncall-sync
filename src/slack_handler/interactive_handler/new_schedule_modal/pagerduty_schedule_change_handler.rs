@@ -51,7 +51,7 @@ pub async fn handle_pagerduty_schedule_change(
 
     let http_client = Arc::new(build_http_client()?);
     let pager_duty = PagerDuty::new(http_client, pagerduty_token, schedule_id.clone());
-    let users = pager_duty.get_on_call_users(Utc::now()).await?;
+    let users = pager_duty.get_on_call_users(Some(Utc::now())).await?;
 
     let on_call_text = build_oncall_text(&schedule_id, users);
     let slack_view = build_new_schedule_modal_with_oncall(&on_call_text, Some(request));

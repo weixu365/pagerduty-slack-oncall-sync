@@ -55,6 +55,13 @@ pub struct Channel {
 pub struct User {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub profile: Option<UserProfile>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct UserProfile {
+    pub email: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Display)]

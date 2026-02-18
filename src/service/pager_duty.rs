@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
+use http::Method;
 use reqwest::Client;
 use serde_derive::Deserialize;
+use serde_json::Value;
 
 use crate::errors::AppError;
 
@@ -48,18 +50,8 @@ impl PagerDuty {
     pub async fn validate_token(&self) -> Result<(), AppError> {
         tracing::info!("Validating PagerDuty API token");
 
-        let response = self
-            .http_client
-            .get(&format!("{}/users/me", self.base_url))
-            .header("Authorization", format!("Token token={}", self.api_token))
-            // .header("Accept", "application/vnd.pagerduty+json;version=2")
-            .send()
-            .await?;
-
-        response.error_for_status().map_err(|err| {
-            tracing::error!(%err, "Error validating PagerDuty API token");
-            AppError::PagerDutyError("Invalid PagerDuty API token".to_string())
-        })?;
+        let _response: serde_json::Value = 
+            self.send_request::<serde_json::Value, ()>("/users/me", Method::GET, None, None).await?;
 
         Ok(())
     }
@@ -68,64 +60,77 @@ impl PagerDuty {
         date_time.format("%Y-%m-%d %H:%M:%S").to_string()
     }
 
-    pub async fn get_on_call_users(&self, from: DateTime<Utc>) -> Result<Vec<PagerDutyUser>, AppError> {
-        let since = self.format_datetime(&from);
-        let until = self.format_datetime(&(from + Duration::minutes(10)));
+    pub async fn get_on_call_users(&self, from: Option<DateTime<Utc>>) -> Result<Vec<PagerDutyUser>, AppError> {
+        let mut params = vec![("time_zone", "UTC")];
 
-        let response = self
-            .http_client
-            .get(&format!("{}/schedules/{}/users", self.base_url, &self.schedule_id))
-            .header("Authorization", format!("Token token={}", &self.api_token))
-            // .query(&[("time_zone", "Australia/Melbourne"), ("since", "2023-05-19 09:00"), ("until", "2023-05-20 09:00")])
-            .query(&[
-                ("time_zone", "UTC"),
-                ("since", since.as_str()),
-                ("until", until.as_str()),
-            ])
-            .send()
-            .await?;
-
-        match response.error_for_status() {
-            Ok(res) => {
-                let users_response: PagerDutyUsersResponse = res.json().await?;
-                Ok(users_response.users)
-            }
-
-            Err(err) => {
-                tracing::error!(%err, "Error calling PagerDuty API");
-                Err(AppError::PagerDutyError(err.to_string()))
-            }
+        let since;
+        let until;
+        if let Some(from_time) = from {
+            since = self.format_datetime(&from_time);
+            until = self.format_datetime(&(from_time + Duration::minutes(10)));
+            params.push(("since", since.as_str()));
+            params.push(("until", until.as_str()));
         }
+
+        let url = format!("/schedules/{}/users", &self.schedule_id);
+        let users_response: PagerDutyUsersResponse = self.send_request(&url, Method::GET, Some(&params), None).await?;
+
+        Ok(users_response.users)
     }
 
     pub async fn list_schedules(&self, query: Option<&str>) -> Result<Vec<PagerDutySchedule>, AppError> {
         tracing::info!("Fetching PagerDuty schedules");
 
-        let mut request = self
-            .http_client
-            .get(&format!("{}/schedules", self.base_url))
-            .header("Authorization", format!("Token token={}", self.api_token))
-            .header("Accept", "application/vnd.pagerduty+json;version=2")
-            .query(&[("limit", "100")]);
-
+        let mut params = vec![("limit", "100")];
         if let Some(search) = query {
             let trimmed = search.trim();
             if !trimmed.is_empty() {
-                request = request.query(&[("query", trimmed)]);
+                params.push(("query", trimmed));
             }
         }
 
-        let response = request.send().await?;
+        let schedules_response: PagerDutySchedulesResponse =
+            self.send_request("/schedules", Method::GET, Some(&params), None).await?;
 
-        match response.error_for_status() {
-            Ok(res) => {
-                let schedules_response: PagerDutySchedulesResponse = res.json().await?;
-                Ok(schedules_response.schedules)
-            }
-            Err(err) => {
-                tracing::error!(%err, "Error fetching PagerDuty schedules");
-                Err(AppError::PagerDutyError(err.to_string()))
-            }
+        Ok(schedules_response.schedules)
+    }
+
+    async fn send_request<T, Q>(
+        &self,
+        endpoint: &str,
+        method: Method,
+        params: Option<&Q>,
+        payload: Option<&Value>,
+    ) -> Result<T, AppError>
+    where
+        T: for<'a> serde::Deserialize<'a>,
+        Q: serde::Serialize,
+    {
+        let url = format!("{}{}", self.base_url, endpoint);
+
+        let mut request_builder = self
+            .http_client
+            .request(method.clone(), url)
+            .header("Authorization", format!("Token token={}", self.api_token))
+            .header("Accept", "application/vnd.pagerduty+json;version=2");
+
+        if let Some(params) = params {
+            request_builder = request_builder.query(params);
+        }
+
+        if let Some(payload) = payload {
+            let body: String = payload.to_string();
+            request_builder = request_builder.body(body);
+        }
+
+        let response = request_builder.send().await?;
+
+        if response.status().is_success() {
+            let json_response: T = response.json().await?;
+            Ok(json_response)
+        } else {
+            tracing::error!(status = response.status().as_u16(), endpoint, "Failed sending request to PagerDuty");
+            Err(AppError::PagerDutyError(format!("Failed sending request to PagerDuty: {}", response.status())))
         }
     }
 }
