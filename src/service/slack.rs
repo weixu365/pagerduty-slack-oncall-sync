@@ -76,11 +76,21 @@ pub struct UserGroup {
 pub struct Slack {
     http_client: Arc<Client>,
     api_token: String,
+    base_url: String,
 }
 
 impl Slack {
     pub fn new(http_client: Arc<Client>, api_token: String) -> Slack {
-        Slack { http_client, api_token }
+        Slack {
+            http_client,
+            api_token,
+            base_url: "https://slack.com/api".to_string(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn new_with_base_url(http_client: Arc<Client>, api_token: String, base_url: String) -> Slack {
+        Slack { http_client, api_token, base_url }
     }
 
     pub async fn send_message(&self, channel_id: &str, message: &str) -> Result<(), AppError> {
@@ -199,7 +209,7 @@ impl Slack {
         T: for<'a> serde::Deserialize<'a>,
         Q: serde::Serialize,
     {
-        let url = format!("https://slack.com/api/{}", endpoint);
+        let url = format!("{}/{}", self.base_url, endpoint);
 
         let mut request_builder = self
             .http_client
@@ -390,7 +400,6 @@ pub async fn open_slack_modal(trigger_id: &str, modal: &SlackView, bot_access_to
 
 pub async fn update_slack_view(
     view_id: &str,
-    hash: Option<String>,
     modal: &SlackView,
     bot_access_token: &str,
 ) -> Result<(), AppError> {
@@ -401,7 +410,6 @@ pub async fn update_slack_view(
 
     let payload = json!({
         "view_id": view_id,
-        "hash": hash,
         "view": modal_json,
     });
 

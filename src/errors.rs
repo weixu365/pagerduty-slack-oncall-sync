@@ -38,7 +38,7 @@ pub enum AppError {
     #[error("Failed to parse int, error: `{0:?}`")]
     ParseIntError(ParseIntError),
 
-    #[error("Reqwest error")]
+    #[error("Reqwest error: `{0:?}`")]
     ReqwestError(#[from] reqwest::Error),
 
     #[error("Invalid Slack request: `{0:?}`")]

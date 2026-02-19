@@ -15,8 +15,14 @@ pub struct PagerDutyUser {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct PagerDutyUsersResponse {
-    pub users: Vec<PagerDutyUser>,
+struct PagerDutyScheduleUser {
+    pub name: Option<String>,
+    pub email: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PagerDutyUsersResponse {
+    pub users: Vec<PagerDutyScheduleUser>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,6 +53,16 @@ impl PagerDuty {
         }
     }
 
+    #[cfg(test)]
+    pub fn new_with_base_url(
+        http_client: Arc<Client>,
+        api_token: String,
+        schedule_id: String,
+        base_url: String,
+    ) -> PagerDuty {
+        PagerDuty { http_client, api_token, schedule_id, base_url }
+    }
+
     pub async fn validate_token(&self) -> Result<(), AppError> {
         tracing::info!("Validating PagerDuty API token");
 
@@ -75,7 +91,16 @@ impl PagerDuty {
         let url = format!("/schedules/{}/users", &self.schedule_id);
         let users_response: PagerDutyUsersResponse = self.send_request(&url, Method::GET, Some(&params), None).await?;
 
-        Ok(users_response.users)
+        let users = users_response
+            .users
+            .into_iter()
+            .filter_map(|u| match (u.name, u.email) {
+                (Some(name), Some(email)) => Some(PagerDutyUser { name, email }),
+                _ => None
+            })
+            .collect();
+
+        Ok(users)
     }
 
     pub async fn list_schedules(&self, query: Option<&str>) -> Result<Vec<PagerDutySchedule>, AppError> {
@@ -125,12 +150,23 @@ impl PagerDuty {
 
         let response = request_builder.send().await?;
 
-        if response.status().is_success() {
-            let json_response: T = response.json().await?;
-            Ok(json_response)
+        let status = response.status();
+        let body = response.text().await?;
+
+        if status.is_success() {
+            serde_json::from_str::<T>(&body).map_err(|e| {
+                tracing::error!(endpoint, %body, error = %e, "Failed to deserialize PagerDuty response");
+                AppError::PagerDutyError(format!(
+                    "Failed to deserialize PagerDuty response from {}: {} — body: {}",
+                    endpoint, e, body
+                ))
+            })
         } else {
-            tracing::error!(status = response.status().as_u16(), endpoint, "Failed sending request to PagerDuty");
-            Err(AppError::PagerDutyError(format!("Failed sending request to PagerDuty: {}", response.status())))
+            tracing::error!(status = status.as_u16(), endpoint, %body, "Failed sending request to PagerDuty");
+            Err(AppError::PagerDutyError(format!(
+                "Failed sending request to PagerDuty {}: {} — body: {}",
+                endpoint, status, body
+            )))
         }
     }
 }

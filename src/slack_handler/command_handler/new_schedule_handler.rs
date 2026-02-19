@@ -15,6 +15,10 @@ pub async fn handle_schedule_command(
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     scheduler: EventBridgeScheduler,
 ) -> Result<Vec<String>, AppError> {
+    let installation = slack_installations_db
+        .get_slack_installation(&params.team_id, &params.enterprise_id)
+        .await?;
+
     let (user_group_id, user_group_handle) = parse_user_group(&arg.user_group)?;
 
     let timezone = Tz::from_str(&arg.timezone.unwrap_or("UTC".to_string()))
@@ -38,7 +42,7 @@ pub async fn handle_schedule_command(
         pagerduty_api_key: arg.pagerduty_api_key.clone(),
     };
 
-    if let Err(err) = create_new_schedule(request, slack_installations_db, scheduled_tasks_db, scheduler).await {
+    if let Err(err) = create_new_schedule(request, &installation, scheduled_tasks_db, scheduler).await {
         tracing::error!(%err, "Failed to create schedule");
         return Err(AppError::Error(format!("Failed to save schedule task\n{} {}", &params.command, &params.text)));
     }

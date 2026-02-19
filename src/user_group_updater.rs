@@ -46,7 +46,7 @@ pub async fn update_user_group(
                 let email = user.email;
                 async move {
                     slack.get_user_by_email(&email).await?.map(|u| u.id).ok_or_else(|| {
-                        AppError::UnexpectedError(format!("Can't find Slack user by email: {:?}", email))
+                        AppError::UnexpectedError(format!("Can't find Slack user by email: {}", email))
                     })
                 }
             })

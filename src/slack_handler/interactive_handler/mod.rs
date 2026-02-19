@@ -108,14 +108,13 @@ pub async fn handle_slack_interactive_async(
                     Some(url) => send_slack_view(url.0.as_str(), slack_view).await?,
                     None => {
                         if let Some(view_id) = &block_actions_event.view.as_ref().map(|v| v.state_params.id.clone()) {
-                            let hash = block_actions_event.view.as_ref().map(|v| v.state_params.hash.clone());
                             let installation = slack_installations_db
                                 .get_slack_installation(
                                     &block_actions_event.team.id.0,
                                     &block_actions_event.team.enterprise_id.unwrap_or_default(),
                                 )
                                 .await?;
-                            update_slack_view(&view_id.0, hash, &slack_view, &installation.access_token).await?;
+                            update_slack_view(&view_id.0, &slack_view, &installation.access_token).await?;
                         } else {
                             return Err(AppError::InvalidData(
                                 "No response URL or view ID found for updating Slack view".to_string(),
@@ -141,8 +140,6 @@ pub async fn handle_slack_interactive_async(
                     next_trigger_timestamp,
                 )
                 .await?;
-
-                return response(200, r#"{"response_action":"clear"}"#.to_string());
             }
         }
         SlackInteractionEvent::ViewClosed(_) => {

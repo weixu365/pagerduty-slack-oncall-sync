@@ -10,7 +10,11 @@ use on_call_support::{
     config::Config,
     db::dynamodb::SlackInstallationsDynamoDb,
     errors::AppError,
-    slack_handler::{oauth_handler::oauth_handler::handle_slack_oauth, utils::slack_response::response},
+    slack_handler::{
+        oauth_handler::oauth_handler::handle_slack_oauth,
+        utils::slack_response::response,
+        views::new_schedule_modal::build_loading_modal,
+    },
     utils::lambda_client::{invoke_slack_command_async_handler, is_async_processing_requested},
     utils::logging,
 };
@@ -90,14 +94,14 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
         Some("/slack/interactive") => {
             info!("Processing Slack interactive action");
 
-            // Handle block_actions asynchronously
             let is_handling_slack_command = is_async_processing_requested(&event.headers);
             if is_handling_slack_command {
                 handle_slack_interactive_async(&config, event).await?;
                 response(200, r#"{"status": "completed"}"#.to_string())
             } else {
+                let sync_ack = build_interactive_sync_ack(event.body.as_deref().unwrap_or(""));
                 invoke_slack_command_async_handler(&config, event).await?;
-                response(200, "".to_string())
+                response(200, sync_ack)
             }
         }
 
@@ -119,6 +123,31 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
         _ => {
             warn!(request_path, "Received request for unknown path");
             response(400, format!("Invalid request"))
+        }
+    }
+}
+
+/// Returns the synchronous acknowledgment body for a Slack interactive request.
+///
+/// For `view_submission` events on `new_schedule_form`, returns a `response_action: update`
+/// with a loading modal so the view stays open while the async lambda processes the request.
+/// For all other interactive events, returns an empty body (Slack default acknowledgment).
+fn build_interactive_sync_ack(body: &str) -> String {
+    let is_new_schedule_submission = body.contains("view_submission") && body.contains("new_schedule_form");
+    if !is_new_schedule_submission {
+        return "".to_string();
+    }
+
+    let loading_modal = build_loading_modal();
+    match serde_json::to_value(&loading_modal) {
+        Ok(view_json) => serde_json::json!({
+            "response_action": "update",
+            "view": view_json,
+        })
+        .to_string(),
+        Err(e) => {
+            warn!(error = %e, "Failed to serialize loading modal, falling back to empty ack");
+            "".to_string()
         }
     }
 }
