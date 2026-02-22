@@ -3,35 +3,36 @@ use std::sync::Arc;
 use chrono::{DateTime, Duration, Utc};
 use http::Method;
 use reqwest::Client;
+use serde::Serialize;
 use serde_derive::Deserialize;
 use serde_json::Value;
 
 use crate::errors::AppError;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PagerDutyUser {
     pub name: String,
     pub email: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct PagerDutyScheduleUser {
     pub name: Option<String>,
     pub email: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct PagerDutyUsersResponse {
     pub users: Vec<PagerDutyScheduleUser>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PagerDutySchedule {
     pub id: String,
     pub name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PagerDutySchedulesResponse {
     pub schedules: Vec<PagerDutySchedule>,
 }

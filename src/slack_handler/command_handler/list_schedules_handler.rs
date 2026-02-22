@@ -9,6 +9,7 @@ pub async fn handle_list_schedules_command(
     user_id: String,
     channel_id: String,
     next_trigger_timestamp: Option<i64>,
+    is_admin: bool,
 ) -> Result<SlackView, AppError> {
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
     let page = page.unwrap_or(0);
@@ -21,6 +22,7 @@ pub async fn handle_list_schedules_command(
         Some(&channel_id),
         &ScheduleFilter::Auto,
         next_trigger_timestamp,
+        is_admin,
     ))
 }
 
@@ -120,7 +122,7 @@ mod tests {
         let mock_db = MockScheduledTaskRepository { tasks: vec![] };
 
         let view =
-            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false).await?;
 
         // Verify it's a Modal view with blocks
         match &view {
@@ -139,7 +141,7 @@ mod tests {
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
         let view =
-            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false).await?;
 
         // Verify it's a Modal view with blocks
         match &view {
@@ -169,7 +171,7 @@ mod tests {
         };
 
         let view =
-            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false).await?;
 
         // Verify it's a Modal view with blocks
         match &view {
@@ -196,7 +198,7 @@ mod tests {
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
         let view =
-            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None).await?;
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false).await?;
 
         // Verify it's a Modal view with blocks
         match &view {

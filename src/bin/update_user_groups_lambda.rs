@@ -1,7 +1,7 @@
 use std::env;
 
 use lambda_runtime::{Error, LambdaEvent, service_fn};
-use on_call_support::{user_group_updater::update_user_groups, utils::logging};
+use on_call_support::{user_group_updater::{update_user_groups, SyncTrigger}, utils::logging};
 use tokio;
 
 use serde_json::{Value, json};
@@ -18,12 +18,17 @@ async fn main() -> Result<(), Error> {
 }
 
 async fn func(event: LambdaEvent<Value>) -> Result<Value, Error> {
-    let (_event, _context) = event.into_parts();
+    let (event, _context) = event.into_parts();
     let env = env::var("ENV").unwrap_or("dev".to_string());
-    let result = update_user_groups(&env).await;
+    let trigger = if event.get("manual").and_then(|v| v.as_bool()).unwrap_or(false) {
+        SyncTrigger::Manual
+    } else {
+        SyncTrigger::Scheduled
+    };
+    let result = update_user_groups(&env, trigger).await;
 
     match result {
-        Ok(()) => Ok(json!({ "message": "Updated user groups" })),
+        Ok(results) => Ok(json!({ "results": results })),
         Err(err) => {
             tracing::error!(%err, "Failed to update user groups");
             Err(err.into())

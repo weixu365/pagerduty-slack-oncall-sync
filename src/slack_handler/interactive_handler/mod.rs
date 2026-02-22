@@ -14,6 +14,7 @@ use schedule_list::{
     delete_schedule_handler::handle_delete_schedule, filter_change_handler::handle_filter_change,
     new_schedule_button_handler::handle_new_schedule_button, page_size_change_handlers::handle_page_size_change,
     pagination_handler::handle_pagination, refresh_handlers::handle_refresh,
+    sync_now_handler::handle_sync_now,
 };
 use slack_morphism::blocks::SlackView;
 use slack_request::parse_slack_request;
@@ -58,6 +59,12 @@ pub async fn handle_slack_interactive_async(
             json_tracing::info!("Received BlockActions request", event = &block_actions_event);
             let response_url = block_actions_event.response_url.clone();
 
+            let is_admin = block_actions_event
+                .user
+                .as_ref()
+                .map(|u| config.admin_user_slack_ids.contains(&u.id.0))
+                .unwrap_or(false);
+
             if let Some(action) = block_actions_event.actions.as_ref().and_then(|v| v.first()) {
                 let action_id = action.action_id.0.as_str();
 
@@ -72,21 +79,46 @@ pub async fn handle_slack_interactive_async(
                 }
 
                 let slack_view = match action_id {
+                    "sync_now" => {
+                        handle_sync_now(
+                            &block_actions_event,
+                            action,
+                            config,
+                            &scheduled_tasks_db,
+                            &slack_installations_db,
+                            next_trigger_timestamp,
+                        )
+                        .await
+                    }
                     "delete_schedule" => {
                         handle_delete_schedule(
                             &block_actions_event,
                             action,
                             &scheduled_tasks_db,
                             next_trigger_timestamp,
+                            is_admin,
                         )
                         .await
                     }
                     "refresh" => {
-                        handle_refresh(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp).await
+                        handle_refresh(
+                            &block_actions_event,
+                            action,
+                            &scheduled_tasks_db,
+                            next_trigger_timestamp,
+                            is_admin,
+                        )
+                        .await
                     }
                     "filter_select" => {
-                        handle_filter_change(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp)
-                            .await
+                        handle_filter_change(
+                            &block_actions_event,
+                            action,
+                            &scheduled_tasks_db,
+                            next_trigger_timestamp,
+                            is_admin,
+                        )
+                        .await
                     }
                     "page_size_select" => {
                         handle_page_size_change(
@@ -94,12 +126,19 @@ pub async fn handle_slack_interactive_async(
                             action,
                             &scheduled_tasks_db,
                             next_trigger_timestamp,
+                            is_admin,
                         )
                         .await
                     }
                     "page_previous" | "page_next" => {
-                        handle_pagination(&block_actions_event, action, &scheduled_tasks_db, next_trigger_timestamp)
-                            .await
+                        handle_pagination(
+                            &block_actions_event,
+                            action,
+                            &scheduled_tasks_db,
+                            next_trigger_timestamp,
+                            is_admin,
+                        )
+                        .await
                     }
                     _ => Err(AppError::InvalidData(format!("Unknown action_id: {}", action_id))),
                 }?;
@@ -132,12 +171,14 @@ pub async fn handle_slack_interactive_async(
             };
 
             if modal_callback_id == Some("new_schedule_form".into()) {
+                let is_admin = config.admin_user_slack_ids.contains(&view_submission_event.user.id.0);
                 handle_view_submission(
                     &view_submission_event,
                     &slack_installations_db,
                     &scheduled_tasks_db,
                     scheduler,
                     next_trigger_timestamp,
+                    is_admin,
                 )
                 .await?;
             }

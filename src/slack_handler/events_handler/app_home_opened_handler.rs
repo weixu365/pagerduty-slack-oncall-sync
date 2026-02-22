@@ -17,6 +17,7 @@ pub async fn app_home_opened(
     slack_installations_db: &dyn SlackInstallationRepository,
     scheduler: &EventBridgeScheduler,
     page_size: usize,
+    is_admin: bool,
 ) -> Result<(), AppError> {
     let installation = slack_installations_db
         .get_slack_installation(&event.team_id, &event.enterprise_id)
@@ -37,6 +38,7 @@ pub async fn app_home_opened(
         None,
         &ScheduleFilter::Auto,
         next_trigger_timestamp,
+        is_admin,
     );
 
     if let SlackView::Modal(modal_view) = &view {

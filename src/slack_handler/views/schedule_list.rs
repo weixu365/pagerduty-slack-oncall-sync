@@ -25,6 +25,7 @@ pub fn build_schedule_list_view(
     channel_id: Option<&String>,
     filter: &ScheduleFilter,
     next_trigger_timestamp: Option<i64>,
+    is_admin: bool,
 ) -> SlackView {
     // Filter tasks based on the selected filter
     let filtered_tasks: Vec<&ScheduledTask> = match filter {
@@ -153,11 +154,29 @@ pub fn build_schedule_list_view(
     )
     .with_style("primary".into());
 
-    blocks.push(SlackBlock::Actions(SlackActionsBlock::new(vec![
+    let mut action_elements = vec![
         SlackActionBlockElement::StaticSelect(filter_select),
         SlackActionBlockElement::StaticSelect(page_size_select),
         SlackActionBlockElement::Button(new_button),
-    ])));
+    ];
+
+    if is_admin {
+        let sync_value = serde_json::json!({
+            "page": current_page,
+            "page_size": page_size,
+            "filter": filter,
+        })
+        .to_string();
+        let sync_button = SlackBlockButtonElement::new(
+            "sync_now".into(),
+            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("⚡ Sync Now".into()).with_emoji(true)),
+        )
+        .with_value(sync_value.into())
+        .with_style("primary".into());
+        action_elements.push(SlackActionBlockElement::Button(sync_button));
+    }
+
+    blocks.push(SlackBlock::Actions(SlackActionsBlock::new(action_elements)));
 
     blocks.push(SlackBlock::Divider(SlackDividerBlock::new()));
 
@@ -405,7 +424,7 @@ mod tests {
     fn test_build_schedule_list_empty() {
         let tasks: Vec<ScheduledTask> = vec![];
         let view =
-            build_schedule_list_view(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+            build_schedule_list_view(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None, false);
 
         // Verify it's a Modal view
         match &view {
@@ -423,7 +442,7 @@ mod tests {
             create_test_task("engineering", "eng-oncall"),
         ];
         let view =
-            build_schedule_list_view(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+            build_schedule_list_view(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None, false);
 
         // Verify it's a Modal view
         match &view {
@@ -444,7 +463,7 @@ mod tests {
 
         // Page 0
         let view =
-            build_schedule_list_view(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+            build_schedule_list_view(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None, false);
 
         // Verify it's a Modal view
         match &view {
@@ -456,7 +475,7 @@ mod tests {
 
         // Page 1
         let view =
-            build_schedule_list_view(&tasks, 1, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+            build_schedule_list_view(&tasks, 1, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None, false);
 
         // Verify it's a Modal view
         match &view {

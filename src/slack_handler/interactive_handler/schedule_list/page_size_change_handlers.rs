@@ -12,6 +12,7 @@ pub async fn handle_page_size_change(
     action: &SlackInteractionActionInfo,
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     next_trigger_timestamp: Option<i64>,
+    is_admin: bool,
 ) -> Result<SlackView, AppError> {
     tracing::info!(action = ?action, "Changing page size");
 
@@ -40,6 +41,7 @@ pub async fn handle_page_size_change(
         channel_id,
         &value.filter,
         next_trigger_timestamp,
+        is_admin,
     );
 
     Ok(view)

@@ -9,6 +9,7 @@ use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionV
 use crate::slack_handler::views::new_schedule_modal::{build_new_schedule_modal, build_success_modal};
 use crate::slack_handler::views::schedule_list::{build_schedule_list_view, DEFAULT_PAGE_SIZE, ScheduleFilter};
 use crate::utils::http_client::build_http_client;
+use crate::utils::logging::json_tracing;
 use crate::{db::SlackInstallationRepository, errors::AppError};
 
 async fn get_channel_name(slack: &Slack, channel_id: &str) -> Result<String, AppError> {
@@ -91,6 +92,7 @@ async fn send_schedule_list(
     installation: &SlackInstallation,
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     next_trigger_timestamp: Option<i64>,
+    is_admin: bool,
 ) -> Result<(), AppError> {
     let http_client = Arc::new(build_http_client()?);
     let slack = Slack::new(http_client, installation.access_token.clone());
@@ -104,6 +106,7 @@ async fn send_schedule_list(
         Some(&request.channel_id),
         &ScheduleFilter::Auto,
         next_trigger_timestamp,
+        is_admin,
     );
 
     let blocks = match view {
@@ -114,15 +117,13 @@ async fn send_schedule_list(
     let blocks_json = serde_json::to_value(&blocks)
         .map_err(|e| AppError::InvalidData(format!("Failed to serialize blocks: {}", e)))?;
 
-    let message_payload = serde_json::json!({
-        "channel": request.channel_id,
-        "user": request.user_id,
-        "text": "📋 Scheduled Tasks",
-        "blocks": blocks_json,
-    });
-
-    tracing::info!(payload=?message_payload, "Sending schedule list message to channel");
-    slack.send_ephemeral_message(&message_payload).await?;
+    json_tracing::info!(
+        "Sending schedule list ephemeral message to user in channel",
+        channel=&request.channel_id,
+        user=&request.user_id,
+        payload=&blocks_json,
+    );
+    slack.send_ephemeral_text(&request.channel_id, &request.user_id, "📋 Scheduled Tasks", Some(&blocks_json)).await?;
 
     Ok(())
 }
@@ -133,6 +134,7 @@ pub async fn handle_view_submission(
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     scheduler: EventBridgeScheduler,
     next_trigger_timestamp: Option<i64>,
+    is_admin: bool,
 ) -> Result<(), AppError> {
     let installation = slack_installations_db
         .get_slack_installation(
@@ -151,7 +153,7 @@ pub async fn handle_view_submission(
             update_slack_view(&view_id.0, &error_view, &installation.access_token).await?;
         }
         Ok(ref request) => {
-            send_schedule_list(request, &installation, scheduled_tasks_db, next_trigger_timestamp).await?;
+            send_schedule_list(request, &installation, scheduled_tasks_db, next_trigger_timestamp, is_admin).await?;
             let view_id = event.view.state_params.id.clone();
             update_slack_view(&view_id.0, &build_success_modal(), &installation.access_token).await?;
         }

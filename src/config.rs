@@ -20,6 +20,8 @@ pub struct Config {
 
     pub schedule_name_prefix: String,
 
+    pub admin_user_slack_ids: Vec<String>,
+
     pub aws_config: SdkConfig,
 
     secrets_cache: OnceCell<Secrets>,
@@ -44,6 +46,12 @@ impl Config {
         let secret_name = env::var("AWS_SECRET_NAME").unwrap_or("on-call-support/secrets".to_string());
         let table_name_prefix = env::var("TABLE_NAME_PREFIX").unwrap_or("on-call-support-".to_string());
         let schedule_name_prefix = env::var("SCHEDULE_NAME_PREFIX").unwrap_or("on-call-support-".to_string());
+        let admin_user_slack_ids = env::var("ADMIN_USER_SLACK_IDS")
+            .unwrap_or_default()
+            .split(',')
+            .filter(|s| !s.is_empty())
+            .map(|s| s.trim().to_string())
+            .collect();
         let aws_config = ::aws_config::load_defaults(BehaviorVersion::latest()).await;
 
         Ok(Arc::new(Config {
@@ -51,6 +59,7 @@ impl Config {
             schedules_table_name: format!("{}schedules-{}", table_name_prefix, env),
             installations_table_name: format!("{}installations-{}", table_name_prefix, env),
             schedule_name_prefix: format!("{}{}_UpdateUserGroupSchedule_", schedule_name_prefix, env),
+            admin_user_slack_ids,
 
             aws_config,
             secrets_cache: OnceCell::new(),

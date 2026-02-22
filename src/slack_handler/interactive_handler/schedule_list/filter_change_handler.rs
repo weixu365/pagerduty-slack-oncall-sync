@@ -11,6 +11,7 @@ pub async fn handle_filter_change(
     action: &SlackInteractionActionInfo,
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     next_trigger_timestamp: Option<i64>,
+    is_admin: bool,
 ) -> Result<SlackView, AppError> {
     tracing::info!(action = ?action, "Changing filter");
 
@@ -39,6 +40,7 @@ pub async fn handle_filter_change(
         channel_id,
         &value.filter,
         next_trigger_timestamp,
+        is_admin,
     );
 
     Ok(view)

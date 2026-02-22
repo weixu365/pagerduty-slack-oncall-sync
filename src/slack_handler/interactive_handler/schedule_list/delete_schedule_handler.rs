@@ -12,6 +12,7 @@ pub async fn handle_delete_schedule(
     action: &SlackInteractionActionInfo,
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     next_trigger_timestamp: Option<i64>,
+    is_admin: bool,
 ) -> Result<SlackView, AppError> {
     tracing::info!(action = ?action, user=?request.user, "Deleting schedule");
 
@@ -50,6 +51,7 @@ pub async fn handle_delete_schedule(
         channel_id,
         &value.filter,
         next_trigger_timestamp,
+        is_admin,
     );
 
     Ok(view)

@@ -103,7 +103,14 @@ impl Slack {
             .await
     }
 
-    pub async fn send_ephemeral_message(&self, payload: &Value) -> Result<(), AppError> {
+    pub async fn send_ephemeral_text(&self, channel_id: &str, user_id: &str, message: &str, details: Option<&Value>) -> Result<(), AppError> {
+        let payload = json!({
+            "channel": channel_id,
+            "user": user_id,
+            "text": message,
+            "blocks": details,
+        });
+
         self.send_request::<_, ()>("chat.postEphemeral", Method::POST, None, Some(&payload))
             .await
     }
