@@ -1,5 +1,6 @@
 use aws_lambda_events::http::{HeaderMap, HeaderValue};
 
+use crate::utils::logging::json_tracing;
 use crate::{errors::AppError, utils::constant_time::constant_time_compare_str};
 
 use ring::hmac;
@@ -29,14 +30,14 @@ pub fn validate_request(
     }
 
     let sig_basestring = format!("v0:{}:{}", slack_request_timestamp, request_body);
-    tracing::debug!(sig_basestring, "Slack Request to sign");
+    json_tracing::debug!("Slack Request to sign", sig_basestring);
 
     let verification_key = hmac::Key::new(hmac::HMAC_SHA256, slack_signing_secret.as_bytes());
     let signature = hex::encode(hmac::sign(&verification_key, sig_basestring.as_bytes()).as_ref());
     let expected_signature = format!("v0={}", signature);
 
     if !constant_time_compare_str(&expected_signature, slack_request_signature) {
-        tracing::error!(slack_request_signature, "Signature verification failed");
+        json_tracing::error!("Signature verification failed", slack_request_signature);
         return Err(AppError::InvalidSlackRequest(format!("Invalid slack command signature")));
     }
 

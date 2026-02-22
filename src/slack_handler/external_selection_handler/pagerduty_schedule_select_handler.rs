@@ -4,6 +4,7 @@ use super::{
     options::{OptionItem, OptionsResponse, TextObject},
     slack_request::ExternalSelectRequest,
 };
+use crate::utils::logging::json_tracing;
 use crate::{db::SlackInstallationRepository, errors::AppError, service::pager_duty::PagerDuty};
 
 pub async fn handle_pagerduty_schedule_options(
@@ -11,7 +12,7 @@ pub async fn handle_pagerduty_schedule_options(
     slack_installations_db: &dyn SlackInstallationRepository,
     http_client: Arc<reqwest::Client>,
 ) -> Result<OptionsResponse, AppError> {
-    tracing::info!(action_id = %request.action_id, "Fetching PagerDuty schedule options");
+    json_tracing::info!("Fetching PagerDuty schedule options", action_id = &request.action_id);
 
     let enterprise_id = request.enterprise.as_ref().map(|e| e.id.clone()).unwrap_or_default();
 

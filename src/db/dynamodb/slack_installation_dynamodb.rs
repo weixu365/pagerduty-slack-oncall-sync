@@ -7,6 +7,7 @@ use crate::config::Config;
 use crate::db::slack_installation::{SlackInstallation, SlackInstallationRepository};
 use crate::utils::dynamodb_client::{get_attribute, get_encrypted_attribute, get_optional_encrypted_attribute};
 use crate::{encryptor::Encryptor, errors::AppError};
+use crate::utils::logging::json_tracing;
 use std::sync::Arc;
 
 pub struct SlackInstallationsDynamoDb {
@@ -79,7 +80,7 @@ impl SlackInstallationRepository for SlackInstallationsDynamoDb {
 
         let request = builder.table_name(&self.table_name);
 
-        tracing::info!(?request, "Save slack installation to DynamoDB");
+        json_tracing::info!("Save slack installation to DynamoDB", request = &format!("{:?}", request));
         request.send().await?;
 
         Ok(())
@@ -106,7 +107,7 @@ impl SlackInstallationRepository for SlackInstallationsDynamoDb {
             .expression_attribute_values(":last_updated_at", AttributeValue::S(now.to_rfc3339()))
             .expression_attribute_values(":id", AttributeValue::S(installation_id.to_string()));
 
-        tracing::info!(slack_team_id, slack_enterprise_id, "Update pagerduty token for slack installation in DynamoDB");
+        json_tracing::info!("Update pagerduty token for slack installation", slack_team_id, slack_enterprise_id);
         request.send().await?;
 
         Ok(())
@@ -148,14 +149,14 @@ impl SlackInstallationRepository for SlackInstallationsDynamoDb {
             .collect::<Result<Vec<_>, _>>()
             .await?;
 
-        tracing::debug!(count = all_items.len(), "Retrieved all Slack installation items from DynamoDB");
+        json_tracing::debug!("Retrieved all Slack installation items from DynamoDB", count = &all_items.len());
 
         let installations: Vec<SlackInstallation> = stream::iter(all_items)
             .filter_map(|item| async move {
                 match self.parse_installation(&item).await {
                     Ok(installation) => Some(installation),
                     Err(err) => {
-                        tracing::error!(%err, item = ?item, "Failed to parse Slack installation, skipping");
+                        json_tracing::error!("Failed to parse Slack installation, skipping", err = &err.to_string(), item = &format!("{:?}", item));
                         None
                     }
                 }

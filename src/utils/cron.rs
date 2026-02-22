@@ -4,6 +4,7 @@ use cron::Schedule;
 use std::str::FromStr;
 
 use crate::errors::AppError;
+use crate::utils::logging::json_tracing;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CronSchedule {
@@ -35,7 +36,7 @@ pub fn get_next_schedule_from(cron_expression: &str, from: &DateTime<Tz>) -> Res
     let schedule = match Schedule::from_str(expression.as_str()) {
         Ok(schedule) => schedule,
         Err(err) => {
-            tracing::error!(expression = %expression, %err, "Failed to parse cron schedule");
+            json_tracing::error!("Failed to parse cron schedule", expression, err = &err.to_string());
             return Err(AppError::UnexpectedError(format!("Failed to parse cron schedule: {}", err)));
         }
     };

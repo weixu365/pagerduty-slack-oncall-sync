@@ -8,6 +8,7 @@ use serde_derive::Deserialize;
 use serde_json::Value;
 
 use crate::errors::AppError;
+use crate::utils::logging::json_tracing;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PagerDutyUser {
@@ -65,7 +66,7 @@ impl PagerDuty {
     }
 
     pub async fn validate_token(&self) -> Result<(), AppError> {
-        tracing::info!("Validating PagerDuty API token");
+        json_tracing::info!("Validating PagerDuty API token");
 
         let _response: serde_json::Value = 
             self.send_request::<serde_json::Value, ()>("/users/me", Method::GET, None, None).await?;
@@ -105,7 +106,7 @@ impl PagerDuty {
     }
 
     pub async fn list_schedules(&self, query: Option<&str>) -> Result<Vec<PagerDutySchedule>, AppError> {
-        tracing::info!("Fetching PagerDuty schedules");
+        json_tracing::info!("Fetching PagerDuty schedules");
 
         let mut params = vec![("limit", "100")];
         if let Some(search) = query {
@@ -156,14 +157,14 @@ impl PagerDuty {
 
         if status.is_success() {
             serde_json::from_str::<T>(&body).map_err(|e| {
-                tracing::error!(endpoint, %body, error = %e, "Failed to deserialize PagerDuty response");
+                json_tracing::error!("Failed to deserialize PagerDuty response", endpoint, body, error = &e.to_string());
                 AppError::PagerDutyError(format!(
                     "Failed to deserialize PagerDuty response from {}: {} — body: {}",
                     endpoint, e, body
                 ))
             })
         } else {
-            tracing::error!(status = status.as_u16(), endpoint, %body, "Failed sending request to PagerDuty");
+            json_tracing::error!("Failed sending request to PagerDuty", status = &status.as_u16(), endpoint, body);
             Err(AppError::PagerDutyError(format!(
                 "Failed sending request to PagerDuty {}: {} — body: {}",
                 endpoint, status, body

@@ -1,3 +1,4 @@
+use crate::utils::logging::json_tracing;
 use crate::{
     db::SlackInstallationRepository,
     errors::AppError,
@@ -14,7 +15,7 @@ pub async fn handle_new_schedule_wizard(
     trigger_id: &str,
     slack_installations_db: &dyn SlackInstallationRepository,
 ) -> Result<(), AppError> {
-    tracing::info!(user_id = %params.user_id, "Opening new schedule wizard");
+    json_tracing::info!("Opening new schedule wizard", user_id = &params.user_id);
 
     // Check if PagerDuty token is configured
     let installation = slack_installations_db

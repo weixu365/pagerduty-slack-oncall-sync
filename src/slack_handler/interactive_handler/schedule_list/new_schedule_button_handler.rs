@@ -1,3 +1,4 @@
+use crate::utils::logging::json_tracing;
 use crate::{
     db::SlackInstallationRepository,
     errors::AppError,
@@ -13,7 +14,7 @@ pub async fn handle_new_schedule_button(
     request: &SlackInteractionBlockActionsEvent,
     slack_installations_db: &dyn SlackInstallationRepository,
 ) -> Result<(), AppError> {
-    tracing::info!(user=?request.user, "Opening new schedule wizard from button");
+    json_tracing::info!("Opening new schedule wizard from button", user = &request.user);
 
     let enterprise_id = request.team.enterprise_id.as_deref().unwrap_or("");
 

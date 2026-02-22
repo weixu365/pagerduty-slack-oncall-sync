@@ -147,7 +147,7 @@ pub async fn handle_view_submission(
 
     match result {
         Err(ref err) => {
-            tracing::error!(error = %err, "Error creating schedule from view submission");
+            json_tracing::error!("Error creating schedule from view submission", error = &err.to_string());
             let view_id = event.view.state_params.id.clone();
             let error_view = build_new_schedule_modal(None, None, Some(&err.to_string()));
             update_slack_view(&view_id.0, &error_view, &installation.access_token).await?;

@@ -1,4 +1,4 @@
-use crate::{config::Config, errors::AppError, utils::cron::CronSchedule};
+use crate::{config::Config, errors::AppError, utils::{cron::CronSchedule, logging::json_tracing}};
 use aws_sdk_scheduler::{
     Client,
     operation::get_schedule::GetScheduleOutput,
@@ -6,6 +6,7 @@ use aws_sdk_scheduler::{
 };
 use chrono::Utc;
 use futures::{StreamExt, TryStreamExt, stream};
+use serde::{Deserialize, Serialize};
 
 pub struct EventBridgeScheduler {
     pub(crate) client: Client,
@@ -14,7 +15,7 @@ pub struct EventBridgeScheduler {
     pub(crate) lambda_role: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventBridgeSchedule {
     pub name: Option<String>,
     pub next_scheduled_timestamp_utc: Option<i64>,
@@ -37,7 +38,7 @@ impl EventBridgeScheduler {
     }
 
     pub async fn get_current_schedules(&self) -> Result<Vec<EventBridgeSchedule>, AppError> {
-        tracing::info!("Getting the next schedules in EventBridge Scheduler");
+        json_tracing::info!("Getting the next schedules in EventBridge Scheduler");
 
         let current_schedules: Vec<_> = self
             .list_schedules()
@@ -46,13 +47,13 @@ impl EventBridgeScheduler {
             .map(|s| self.convert_to_schedule(s))
             .collect();
 
-        tracing::info!(?current_schedules, "Found existing schedules");
+        json_tracing::info!("Found existing schedules", schedules=&current_schedules);
 
         Ok(current_schedules)
     }
 
     pub async fn get_current_schedule(&self) -> Result<Option<EventBridgeSchedule>, AppError> {
-        tracing::info!("Getting the next schedule in EventBridge Scheduler");
+        json_tracing::info!("Getting the next schedule in EventBridge Scheduler");
 
         let now = Utc::now().timestamp();
         let current_schedules = self.get_current_schedules().await?;
@@ -72,15 +73,17 @@ impl EventBridgeScheduler {
             .as_ref()
             .and_then(|s| s.next_scheduled_timestamp_utc)
             .unwrap_or(i64::MAX);
-        tracing::info!(
-            existing_scheduled_time = current_schedule_timestamp,
-            next_schedule = ?next_task_schedule,
+        json_tracing::info!(
             "Updating schedule in EventBridge Scheduler",
+            existing_scheduled_time = &current_schedule_timestamp,
+            next_schedule = &next_task_schedule.next_timestamp_utc,
+            next_schedule_datetime = &next_task_schedule.next_datetime.to_rfc3339(),
+            next_schedule_cron = &next_task_schedule.next_oneoff_cron,
         );
 
         if next_task_schedule.next_timestamp_utc < current_schedule_timestamp {
             let next_schedule = next_task_schedule.next_datetime.format("%FT%T");
-            tracing::info!(%next_schedule, "Updating schedule");
+            json_tracing::info!("Updating schedule", next_schedule = &next_schedule.to_string());
             let flexible_time_window = FlexibleTimeWindow::builder()
                 .mode(aws_sdk_scheduler::types::FlexibleTimeWindowMode::Off)
                 .build()
@@ -95,7 +98,13 @@ impl EventBridgeScheduler {
             self.client
                 .create_schedule()
                 .name(format!("{}{}", self.name_prefix, next_task_schedule.next_timestamp_utc))
-                .description("{datetime: <readable date time using original timezone>, datetime_utc, original_cron }")
+                .description(format!(
+                    "Next sync at {} {} (cron: {}, one-off cron: {})",
+                    next_task_schedule.next_datetime,
+                    next_task_schedule.timezone,
+                    next_task_schedule.cron,
+                    next_task_schedule.next_oneoff_cron,
+                ))
                 .schedule_expression(format!("at({})", next_schedule))
                 .schedule_expression_timezone(format!("{}", next_task_schedule.timezone))
                 .flexible_time_window(flexible_time_window)
@@ -112,7 +121,7 @@ impl EventBridgeScheduler {
                 })
                 .unwrap_or_else(|| "None".to_string());
 
-            tracing::info!(next_schedule = next_schedule_info, "Keep the next schedule unchanged",);
+            json_tracing::info!("Keep the next schedule unchanged", next_schedule = &next_schedule_info);
         }
 
         // clean up schedules to keep only the earliest
@@ -177,7 +186,7 @@ impl EventBridgeScheduler {
     }
 
     pub(crate) async fn delete_schedules(&self, name: &str) -> Result<(), AppError> {
-        tracing::info!(name, "delete schedule");
+        json_tracing::info!("delete schedule", name);
 
         self.client.delete_schedule().name(name).send().await?;
 
@@ -185,7 +194,7 @@ impl EventBridgeScheduler {
     }
 
     pub(crate) async fn list_schedules(&self) -> Result<Vec<GetScheduleOutput>, AppError> {
-        tracing::info!("list schedules in aws eventbridge scheduler");
+        json_tracing::info!("list schedules in aws eventbridge scheduler");
 
         let schedule_summaries: Vec<_> = self
             .client

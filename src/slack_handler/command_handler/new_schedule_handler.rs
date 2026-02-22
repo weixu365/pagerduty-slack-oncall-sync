@@ -1,3 +1,4 @@
+use crate::utils::logging::json_tracing;
 use crate::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
     db::{ScheduledTaskRepository, SlackInstallationRepository},
@@ -43,7 +44,7 @@ pub async fn handle_schedule_command(
     };
 
     if let Err(err) = create_new_schedule(request, &installation, scheduled_tasks_db, scheduler).await {
-        tracing::error!(%err, "Failed to create schedule");
+        json_tracing::error!("Failed to create schedule", err = &err.to_string());
         return Err(AppError::Error(format!("Failed to save schedule task\n{} {}", &params.command, &params.text)));
     }
 

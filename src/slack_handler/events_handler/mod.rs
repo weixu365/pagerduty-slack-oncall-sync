@@ -24,7 +24,7 @@ pub async fn handle_slack_events(
     config: &Arc<Config>,
     event: ApiGatewayProxyRequest,
 ) -> Result<ApiGatewayProxyResponse, AppError> {
-    json_tracing::info!("Processing slack events", event = &event);
+    json_tracing::info!("Processing slack events", event);
 
     let request_body = event.body.as_deref().unwrap_or("");
 
@@ -43,7 +43,7 @@ pub async fn handle_slack_events(
 
     match slack_request {
         SlackPushEvent::UrlVerification(url_verification) => {
-            tracing::info!(?url_verification, "Received URL verification event");
+            json_tracing::info!("Received URL verification event", url_verification);
 
             let challenge_response = serde_json::json!({
                 "challenge": url_verification.challenge
@@ -89,11 +89,11 @@ pub async fn handle_slack_events(
                 .await?;
             }
             _ => {
-                tracing::warn!("Received unsupported event callback type");
+                json_tracing::warn!("Received unsupported event callback type");
             }
         },
         SlackPushEvent::AppRateLimited(event) => {
-            json_tracing::info!("Received app rate limited event", event = &event);
+            json_tracing::info!("Received app rate limited event", event);
         }
     }
 

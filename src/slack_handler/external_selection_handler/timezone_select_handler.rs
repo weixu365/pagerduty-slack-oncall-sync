@@ -1,6 +1,7 @@
 use chrono::Offset;
 use chrono::Utc;
 
+use crate::utils::logging::json_tracing;
 use crate::{
     errors::AppError,
     slack_handler::external_selection_handler::{
@@ -12,7 +13,7 @@ use crate::{
 const MAX_OPTIONS: usize = 100;
 
 pub async fn handle_timezone_options(request: &ExternalSelectRequest) -> Result<OptionsResponse, AppError> {
-    tracing::info!(action_id = %request.action_id, "Fetching timezone options");
+    json_tracing::info!("Fetching timezone options", action_id = &request.action_id);
 
     let now = Utc::now();
 

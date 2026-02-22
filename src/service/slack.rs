@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use crate::slack_handler::morphism_patches::blocks_kit::{SlackBlock, SlackView};
+use crate::utils::logging::json_tracing;
 use derive_more::Display;
 use reqwest::{Client, Method};
 use serde_derive::Deserialize;
 use serde_json::{Error, Value, json};
-use tracing::{error, info};
 
 use crate::{errors::AppError, utils::base64::encode_with_pad};
 
@@ -230,7 +230,7 @@ impl Slack {
 
         if let Some(payload) = payload {
             let body: String = payload.to_string();
-            tracing::debug!(%method, endpoint, body, "Sending Slack request");
+            json_tracing::debug!("Sending Slack request", method = &method.to_string(), endpoint, body);
             request_builder = request_builder.body(body);
         }
 
@@ -240,17 +240,17 @@ impl Slack {
             let json_response: SlackResponse<T> = response.json().await?;
 
             if json_response.ok {
-                tracing::debug!("Slack request finished successfully");
+                json_tracing::debug!("Slack request finished successfully");
                 Ok(json_response.data)
             } else if let Some(err) = json_response.error {
-                tracing::error!(err, endpoint, "Failed to call Slack API");
+                json_tracing::error!("Failed to call Slack API", err = &err, endpoint);
                 Err(AppError::SlackError(err))
             } else {
-                tracing::error!(endpoint, "SlackClient: Unknown error occurred");
+                json_tracing::error!("SlackClient: Unknown error occurred", endpoint);
                 Err(AppError::SlackError("Unknown error".to_string()))
             }
         } else {
-            tracing::error!(status = response.status().as_u16(), endpoint, "Failed sending request to Slack");
+            json_tracing::error!("Failed sending request to Slack", status = &response.status().as_u16(), endpoint);
             Err(AppError::SlackError(format!("Failed sending request to Slack, status: {}", response.status())))
         }
     }
@@ -293,7 +293,7 @@ pub async fn swap_slack_access_token(
     slack_client_id: &str,
     slack_client_secret: &str,
 ) -> Result<SlackOauthResponse, AppError> {
-    tracing::info!("Swap slack access token");
+    json_tracing::info!("Swap slack access token");
     let params = json!({
         "code": temp_token,
     });
@@ -314,24 +314,24 @@ pub async fn swap_slack_access_token(
 
         match json_response_result {
             Err(err) => {
-                tracing::info!(response_body, "Failed to parse json response");
+                json_tracing::info!("Failed to parse json response", response_body);
                 Err(AppError::SlackError(err.to_string()))
             }
             Ok(json_response) => {
                 if json_response.ok {
-                    tracing::debug!("Slack request finished successfully");
+                    json_tracing::debug!("Slack request finished successfully");
                     Ok(json_response.data)
                 } else if let Some(err) = json_response.error {
-                    tracing::error!(err, "Failed to call Slack API");
+                    json_tracing::error!("Failed to call Slack API", err = &err);
                     Err(AppError::SlackError(err))
                 } else {
-                    tracing::error!("SlackClient: Unknown error occurred");
+                    json_tracing::error!("SlackClient: Unknown error occurred");
                     Err(AppError::SlackError("Unknown error".to_string()))
                 }
             }
         }
     } else {
-        tracing::error!(status = response.status().as_u16(), "Failed sending request to Slack");
+        json_tracing::error!("Failed sending request to Slack", status = &response.status().as_u16());
         Err(AppError::SlackError(format!("Failed sending request to Slack, status: {}", response.status())))
     }
 }
@@ -358,7 +358,7 @@ pub async fn send_slack_blocks(response_url: &str, blocks: &Vec<SlackBlock>) -> 
 pub async fn send_slack_message(response_url: &str, response_payload: String) -> Result<(), AppError> {
     let payload_size = response_payload.len();
 
-    info!(response_url, replace_original = true, payload_size = payload_size, "Posting message to Slack response_url");
+    json_tracing::info!("Posting message to Slack response_url", response_url, replace_original = &true, payload_size = &payload_size);
 
     let client = reqwest::Client::new();
     match client
@@ -376,13 +376,13 @@ pub async fn send_slack_message(response_url: &str, response_payload: String) ->
                 .unwrap_or_else(|_| "Failed to read response body".to_string());
 
             if status.is_success() {
-                info!(response_body = body, "Successfully sent interactive response to Slack");
+                json_tracing::info!("Successfully sent interactive response to Slack", response_body = &body);
             } else {
-                error!(status = %status, response_body = body, response_payload, "Failed to send interactive response to Slack");
+                json_tracing::error!("Failed to send interactive response to Slack", status = &status.to_string(), response_body = &body, response_payload = &response_payload);
             }
         }
         Err(err) => {
-            error!(%err, response_payload, "Error sending interactive response to Slack");
+            json_tracing::error!("Error sending interactive response to Slack", err = &err.to_string(), response_payload = &response_payload);
         }
     }
 
@@ -390,7 +390,7 @@ pub async fn send_slack_message(response_url: &str, response_payload: String) ->
 }
 
 pub async fn open_slack_modal(trigger_id: &str, modal: &SlackView, bot_access_token: &str) -> Result<(), AppError> {
-    info!("Opening Slack modal");
+    json_tracing::info!("Opening Slack modal");
 
     let modal_json =
         serde_json::to_value(modal).map_err(|e| AppError::InvalidData(format!("Failed to serialize modal: {}", e)))?;
@@ -400,7 +400,7 @@ pub async fn open_slack_modal(trigger_id: &str, modal: &SlackView, bot_access_to
         "view": modal_json
     });
 
-    info!(payload=%payload, "Opening Slack modal");
+    json_tracing::info!("Opening Slack modal", payload);
     send_slack_request("https://slack.com/api/views.open", &payload, bot_access_token).await?;
     Ok(())
 }
@@ -410,7 +410,7 @@ pub async fn update_slack_view(
     modal: &SlackView,
     bot_access_token: &str,
 ) -> Result<(), AppError> {
-    info!("Updating Slack modal");
+    json_tracing::info!("Updating Slack modal");
 
     let modal_json =
         serde_json::to_value(modal).map_err(|e| AppError::InvalidData(format!("Failed to serialize modal: {}", e)))?;
@@ -425,7 +425,7 @@ pub async fn update_slack_view(
 }
 
 pub async fn publish_slack_view(modal: &SlackView, user_id: &str, bot_access_token: &str) -> Result<(), AppError> {
-    info!("Publishing Slack view");
+    json_tracing::info!("Publishing Slack view");
 
     let modal_json =
         serde_json::to_value(modal).map_err(|e| AppError::InvalidData(format!("Failed to serialize modal: {}", e)))?;
@@ -440,7 +440,7 @@ pub async fn publish_slack_view(modal: &SlackView, user_id: &str, bot_access_tok
 }
 
 pub async fn send_slack_request(url: &str, payload: &Value, bot_access_token: &str) -> Result<(), AppError> {
-    info!(payload=%payload, "Sending Slack request to {}", url);
+    json_tracing::info!("Sending Slack request", payload, url);
 
     let client = reqwest::Client::new();
     let response = client
@@ -457,15 +457,15 @@ pub async fn send_slack_request(url: &str, payload: &Value, bot_access_token: &s
             .map_err(|e| AppError::SlackError(format!("Failed to parse response: {}", e)))?;
 
         if json_response["ok"].as_bool().unwrap_or(false) {
-            info!("Successfully sent Slack request");
+            json_tracing::info!("Successfully sent Slack request");
             Ok(())
         } else {
             let error_msg = json_response["error"].as_str().unwrap_or("Unknown error");
-            error!(error = error_msg, response = %response_body, "Failed to send Slack request");
+            json_tracing::error!("Failed to send Slack request", error = &error_msg, response = &response_body);
             Err(AppError::SlackError(format!("Failed to send Slack request: {}", error_msg)))
         }
     } else {
-        error!(status = response.status().as_u16(), "Failed to send Slack request");
+        json_tracing::error!("Failed to send Slack request", status = &response.status().as_u16());
         Err(AppError::SlackError(format!("HTTP error: {}", response.status())))
     }
 }

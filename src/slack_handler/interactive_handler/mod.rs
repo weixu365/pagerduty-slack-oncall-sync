@@ -5,8 +5,8 @@ use std::env;
 use std::sync::Arc;
 
 use crate::db::SlackInstallationRepository;
-use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionEvent;
 use crate::utils::logging::json_tracing;
+use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionEvent;
 use new_schedule_modal::{
     pagerduty_schedule_change_handler::handle_pagerduty_schedule_change, submission_handler::handle_view_submission,
 };
@@ -33,7 +33,7 @@ pub async fn handle_slack_interactive_async(
     config: &Arc<Config>,
     event: ApiGatewayProxyRequest,
 ) -> Result<ApiGatewayProxyResponse, AppError> {
-    json_tracing::info!("Processing slack request", event = &event);
+    json_tracing::info!("Processing slack request", event);
 
     let request_body = event.body.as_deref().unwrap_or("");
 
@@ -164,7 +164,7 @@ pub async fn handle_slack_interactive_async(
             }
         }
         SlackInteractionEvent::ViewSubmission(view_submission_event) => {
-            tracing::info!("Received ViewSubmission event");
+            json_tracing::info!("Received ViewSubmission event");
             let modal_callback_id = match &view_submission_event.view.view {
                 SlackView::Modal(modal_view) => modal_view.callback_id.clone(),
                 _ => None,
@@ -184,10 +184,10 @@ pub async fn handle_slack_interactive_async(
             }
         }
         SlackInteractionEvent::ViewClosed(_) => {
-            tracing::info!("Received ViewClosed event");
+            json_tracing::info!("Received ViewClosed event");
         }
         _ => {
-            tracing::info!("Received unsupported interaction event type");
+            json_tracing::info!("Received unsupported interaction event type");
             return response(200, r#"{"status": "ignored"}"#.to_string());
         }
     }

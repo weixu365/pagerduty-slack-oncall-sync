@@ -1,3 +1,4 @@
+use crate::utils::logging::json_tracing;
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionBlockActionsEvent;
 use crate::slack_handler::views::schedule_list::build_schedule_list_view;
@@ -13,7 +14,7 @@ pub async fn handle_refresh(
     next_trigger_timestamp: Option<i64>,
     is_admin: bool,
 ) -> Result<SlackView, AppError> {
-    tracing::info!(action = ?action, "Refreshing page");
+    json_tracing::info!("Refreshing page", action);
 
     let value_str = action
         .value

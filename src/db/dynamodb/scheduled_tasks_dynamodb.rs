@@ -4,8 +4,10 @@ use aws_sdk_dynamodb::{Client, types::AttributeValue};
 use crate::db::scheduled_task::{ScheduledTask, ScheduledTaskRepository};
 use crate::utils::dynamodb_client::get_attribute;
 use crate::{
-    config::Config, encryptor::Encryptor, errors::AppError, utils::dynamodb_client::get_optional_encrypted_attribute,
+    config::Config, encryptor::Encryptor, errors::AppError,
+    utils::dynamodb_client::get_optional_encrypted_attribute,
 };
+use crate::utils::logging::json_tracing;
 use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 
@@ -103,7 +105,7 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
             builder = builder.item("pager_duty_token", AttributeValue::S(encrypted));
         }
 
-        tracing::info!(task_id = task.task_id, next_update_time = task.next_update_time, "Saving task");
+        json_tracing::info!("Saving task", task_id = &task.task_id, next_update_time = &task.next_update_time);
         builder.send().await?;
 
         Ok(())
@@ -121,41 +123,12 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
             .expression_attribute_values(":next_update_time", AttributeValue::S(t.next_update_time))
             .expression_attribute_values(":next_update_timestamp_utc", AttributeValue::N(t.next_update_timestamp_utc.to_string()));
 
-        tracing::info!(
-            task_id = task.task_id,
-            next_update_time = task.next_update_time,
-            "Updating next schedule of task"
+        json_tracing::info!(
+            "Updating next schedule of task",
+            task_id = &task.task_id,
+            next_update_time = &task.next_update_time,
         );
         builder.send().await?;
-
-        Ok(())
-    }
-
-    async fn list_scheduled_tasks_in_workspace(
-        &self,
-        _workspace_id: &String,
-        _workspace_name: &String,
-    ) -> Result<(), AppError> {
-        // let stream = self.client
-        //     .query()
-        //     .table_name(&self.table_name)
-        //     .into_paginator()
-        //     .items()
-        //     .send();
-
-        // stream
-        //     .flat_map(|item| {
-        //         let id = item
-        //                     .get("id")
-        //                     .and_then(|attr| attr.s.as_ref().map(|s| s.clone()))
-        //                     .unwrap_or_default();
-
-        //         // ScheduledTask {
-
-        //         // }
-        //     })
-        //     .collect()
-        //     .await?;
 
         Ok(())
     }
@@ -171,14 +144,14 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
             .collect::<Result<Vec<_>, _>>()
             .await?;
 
-        tracing::debug!(count = all_items.len(), "Retrieved all scheduled task items from DynamoDB");
+        json_tracing::debug!("Retrieved all scheduled task items from DynamoDB", count = &all_items.len());
 
         let scheduled_tasks: Vec<ScheduledTask> = stream::iter(all_items)
             .filter_map(|item| async move {
                 match self.parse_scheduled_task(&item).await {
                     Ok(task) => Some(task),
                     Err(err) => {
-                        tracing::error!(%err, item = ?item, "Failed to parse scheduled task, skipping");
+                        json_tracing::error!("Failed to parse scheduled task, skipping", err = &err.to_string(), item = &format!("{:?}", item));
                         None
                     }
                 }
@@ -204,7 +177,7 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
             .send()
             .await?;
 
-        tracing::info!(team_id, workspace_id, task_id, "Deleting scheduled task from DynamoDB");
+        json_tracing::info!("Deleting scheduled task from DynamoDB", team_id, workspace_id, task_id);
         let item = request.item().ok_or_else(|| {
             AppError::ScheduleNotFoundError(format!(
                 "team_id: {}, workspace_id: {}, task_id: {}",
@@ -224,7 +197,7 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
             .key("task_id", AttributeValue::S(task_id.to_string()))
             .table_name(&self.table_name);
 
-        tracing::info!(team_id, workspace_id, task_id, "Deleting scheduled task from DynamoDB");
+        json_tracing::info!("Deleting scheduled task from DynamoDB", team_id, workspace_id, task_id);
         request.send().await?;
 
         Ok(())
