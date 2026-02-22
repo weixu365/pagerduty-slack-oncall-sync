@@ -4,6 +4,7 @@ use std::env;
 use aws_sdk_cloudformation::Client as CloudformationClient;
 use on_call_support::config::Config;
 use on_call_support::errors::AppError;
+use on_call_support::utils::logging::json_tracing;
 use on_call_support::user_group_updater::{SyncResult, SyncTrigger, update_user_groups};
 use on_call_support::utils::logging::init_logging;
 use tokio;
@@ -15,7 +16,7 @@ async fn main() -> Result<(), AppError> {
     let force = env::args().any(|a| a == "--force");
     let sync_trigger = if force { SyncTrigger::Manual } else { SyncTrigger::Scheduled };
 
-    tracing::info!("Updating Slack user groups based on PagerDuty on-call schedule");
+    json_tracing::info!("Updating Slack user groups based on PagerDuty on-call schedule");
     let env = env::var("ENV").unwrap_or("dev".to_string());
     let config = Config::get_or_init(&env).await?;
     let cloudformation_stack_name = format!("on-call-support-{}", env);

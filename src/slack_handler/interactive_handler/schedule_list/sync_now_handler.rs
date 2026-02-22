@@ -1,6 +1,7 @@
 use std::env;
 use std::sync::Arc;
 
+use crate::utils::logging::json_tracing;
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionBlockActionsEvent;
 use crate::slack_handler::views::schedule_list::build_schedule_list_view;
@@ -26,7 +27,7 @@ pub async fn handle_sync_now(
     slack_installations_db: &dyn SlackInstallationRepository,
     next_trigger_timestamp: Option<i64>,
 ) -> Result<SlackView, AppError> {
-    tracing::info!(action = ?action, "Triggering manual sync");
+    json_tracing::info!("Triggering manual sync", action);
 
     let value_str = action
         .value
@@ -59,7 +60,7 @@ pub async fn handle_sync_now(
         .send()
         .await?;
 
-    tracing::info!("Manual sync completed synchronously");
+    json_tracing::info!("Manual sync completed synchronously");
 
     // Parse results and send DM
     let results: Vec<SyncResult> = invoke_response
@@ -89,7 +90,7 @@ pub async fn handle_sync_now(
                 }
             };
             if let Err(err) = send_result {
-                tracing::warn!(%err, "Failed to send sync summary message");
+                json_tracing::warn!("Failed to send sync summary message", err = &err.to_string());
             }
         }
     }

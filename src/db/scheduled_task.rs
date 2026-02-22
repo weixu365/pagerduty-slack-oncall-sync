@@ -51,12 +51,6 @@ pub trait ScheduledTaskRepository: Send + Sync {
 
     async fn update_next_schedule(&self, task: &ScheduledTask) -> Result<(), AppError>;
 
-    async fn list_scheduled_tasks_in_workspace(
-        &self,
-        workspace_id: &String,
-        workspace_name: &String,
-    ) -> Result<(), AppError>;
-
     async fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, AppError>;
 
     async fn get_scheduled_task(

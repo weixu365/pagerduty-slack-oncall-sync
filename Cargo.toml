@@ -17,8 +17,8 @@ aws-sdk-secretsmanager = {  version="1.98.0", features = ["rustls"]}
 aws-esdk = "1.2.1"
 base64 = "0.22.1"
 chacha20poly1305 = {version="0.10.1", features=["std"]}
-chrono = "0.4.43"
-chrono-tz = {version = "0.10.4", features=["std", "case-insensitive"]}
+chrono = { version = "0.4.43", features = ["serde"] }
+chrono-tz = { version = "0.10.4", features = ["std", "case-insensitive", "serde"] }
 clap = {version ="4.5.54", features=["derive"]}
 cron = "0.15.0"
 derive_more = {version = "2.1.1", features=["full"]}

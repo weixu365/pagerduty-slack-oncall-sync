@@ -22,7 +22,7 @@ pub async fn handle_slack_external_select(
     config: &Arc<Config>,
     event: ApiGatewayProxyRequest,
 ) -> Result<ApiGatewayProxyResponse, AppError> {
-    json_tracing::info!("Processing external select request", event = &event);
+    json_tracing::info!("Processing external select request", event);
 
     let request_body = event.body.as_deref().unwrap_or("");
 

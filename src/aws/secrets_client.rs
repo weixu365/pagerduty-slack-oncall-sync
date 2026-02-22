@@ -3,6 +3,7 @@ use aws_sdk_secretsmanager::Client;
 use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::AppError;
+use crate::utils::logging::json_tracing;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Secrets {
@@ -24,17 +25,17 @@ impl SecretsClient {
     }
 
     pub async fn get_secret(&self, name: &str) -> Result<Secrets, AppError> {
-        tracing::debug!(name, "Fetching secret value");
+        json_tracing::debug!("Fetching secret value", name);
 
         let secrets_value = self.get_secret_value(name).await?;
         let secrets: Secrets = serde_json::from_str(&secrets_value)?;
-        tracing::debug!(name, "Fetched secret value");
+        json_tracing::debug!("Fetched secret value", name);
 
         Ok(secrets)
     }
 
     pub async fn get_secret_value(&self, name: &str) -> Result<String, AppError> {
-        tracing::debug!(name, "Getting secret value");
+        json_tracing::debug!("Getting secret value", name);
 
         let result = self.client.get_secret_value().secret_id(name).send().await?;
 

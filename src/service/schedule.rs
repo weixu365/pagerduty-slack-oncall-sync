@@ -5,6 +5,7 @@ use crate::{
     service::{pager_duty::PagerDuty, slack::{self, Slack}},
     utils::{cron::get_next_schedule_from, http_client::build_http_client},
 };
+use crate::utils::logging::json_tracing;
 use chrono::Utc;
 use chrono_tz::Tz;
 use regex::Regex;
@@ -99,12 +100,12 @@ pub async fn create_new_schedule(
     };
 
     if let Err(err) = scheduled_tasks_db.save_scheduled_task(&task).await {
-        tracing::error!(%err, "Failed to save to dynamodb");
+        json_tracing::error!("Failed to save to dynamodb", err = &err.to_string());
         return Err(AppError::Error(format!("Failed to save schedule task\n{}", &err)));
     }
 
     if let Err(err) = scheduler.update_next_schedule(&next_schedule).await {
-        tracing::error!(%err, "Failed to update scheduler");
+        json_tracing::error!("Failed to update scheduler", err = &err.to_string());
         return Err(AppError::Error(format!("Failed to update scheduler\n{}", &err)));
     }
 
@@ -131,10 +132,10 @@ async fn get_pagerduty_schedule_users(
     let pager_duty = PagerDuty::new(http_client.clone(), pagerduty_token.clone(), request.pagerduty_schedule_id.clone());
     let schedule_users = pager_duty.get_on_call_users(None).await?;
 
-    tracing::info!(
-        schedule_id = %request.pagerduty_schedule_id,
-        user_count = %schedule_users.len(),
-        "Retrieved PagerDuty schedule users"
+    json_tracing::info!(
+        "Retrieved PagerDuty schedule users",
+        schedule_id = &request.pagerduty_schedule_id,
+        user_count = &schedule_users.len(),
     );
 
     Ok(schedule_users)
@@ -150,11 +151,11 @@ async fn get_user_group_users(
     let user_ids = slack.get_user_group_users(&request.user_group_id).await?;
 
     if user_ids.len() > 2 {
-        tracing::warn!(
-            user_group_id = %request.user_group_id,
-            user_group_handle = %request.user_group_handle,
-            user_count = user_ids.len(),
-            "The user group has more than 2 users, which could be wrongly configured"
+        json_tracing::warn!(
+            "The user group has more than 2 users, which could be wrongly configured",
+            user_group_id = &request.user_group_id,
+            user_group_handle = &request.user_group_handle,
+            user_count = &user_ids.len(),
         );
         return Err(AppError::InvalidData(format!(
             "The user group {}|{} has more than 2 users, which could be wrongly configured",
@@ -165,10 +166,10 @@ async fn get_user_group_users(
     let mut users = Vec::new();
     for user_id in user_ids {
         if let Some(user) = slack.get_user_by_id(&user_id).await? {
-            tracing::info!(user_id = %user.id, user_name = %user.name, "Retrieved user from user group");
+            json_tracing::info!("Retrieved user from user group", user_id = &user.id, user_name = &user.name);
             users.push(user);
         } else {
-            tracing::warn!(user_id = %user_id, "User not found in Slack");
+            json_tracing::warn!("User not found in Slack", user_id);
         }
     }
 
@@ -181,10 +182,10 @@ fn validate_user_group_in_schedule(
     user_group_handle: &str,
     pagerduty_schedule_id: &str,
 ) -> Result<(), AppError> {
-    tracing::info!(
-        pagerduty_emails_count = pagerduty_users.len(),
-        slack_users_count = user_group_users.len(),
-        "Validating all Slack user group users exist in PagerDuty schedule"
+    json_tracing::info!(
+        "Validating all Slack user group users exist in PagerDuty schedule",
+        pagerduty_emails_count = &pagerduty_users.len(),
+        slack_users_count = &user_group_users.len(),
     );
 
     let pagerduty_emails: std::collections::HashSet<String> =
@@ -200,26 +201,26 @@ fn validate_user_group_in_schedule(
 
         if let Some(email) = &email {
             if !pagerduty_emails.contains(email) {
-                tracing::warn!(
-                    slack_user_id = %slack_user.id,
-                    slack_user_name = %slack_user.name,
-                    email = %email,
-                    "Slack user NOT found in PagerDuty schedule"
+                json_tracing::warn!(
+                    "Slack user NOT found in PagerDuty schedule",
+                    slack_user_id = &slack_user.id,
+                    slack_user_name = &slack_user.name,
+                    email,
                 );
                 missing_users.push(slack_user.name.clone());
             } else {
-                tracing::info!(
-                    slack_user_id = %slack_user.id,
-                    slack_user_name = %slack_user.name,
-                    email = %email,
-                    "Slack user found in PagerDuty schedule ✓"
+                json_tracing::info!(
+                    "Slack user found in PagerDuty schedule ✓",
+                    slack_user_id = &slack_user.id,
+                    slack_user_name = &slack_user.name,
+                    email,
                 );
             }
         } else {
-            tracing::warn!(
-                slack_user_id = %slack_user.id,
-                slack_user_name = %slack_user.name,
-                "Slack user has no email in profile"
+            json_tracing::warn!(
+                "Slack user has no email in profile",
+                slack_user_id = &slack_user.id,
+                slack_user_name = &slack_user.name,
             );
             missing_users.push(format!("{} (no email)", slack_user.name));
         }
@@ -235,10 +236,10 @@ fn validate_user_group_in_schedule(
     }
 
     // All users found - success!
-    tracing::info!(
-        user_group = %user_group_handle,
-        schedule = %pagerduty_schedule_id,
-        "✓ All Slack user group users are present in PagerDuty schedule"
+    json_tracing::info!(
+        "✓ All Slack user group users are present in PagerDuty schedule",
+        user_group = &user_group_handle,
+        schedule = &pagerduty_schedule_id,
     );
 
     Ok(())
@@ -260,7 +261,7 @@ pub fn parse_user_group(user_group: &str) -> Result<(String, String), AppError> 
             .as_str()
             .to_string();
     } else {
-        tracing::error!(user_group, "Invalid user group");
+        json_tracing::error!("Invalid user group", user_group);
         return Err(AppError::InvalidData(format!("Invalid user group: {}", user_group)));
     }
 

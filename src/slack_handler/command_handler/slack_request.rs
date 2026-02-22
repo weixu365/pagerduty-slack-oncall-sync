@@ -1,6 +1,6 @@
 use aws_lambda_events::http::{HeaderMap, HeaderValue};
-use tracing::warn;
 
+use crate::utils::logging::json_tracing;
 use crate::{config::Config, errors::AppError, slack_handler::utils::request_utils::validate_request};
 use clap::Parser;
 use clap::{Args, Subcommand};
@@ -105,17 +105,17 @@ pub async fn parse_slack_request(
     config: &Config,
 ) -> Result<SlackCommandRequest, AppError> {
     let params = parse_slack_command_request(request_body)?;
-    tracing::debug!(?params, "params in request body");
+    json_tracing::debug!("params in request body", params = &format!("{:?}", params));
 
     let response_url = params.response_url.clone();
     if response_url.is_empty() {
-        warn!("response_url is empty, cannot send response to Slack");
+        json_tracing::warn!("response_url is empty, cannot send response to Slack");
         return Err(AppError::InvalidSlackRequest(format!("response_url is empty")));
     }
 
     let secrets = config.secrets().await?;
     validate_request(request_headers, request_body, &secrets.slack_signing_secret)?;
-    tracing::debug!(?params, "validated request");
+    json_tracing::debug!("validated request", params = &format!("{:?}", params));
 
     Ok(params)
 }

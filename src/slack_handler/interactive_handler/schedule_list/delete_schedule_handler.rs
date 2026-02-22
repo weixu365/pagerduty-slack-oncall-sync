@@ -1,3 +1,4 @@
+use crate::utils::logging::json_tracing;
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionBlockActionsEvent;
 use crate::slack_handler::views::schedule_list::build_schedule_list_view;
@@ -14,7 +15,7 @@ pub async fn handle_delete_schedule(
     next_trigger_timestamp: Option<i64>,
     is_admin: bool,
 ) -> Result<SlackView, AppError> {
-    tracing::info!(action = ?action, user=?request.user, "Deleting schedule");
+    json_tracing::info!("Deleting schedule", action, user = &request.user);
 
     let value_str = action
         .value

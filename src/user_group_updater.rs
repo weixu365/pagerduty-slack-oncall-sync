@@ -41,13 +41,13 @@ pub async fn update_user_group(
     user_group_id: &str,
     user_group_handle: &str,
 ) -> Result<SyncResult, AppError> {
-    json_tracing::info!("Getting the current on-call users", pager_duty_schedule_id = &pager_duty_schedule_id, from = &pager_duty_schedule_from);
+    json_tracing::info!("Getting the current on-call users", pager_duty_schedule_id, pager_duty_schedule_from);
 
     let from = pager_duty_schedule_from;
 
     let pager_duty = PagerDuty::new(http_client.clone(), pager_duty_api_key.into(), pager_duty_schedule_id.into());
     let oncall_users = pager_duty.get_on_call_users(Some(from)).await?;
-    json_tracing::info!("Found users on call from PagerDuty", oncall_users=&oncall_users, from=&from);
+    json_tracing::info!("Found users on call from PagerDuty", oncall_users, from);
 
     let slack = Arc::new(Slack::new(http_client.clone(), slack_api_key.to_string()));
 
@@ -84,8 +84,8 @@ pub async fn update_user_group(
             "Skipped: Too many users in the current Slack User Group",
             current_count = &current_users.len(),
             desired_count = &new_slack_user_ids.len(),
-            user_group_id = &user_group_id,
-            user_group_handle = &user_group_handle,
+            user_group_id,
+            user_group_handle,
         );
         return Err(AppError::SlackUpdateUserGroupError(
             "Too many users in the current group, is the group correct?".to_string(),
@@ -101,7 +101,7 @@ pub async fn update_user_group(
     existing_users.sort();
 
     let changed = desired_users != existing_users;
-    json_tracing::info!("Does users changed", changed=&changed);
+    json_tracing::info!("Does users changed", changed);
 
     if changed {
         slack.update_user_group_users(user_group_id, &new_slack_user_ids).await?;
@@ -270,7 +270,7 @@ pub async fn update_user_groups(env: &str, trigger: SyncTrigger) -> Result<Vec<S
             cron = &next.cron,
             next_update_time = &next.next_update_time,
             next_update_timestamp_utc = &next.next_update_timestamp_utc,
-            start_of_the_update = &start_of_the_update,
+            start_of_the_update,
         );
 
         match next.calculate_next_schedule(&start_of_the_update) {

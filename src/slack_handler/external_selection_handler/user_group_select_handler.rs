@@ -4,6 +4,7 @@ use super::{
     options::{OptionItem, OptionsResponse, TextObject},
     slack_request::ExternalSelectRequest,
 };
+use crate::utils::logging::json_tracing;
 use crate::{db::SlackInstallationRepository, errors::AppError, service::slack::Slack};
 
 pub async fn handle_user_group_options(
@@ -11,7 +12,7 @@ pub async fn handle_user_group_options(
     slack_installations_db: &dyn SlackInstallationRepository,
     http_client: Arc<reqwest::Client>,
 ) -> Result<OptionsResponse, AppError> {
-    tracing::info!(action_id = %request.action_id, "Fetching user group options");
+    json_tracing::info!("Fetching user group options", action_id = &request.action_id);
 
     let enterprise_id = request.enterprise.as_ref().map(|e| e.id.clone()).unwrap_or_default();
 
@@ -22,7 +23,7 @@ pub async fn handle_user_group_options(
     let slack_client = Slack::new(http_client, installation.access_token);
     let user_groups = slack_client.list_user_groups().await?;
 
-    tracing::info!(action_id = %request.action_id, count = user_groups.len(), "Fetched user group options");
+    json_tracing::info!("Fetched user group options", action_id = &request.action_id, count = &user_groups.len());
 
     // Filter user groups based on search value if provided
     let filtered_groups = if let Some(search_value) = request.value.as_deref() {

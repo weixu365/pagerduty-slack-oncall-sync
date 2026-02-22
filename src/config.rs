@@ -7,6 +7,7 @@ use crate::{
     encryptor::{AWSKMSEncryptor, Encryptor, XChaCha20Encryptor},
     errors::AppError,
 };
+use crate::utils::logging::json_tracing;
 use aws_config::{BehaviorVersion, SdkConfig};
 use aws_sdk_kms::Client as KmsClient;
 
@@ -32,7 +33,7 @@ impl Config {
     pub async fn get_or_init(env: &str) -> Result<Arc<Config>, AppError> {
         let config = CONFIG_CACHE
             .get_or_try_init(|| async {
-                tracing::info!(env, "Loading config for env");
+                json_tracing::info!("Loading config for env", env);
                 Self::load(env).await
             })
             .await?;
@@ -41,7 +42,7 @@ impl Config {
     }
 
     async fn load(env: &str) -> Result<Arc<Config>, AppError> {
-        tracing::info!(env, "Loading config");
+        json_tracing::info!("Loading config", env);
 
         let secret_name = env::var("AWS_SECRET_NAME").unwrap_or("on-call-support/secrets".to_string());
         let table_name_prefix = env::var("TABLE_NAME_PREFIX").unwrap_or("on-call-support-".to_string());
@@ -68,17 +69,17 @@ impl Config {
     }
 
     pub async fn secrets(&self) -> Result<&Secrets, AppError> {
-        tracing::info!(secret_name = %self.secret_name, "Loading secrets");
+        json_tracing::info!("Loading secrets", secret_name = &self.secret_name);
         let result = self
             .secrets_cache
             .get_or_try_init(|| async {
-                tracing::info!(secret_name = %self.secret_name, "Loading secrets from AWS Secrets Manager");
+                json_tracing::info!("Loading secrets from AWS Secrets Manager", secret_name = &self.secret_name);
                 let secrets_client = SecretsClient::new(&self.aws_config);
                 secrets_client.get_secret(&self.secret_name).await
             })
             .await;
 
-        tracing::info!(secret_name = %self.secret_name, "Loaded secrets");
+        json_tracing::info!("Loaded secrets", secret_name = &self.secret_name);
         result
     }
 
@@ -87,19 +88,19 @@ impl Config {
         let secret_id = env::var("AWS_SECRET_ID").ok();
 
         if let Some(kms_key_id) = kms_key_id {
-            tracing::info!(kms_key_id = %kms_key_id, "Using AWS KMS encryption");
+            json_tracing::info!("Using AWS KMS encryption", kms_key_id);
             let kms_client = KmsClient::new(&self.aws_config);
             let encryptor = AWSKMSEncryptor::new(kms_client, kms_key_id).await?;
             Ok(Arc::new(encryptor))
         } else if let Some(secret_id) = secret_id {
-            tracing::info!(aws_secret_id = %secret_id, "Using XChaCha20 encryption with key from AWS Secret");
+            json_tracing::info!("Using XChaCha20 encryption with key from AWS Secret", aws_secret_id = &secret_id);
             let secrets_client = SecretsClient::new(&self.aws_config);
             let encryption_key = secrets_client.get_secret_value(&secret_id).await?;
 
             let encryptor = XChaCha20Encryptor::from_key(&encryption_key)?;
             Ok(Arc::new(encryptor))
         } else {
-            tracing::info!("Using XChaCha20 encryption");
+            json_tracing::info!("Using XChaCha20 encryption");
             let secrets = self.secrets().await?;
             let encryptor = XChaCha20Encryptor::from_key(&secrets.encryption_key)?;
             Ok(Arc::new(encryptor))

@@ -48,14 +48,6 @@ mod tests {
             Ok(())
         }
 
-        async fn list_scheduled_tasks_in_workspace(
-            &self,
-            _workspace_id: &String,
-            _workspace_name: &String,
-        ) -> Result<(), AppError> {
-            Ok(())
-        }
-
         async fn list_scheduled_tasks(&self) -> Result<Vec<ScheduledTask>, AppError> {
             Ok(self.tasks.clone())
         }
