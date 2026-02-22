@@ -1,0 +1,22 @@
+{
+  "name": "pagerduty-slack-oncall-sync",
+  "version": "0.5.0",
+  "description": "Syncs PagerDuty on-call rotations to Slack user groups.",
+  "scripts": {
+    "release": "release-it"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/weixu365/pagerduty-slack-oncall-sync.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/weixu365/pagerduty-slack-oncall-sync/issues"
+  },
+  "homepage": "https://github.com/weixu365/pagerduty-slack-oncall-sync#readme",
+  "devDependencies": {
+    "@release-it/conventional-changelog": "^10.0.5",
+    "release-it": "^19.2.4"
+  }
+}

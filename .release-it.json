@@ -1,0 +1,35 @@
+{
+  "plugins": {
+    "@release-it/conventional-changelog": {
+      "preset": "angular",
+      "infile": "CHANGELOG.md"
+    }
+  },
+  "hooks": {
+    "before:bump": [
+      "sed -i.bak \"s/^version = \\\".*\\\"/version = \\\"${version}\\\"/\" Cargo.toml && rm -f Cargo.toml.bak"
+    ],
+    "after:bump": [
+      "cargo generate-lockfile"
+    ]
+  },
+  "git": {
+    "commitMessage": "chore: release v${version}",
+    "tagName": "v${version}",
+    "tagAnnotation": "Release v${version}",
+    "requireBranch": "master",
+    "requireCleanWorkingDir": false,
+    "push": true
+  },
+  "github": {
+    "release": true,
+    "releaseName": "v${version}",
+    "assets": [
+      "target/lambda/slack_request_handler_lambda.zip",
+      "target/lambda/update_user_groups_lambda.zip"
+    ]
+  },
+  "npm": {
+    "publish": false
+  }
+}
