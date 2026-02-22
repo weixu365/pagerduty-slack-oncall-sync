@@ -32,8 +32,10 @@ pub fn to_json<T: Serialize>(value: &T) -> String {
 /// The struct must implement `serde::Serialize`.
 ///
 /// Usage: `json_tracing::info!("message", field_name = &my_struct, another = &other);`
+/// Usage: `json_tracing::info!("message");`
 #[macro_export]
 macro_rules! json_tracing_info {
+    ($msg:expr) => { tracing::info!($msg) };
     ($msg:expr, $($field:tt = $structure:expr),+ $(,)?) => {
         tracing::info!(
             $($field = $crate::utils::logging::to_json($structure),)+
@@ -45,6 +47,7 @@ macro_rules! json_tracing_info {
 /// Log a struct as a JSON string at warn level
 #[macro_export]
 macro_rules! json_tracing_warn {
+    ($msg:expr) => { tracing::warn!($msg) };
     ($msg:expr, $($field:tt = $structure:expr),+ $(,)?) => {
         tracing::warn!(
             $($field = $crate::utils::logging::to_json($structure),)+
@@ -56,6 +59,7 @@ macro_rules! json_tracing_warn {
 /// Log a struct as a JSON string at error level
 #[macro_export]
 macro_rules! json_tracing_error {
+    ($msg:expr) => { tracing::error!($msg) };
     ($msg:expr, $($field:tt = $structure:expr),+ $(,)?) => {
         tracing::error!(
             $($field = $crate::utils::logging::to_json($structure),)+
@@ -67,6 +71,7 @@ macro_rules! json_tracing_error {
 /// Log a struct as a JSON string at debug level
 #[macro_export]
 macro_rules! json_tracing_debug {
+    ($msg:expr) => { tracing::debug!($msg) };
     ($msg:expr, $($field:tt = $structure:expr),+ $(,)?) => {
         tracing::debug!(
             $($field = $crate::utils::logging::to_json($structure),)+

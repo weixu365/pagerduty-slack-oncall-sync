@@ -58,3 +58,4 @@ aws-sdk-eventbridge = {version="1.98.0", features = ["test-util"]}
 aws-sdk-scheduler = {version="1.91.0", features = ["test-util"]}
 aws-sdk-secretsmanager = {version="1.97.0", features = ["test-util"]}
 pretty_assertions = "1.4"
+wiremock = "0.6"

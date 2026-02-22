@@ -7,7 +7,7 @@ use crate::{
     db::SlackInstallationRepository,
     errors::AppError,
     service::{pager_duty::PagerDuty, slack::update_slack_view},
-    slack_handler::views::new_schedule_modal::build_new_schedule_modal_with_oncall,
+    slack_handler::views::new_schedule_modal::build_new_schedule_modal,
     utils::http_client::build_http_client,
 };
 use slack_morphism::prelude::*;
@@ -51,10 +51,10 @@ pub async fn handle_pagerduty_schedule_change(
 
     let http_client = Arc::new(build_http_client()?);
     let pager_duty = PagerDuty::new(http_client, pagerduty_token, schedule_id.clone());
-    let users = pager_duty.get_on_call_users(Utc::now()).await?;
+    let users = pager_duty.get_on_call_users(Some(Utc::now())).await?;
 
     let on_call_text = build_oncall_text(&schedule_id, users);
-    let slack_view = build_new_schedule_modal_with_oncall(&on_call_text, Some(request));
+    let slack_view = build_new_schedule_modal(Some(&on_call_text), Some(request), None);
 
     let view = request
         .view
@@ -62,8 +62,7 @@ pub async fn handle_pagerduty_schedule_change(
         .ok_or_else(|| AppError::InvalidData("Missing view in request".to_string()))?;
 
     let view_id = &view.state_params.id.0;
-    let hash = view.state_params.hash.clone();
-    update_slack_view(view_id, Some(hash), &slack_view, &installation.access_token).await?;
+    update_slack_view(view_id, &slack_view, &installation.access_token).await?;
 
     Ok(())
 }

@@ -4,11 +4,9 @@ use crate::{
     service::slack::open_slack_modal,
     slack_handler::{
         morphism_patches::interaction_event::SlackInteractionBlockActionsEvent,
-        views::new_schedule_modal::build_new_schedule_modal_with_oncall,
+        views::new_schedule_modal::build_new_schedule_modal,
     },
 };
-
-const DEFAULT_ONCALL_TEXT: &str = "ℹ️ Current on-call user will be shown after you select a schedule";
 
 /// Handle the "New" button click from the schedule list
 pub async fn handle_new_schedule_button(
@@ -29,7 +27,7 @@ pub async fn handle_new_schedule_button(
         ));
     }
 
-    let modal = build_new_schedule_modal_with_oncall(DEFAULT_ONCALL_TEXT, None);
+    let modal = build_new_schedule_modal(None, None, None);
     let bot_access_token = &installation.access_token;
     let trigger_id = &request.trigger_id.0;
 

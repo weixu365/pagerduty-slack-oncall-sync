@@ -77,8 +77,16 @@ pub async fn handle_slack_events(
                         .unwrap_or_default(),
                 };
 
-                app_home_opened(&home_opened_event, &scheduled_tasks_db, &slack_installations_db, &scheduler, 5)
-                    .await?;
+                let is_admin = config.admin_user_slack_ids.contains(&app_home_opened_event.user.0);
+                app_home_opened(
+                    &home_opened_event,
+                    &scheduled_tasks_db,
+                    &slack_installations_db,
+                    &scheduler,
+                    5,
+                    is_admin,
+                )
+                .await?;
             }
             _ => {
                 tracing::warn!("Received unsupported event callback type");

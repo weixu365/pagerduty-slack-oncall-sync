@@ -17,15 +17,7 @@ pub enum ScheduleFilter {
     Channel,
 }
 
-#[derive(Debug, Clone)]
-pub struct ScheduleListResponse {
-    pub slack_view: SlackView,
-    pub page: usize,
-    pub total_pages: usize,
-}
-
-/// Build Block Kit blocks for a list of schedules with pagination
-pub fn build_schedule_list_blocks(
+pub fn build_schedule_list_view(
     tasks: &[ScheduledTask],
     page: usize,
     page_size: usize,
@@ -33,7 +25,8 @@ pub fn build_schedule_list_blocks(
     channel_id: Option<&String>,
     filter: &ScheduleFilter,
     next_trigger_timestamp: Option<i64>,
-) -> ScheduleListResponse {
+    is_admin: bool,
+) -> SlackView {
     // Filter tasks based on the selected filter
     let filtered_tasks: Vec<&ScheduledTask> = match filter {
         ScheduleFilter::All => tasks.iter().collect(),
@@ -66,16 +59,10 @@ pub fn build_schedule_list_blocks(
     if page_tasks.is_empty() {
         blocks.push(SlackBlock::Section(SlackSectionBlock::new().with_text(md!("_No scheduled tasks found._"))));
 
-        let slack_view = SlackView::Modal(SlackModalView::new(
+        return SlackView::Modal(SlackModalView::new(
             SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Scheduled Tasks".into())),
             blocks,
         ));
-
-        return ScheduleListResponse {
-            slack_view: slack_view,
-            page: 0,
-            total_pages: 0,
-        };
     }
 
     // Filter dropdown
@@ -167,11 +154,29 @@ pub fn build_schedule_list_blocks(
     )
     .with_style("primary".into());
 
-    blocks.push(SlackBlock::Actions(SlackActionsBlock::new(vec![
+    let mut action_elements = vec![
         SlackActionBlockElement::StaticSelect(filter_select),
         SlackActionBlockElement::StaticSelect(page_size_select),
         SlackActionBlockElement::Button(new_button),
-    ])));
+    ];
+
+    if is_admin {
+        let sync_value = serde_json::json!({
+            "page": current_page,
+            "page_size": page_size,
+            "filter": filter,
+        })
+        .to_string();
+        let sync_button = SlackBlockButtonElement::new(
+            "sync_now".into(),
+            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("⚡ Sync Now".into()).with_emoji(true)),
+        )
+        .with_value(sync_value.into())
+        .with_style("primary".into());
+        action_elements.push(SlackActionBlockElement::Button(sync_button));
+    }
+
+    blocks.push(SlackBlock::Actions(SlackActionsBlock::new(action_elements)));
 
     blocks.push(SlackBlock::Divider(SlackDividerBlock::new()));
 
@@ -197,16 +202,10 @@ pub fn build_schedule_list_blocks(
         blocks.extend(pagination_blocks);
     }
 
-    let slack_view = SlackView::Modal(SlackModalView::new(
+    SlackView::Modal(SlackModalView::new(
         SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Scheduled Tasks".into())),
         blocks,
-    ));
-
-    ScheduleListResponse {
-        slack_view,
-        page: current_page,
-        total_pages,
-    }
+    ))
 }
 
 fn build_schedule_item_blocks(
@@ -424,19 +423,16 @@ mod tests {
     #[test]
     fn test_build_schedule_list_empty() {
         let tasks: Vec<ScheduledTask> = vec![];
-        let response =
-            build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+        let view =
+            build_schedule_list_view(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None, false);
 
         // Verify it's a Modal view
-        match &response.slack_view {
+        match &view {
             SlackView::Modal(modal) => {
                 assert!(!modal.blocks.is_empty(), "Blocks should have at least one item");
             }
             _ => panic!("Expected SlackView::Modal"),
         }
-
-        assert_eq!(response.page, 0);
-        assert_eq!(response.total_pages, 0);
     }
 
     #[test]
@@ -445,19 +441,16 @@ mod tests {
             create_test_task("general", "oncall"),
             create_test_task("engineering", "eng-oncall"),
         ];
-        let response =
-            build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+        let view =
+            build_schedule_list_view(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None, false);
 
         // Verify it's a Modal view
-        match &response.slack_view {
+        match &view {
             SlackView::Modal(modal) => {
                 assert!(!modal.blocks.is_empty(), "Blocks should have at least one item");
             }
             _ => panic!("Expected SlackView::Modal"),
         }
-
-        assert_eq!(response.page, 0);
-        assert_eq!(response.total_pages, 1);
     }
 
     #[test]
@@ -469,33 +462,27 @@ mod tests {
         }
 
         // Page 0
-        let response =
-            build_schedule_list_blocks(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+        let view =
+            build_schedule_list_view(&tasks, 0, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None, false);
 
         // Verify it's a Modal view
-        match &response.slack_view {
+        match &view {
             SlackView::Modal(modal) => {
                 assert!(!modal.blocks.is_empty(), "Blocks should have at least one item");
             }
             _ => panic!("Expected SlackView::Modal"),
         }
-
-        assert_eq!(response.page, 0);
-        assert_eq!(response.total_pages, 3); // 25 tasks / 10 per page = 3 pages
 
         // Page 1
-        let response =
-            build_schedule_list_blocks(&tasks, 1, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None);
+        let view =
+            build_schedule_list_view(&tasks, 1, 10, "U123", Some(&"C123".to_string()), &ScheduleFilter::Auto, None, false);
 
         // Verify it's a Modal view
-        match &response.slack_view {
+        match &view {
             SlackView::Modal(modal) => {
                 assert!(!modal.blocks.is_empty(), "Blocks should have at least one item");
             }
             _ => panic!("Expected SlackView::Modal"),
         }
-
-        assert_eq!(response.page, 1);
-        assert_eq!(response.total_pages, 3);
     }
 }

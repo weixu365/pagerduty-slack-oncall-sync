@@ -9,12 +9,25 @@ use crate::{
     },
     errors::AppError,
     service::{pager_duty::PagerDuty, slack::Slack},
-    utils::http_client::build_http_client,
+    utils::{http_client::build_http_client, logging::json_tracing},
 };
 use futures::{StreamExt, TryStreamExt};
-use tracing::{self, instrument};
+use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
-use chrono::{DateTime, Duration, Utc};
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SyncResult {
+    pub channel_id: String,
+    pub channel_name: String,
+    pub user_group_id: String,
+    pub user_group_handle: String,
+    pub original_user_ids: Vec<String>,
+    pub new_user_ids: Vec<String>,
+    pub changed: bool,
+    pub error: Option<String>,
+}
+
+use chrono::{DateTime, Utc};
 use reqwest::Client;
 
 pub async fn update_user_group(
@@ -24,30 +37,28 @@ pub async fn update_user_group(
     pager_duty_schedule_from: DateTime<Utc>,
     slack_api_key: &str,
     slack_channel_id: &str,
-    slack_user_group_name: &str,
-) -> Result<(), AppError> {
-    tracing::info!("Getting the current on-call users");
+    channel_name: &str,
+    user_group_id: &str,
+    user_group_handle: &str,
+) -> Result<SyncResult, AppError> {
+    json_tracing::info!("Getting the current on-call users", pager_duty_schedule_id = &pager_duty_schedule_id, from = &pager_duty_schedule_from);
 
     let from = pager_duty_schedule_from;
-    let until = from + Duration::minutes(10);
 
     let pager_duty = PagerDuty::new(http_client.clone(), pager_duty_api_key.into(), pager_duty_schedule_id.into());
-    let oncall_users = pager_duty.get_on_call_users(from).await?;
-    tracing::info!(?oncall_users, %from, %until, "Found users on call from PagerDuty");
+    let oncall_users = pager_duty.get_on_call_users(Some(from)).await?;
+    json_tracing::info!("Found users on call from PagerDuty", oncall_users=&oncall_users, from=&from);
 
     let slack = Arc::new(Slack::new(http_client.clone(), slack_api_key.to_string()));
 
-    let user_group = slack.get_user_group(&slack_user_group_name).await?;
-    tracing::info!(?user_group, "Found the user group from Slack");
-
-    let slack_user_ids: Vec<String> =
+    let new_slack_user_ids: Vec<String> =
         futures::stream::iter(oncall_users.into_iter())
             .map(|user| {
                 let slack = slack.clone();
                 let email = user.email;
                 async move {
                     slack.get_user_by_email(&email).await?.map(|u| u.id).ok_or_else(|| {
-                        AppError::UnexpectedError(format!("Can't find Slack user by email: {:?}", email))
+                        AppError::UnexpectedError(format!("Can't find Slack user by email: {}", email))
                     })
                 }
             })
@@ -55,60 +66,69 @@ pub async fn update_user_group(
             .try_collect()
             .await?;
 
-    let current_users = slack.get_user_group_users(&user_group.id).await?;
+    let current_users = slack.get_user_group_users(user_group_id).await?;
     let current_user_names: Vec<String> = futures::stream::iter(&current_users)
-        .then(|user_id| async {
-            let id = user_id.clone();
+        .then(|id| async {
+            let id = id.clone();
             slack
                 .get_user_by_id(&id)
                 .await?
                 .map(|u| u.name)
-                .ok_or_else(|| AppError::UnexpectedError(format!("Can't find Slack user by id: {:?}", id)))
+                .ok_or_else(|| AppError::UnexpectedError(format!("Can't find Slack user by id: {}", id)))
         })
         .try_collect()
         .await?;
 
-    if current_users.len() > slack_user_ids.len() + 2 {
-        tracing::error!(
-            current_count = current_users.len(),
-            desired_count = slack_user_ids.len(),
-            slack_user_group = %slack_user_group_name,
-            "Skipped: Too many users in the current Slack User Group"
+    if current_users.len() > new_slack_user_ids.len() + 2 {
+        json_tracing::error!(
+            "Skipped: Too many users in the current Slack User Group",
+            current_count = &current_users.len(),
+            desired_count = &new_slack_user_ids.len(),
+            user_group_id = &user_group_id,
+            user_group_handle = &user_group_handle,
         );
         return Err(AppError::SlackUpdateUserGroupError(
             "Too many users in the current group, is the group correct?".to_string(),
         ));
     }
 
-    tracing::info!(user_ids=?current_users, user_names=?current_user_names, "Current users in Slack User Group");
-    tracing::info!(user_ids=?slack_user_ids, "On-call users in PagerDuty");
+    json_tracing::info!("Current users in Slack User Group", user_ids=&current_users, user_names=&current_user_names);
+    json_tracing::info!("On-call users in PagerDuty", user_ids=&new_slack_user_ids);
 
-    let mut desired_users = slack_user_ids.clone();
+    let mut desired_users = new_slack_user_ids.clone();
     let mut existing_users = current_users.clone();
     desired_users.sort();
     existing_users.sort();
 
     let changed = desired_users != existing_users;
-    tracing::info!(changed, "Does users changed");
+    json_tracing::info!("Does users changed", changed=&changed);
 
     if changed {
-        slack.update_user_group_users(&user_group.id, &slack_user_ids).await?;
+        slack.update_user_group_users(user_group_id, &new_slack_user_ids).await?;
 
-        tracing::info!("Send message to Slack channel");
-        let slack_users = slack_user_ids
+        let slack_users = new_slack_user_ids
             .iter()
             .map(|id| format!("<@{}>", id))
             .collect::<Vec<String>>()
             .join(", ");
         slack
             .send_message(
-                &slack_channel_id,
-                &format!("Updated support user group <!subteam^{}> to: {}", &user_group.id, slack_users),
+                slack_channel_id,
+                &format!("Updated support user group <!subteam^{}> to: {}", user_group_id, slack_users),
             )
             .await?;
     }
 
-    Ok(())
+    Ok(SyncResult {
+        channel_id: slack_channel_id.to_string(),
+        channel_name: channel_name.to_string(),
+        user_group_id: user_group_id.to_string(),
+        user_group_handle: user_group_handle.to_string(),
+        original_user_ids: current_users,
+        new_user_ids: new_slack_user_ids,
+        changed,
+        error: None,
+    })
 }
 
 #[instrument(
@@ -120,8 +140,8 @@ async fn run_task(
     slack_tokens: &HashMap<String, SlackInstallation>,
     http_client: Arc<Client>,
     scheduled_tasks_db: &ScheduledTasksDynamodb,
-) -> Result<(), AppError> {
-    tracing::info!(task_id = task.task_id, cron = task.cron, "Updating user group");
+) -> Result<SyncResult, AppError> {
+    json_tracing::info!("Updating user group", task_id = &task.task_id, cron = &task.cron);
 
     let slack_installation = slack_tokens
         .get(&task.team_id)
@@ -139,13 +159,15 @@ async fn run_task(
             task.team, task.task_id
         )))?;
 
-    update_user_group(
+    let result = update_user_group(
         http_client.clone(),
         pagerduty_token,
         &task.pager_duty_schedule_id,
         Utc::now(),
         &slack_installation.access_token,
         &task.channel_id,
+        &task.channel_name,
+        &task.user_group_id,
         &task.user_group_handle,
     )
     .await?;
@@ -161,16 +183,22 @@ async fn run_task(
         Err(err) => {
             updated_task.next_update_timestamp_utc = -1;
             updated_task.next_update_time = "".to_string();
-            tracing::info!(task_id = task.task_id, cron = task.cron, %err, "Failed to calculate next schedule");
+            json_tracing::info!("Failed to calculate next schedule", task_id = &task.task_id, cron = &task.cron, err=&err.to_string());
         }
     }
 
     scheduled_tasks_db.update_next_schedule(&updated_task).await?;
 
-    Ok(())
+    Ok(result)
 }
 
-pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SyncTrigger {
+    Scheduled,
+    Manual,
+}
+
+pub async fn update_user_groups(env: &str, trigger: SyncTrigger) -> Result<Vec<SyncResult>, AppError> {
     let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
     let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
     let config = Config::get_or_init(env).await?;
@@ -189,24 +217,39 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
         .collect();
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
-    tracing::info!(count = tasks.len(), "Loaded tasks from DB");
+    json_tracing::info!("Loaded tasks from DB", count = &tasks.len());
 
     let mut timestamp_of_next_trigger = i64::MAX;
     let mut next_task = None;
     let start_of_the_update = Utc::now();
+    let mut results: Vec<SyncResult> = vec![];
     for task in tasks {
-        if task.next_update_timestamp_utc > 0 && task.next_update_timestamp_utc <= Utc::now().timestamp() {
-            let task_result = run_task(&task, &slack_tokens, http_client.clone(), &scheduled_tasks_db).await;
-            if let Err(err) = task_result {
-                tracing::error!(task_id=task.task_id, err=%err, "Failed to update user group for task");
-            }
+        let need_sync = task.next_update_timestamp_utc > 0 && task.next_update_timestamp_utc <= Utc::now().timestamp();
+        if trigger == SyncTrigger::Manual || need_sync {
+            let task_result = match run_task(&task, &slack_tokens, http_client.clone(), &scheduled_tasks_db).await {
+                Ok(r) => r,
+                Err(err) => {
+                    json_tracing::error!("Failed to update user group for task", task_id = &task.task_id, err=&err.to_string());
+                    SyncResult {
+                        channel_id: task.channel_id.clone(),
+                        channel_name: task.channel_name.clone(),
+                        user_group_id: task.user_group_id.clone(),
+                        user_group_handle: task.user_group_handle.clone(),
+                        original_user_ids: vec![],
+                        new_user_ids: vec![],
+                        changed: false,
+                        error: Some(err.to_string()),
+                    }
+                }
+            };
+            results.push(task_result);
         } else {
-            tracing::info!(
-                task_id = task.task_id,
-                next_update_time = task.next_update_time,
-                next_update_timestamp_utc = task.next_update_timestamp_utc,
-                now = Utc::now().timestamp(),
+            json_tracing::info!(
                 "Task skipped: next trigger is in the future",
+                task_id = &task.task_id,
+                next_update_time = &task.next_update_time,
+                next_update_timestamp_utc = &task.next_update_timestamp_utc,
+                now = &Utc::now().timestamp(),
             );
         }
 
@@ -221,13 +264,13 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
     // at least re-run daily
     // (Utc::now() + Duration::days(1)).timestamp()
     if let Some(next) = next_task {
-        tracing::info!(
-            task_id = next.task_id,
-            cron = next.cron,
-            next_update_time = next.next_update_time,
-            next_update_timestamp_utc = next.next_update_timestamp_utc,
-            start_of_the_update = %start_of_the_update,
-            "Scheduling next update based on the next task"
+        json_tracing::info!(
+            "Scheduling next update based on the next task",
+            task_id = &next.task_id,
+            cron = &next.cron,
+            next_update_time = &next.next_update_time,
+            next_update_timestamp_utc = &next.next_update_timestamp_utc,
+            start_of_the_update = &start_of_the_update,
         );
 
         match next.calculate_next_schedule(&start_of_the_update) {
@@ -236,12 +279,12 @@ pub async fn update_user_groups(env: &str) -> Result<(), AppError> {
                 scheduler.update_next_schedule(&next_schedule).await?;
             }
             Err(err) => {
-                tracing::error!(task_id = next.task_id, cron = next.cron, %err, "Failed to calculate next schedule");
+                json_tracing::error!("Failed to calculate next schedule", task_id = &next.task_id, cron = &next.cron, err=&err.to_string());
             }
         }
     }
 
-    tracing::info!("Finished updating user groups");
+    json_tracing::info!("Finished updating user groups");
 
-    Ok(())
+    Ok(results)
 }

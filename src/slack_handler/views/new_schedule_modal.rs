@@ -7,9 +7,40 @@ use crate::slack_handler::morphism_patches::{
 };
 use slack_morphism::prelude::*;
 
+pub fn build_loading_modal() -> SlackView {
+    SlackView::Modal(
+        SlackModalView::new(
+            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Create Schedule".into())),
+            vec![SlackBlock::Section(
+                SlackSectionBlock::new().with_text(SlackBlockText::from(
+                    SlackBlockPlainText::new("⏳ Creating schedule...".into()),
+                )),
+            )],
+        )
+        .with_title(SlackBlockPlainTextOnly::from("Create Schedule")),
+    )
+}
+
+pub fn build_success_modal() -> SlackView {
+    SlackView::Modal(
+        SlackModalView::new(
+            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Create Schedule".into())),
+            vec![SlackBlock::Section(
+                SlackSectionBlock::new().with_text(SlackBlockText::from(
+                    SlackBlockPlainText::new("✅ Schedule created successfully!".into()).with_emoji(true),
+                )),
+            )],
+        )
+        .with_title(SlackBlockPlainTextOnly::from("Create Schedule"))
+        .with_close(SlackBlockPlainTextOnly::from("Close")),
+    )
+}
+
 #[rustfmt::skip]
-pub(crate) fn build_new_schedule_modal_with_oncall(on_call_text: &str, request: Option<&SlackInteractionBlockActionsEvent>) -> SlackView {
-    let blocks = vec![
+pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Option<&SlackInteractionBlockActionsEvent>, error: Option<&str>) -> SlackView {
+    let default_oncall_text = "ℹ️ Current on-call user will be shown after you select a schedule";
+
+    let mut blocks = vec![
         // PagerDuty Schedule
         SlackBlock::Section(
             SlackSectionBlock::new()
@@ -44,7 +75,7 @@ pub(crate) fn build_new_schedule_modal_with_oncall(on_call_text: &str, request: 
         SlackBlock::Section(
             SlackSectionBlock::new()
                 .with_text(SlackBlockText::from(
-                    SlackBlockPlainText::new(on_call_text.into()).with_emoji(true),
+                    SlackBlockPlainText::new(on_call_text.unwrap_or(default_oncall_text).into()).with_emoji(true),
                 ))
                 .with_block_id("pagerduty_oncall_info".into()),
         ),
@@ -183,6 +214,14 @@ pub(crate) fn build_new_schedule_modal_with_oncall(on_call_text: &str, request: 
             )
         ),
     ];
+
+    if let Some(error_msg) = error {
+        blocks.push(SlackBlock::Section(
+            SlackSectionBlock::new()
+                .with_text(md!(format!(":warning: {}", error_msg)))
+                .with_block_id("submission_error".into()),
+        ));
+    }
 
     SlackView::Modal(
         SlackModalView::new(

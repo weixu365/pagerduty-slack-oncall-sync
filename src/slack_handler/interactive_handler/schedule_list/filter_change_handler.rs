@@ -1,6 +1,6 @@
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionBlockActionsEvent;
-use crate::slack_handler::views::schedule_list::build_schedule_list_blocks;
+use crate::slack_handler::views::schedule_list::build_schedule_list_view;
 use crate::{
     db::ScheduledTaskRepository, errors::AppError, slack_handler::interactive_handler::slack_request::FilterChangeValue,
 };
@@ -11,6 +11,7 @@ pub async fn handle_filter_change(
     action: &SlackInteractionActionInfo,
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
     next_trigger_timestamp: Option<i64>,
+    is_admin: bool,
 ) -> Result<SlackView, AppError> {
     tracing::info!(action = ?action, "Changing filter");
 
@@ -31,7 +32,7 @@ pub async fn handle_filter_change(
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
     let channel_id = request.channel.as_ref().map(|c| &c.id.0);
-    let response = build_schedule_list_blocks(
+    let view = build_schedule_list_view(
         &tasks,
         0,
         value.page_size,
@@ -39,7 +40,8 @@ pub async fn handle_filter_change(
         channel_id,
         &value.filter,
         next_trigger_timestamp,
+        is_admin,
     );
 
-    Ok(response.slack_view)
+    Ok(view)
 }

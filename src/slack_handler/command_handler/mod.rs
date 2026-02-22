@@ -73,18 +73,20 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
                 .await?
                 .and_then(|s| s.next_scheduled_timestamp_utc);
 
+            let is_admin = config.admin_user_slack_ids.contains(&params.user_id);
             let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor);
-            let response = handle_list_schedules_command(
+            let view = handle_list_schedules_command(
                 &scheduled_tasks_db,
                 page,
                 page_size,
                 params.user_id,
                 params.channel_id,
                 next_trigger_timestamp,
+                is_admin,
             )
             .await?;
 
-            send_slack_view(&response_url, response.slack_view).await?;
+            send_slack_view(&response_url, view).await?;
         }
     };
 

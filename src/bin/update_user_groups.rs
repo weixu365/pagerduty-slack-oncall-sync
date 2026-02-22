@@ -4,13 +4,16 @@ use std::env;
 use aws_sdk_cloudformation::Client as CloudformationClient;
 use on_call_support::config::Config;
 use on_call_support::errors::AppError;
-use on_call_support::user_group_updater::update_user_groups;
+use on_call_support::user_group_updater::{SyncResult, SyncTrigger, update_user_groups};
 use on_call_support::utils::logging::init_logging;
 use tokio;
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
     init_logging();
+
+    let force = env::args().any(|a| a == "--force");
+    let sync_trigger = if force { SyncTrigger::Manual } else { SyncTrigger::Scheduled };
 
     tracing::info!("Updating Slack user groups based on PagerDuty on-call schedule");
     let env = env::var("ENV").unwrap_or("dev".to_string());
@@ -47,7 +50,29 @@ async fn main() -> Result<(), AppError> {
         env::set_var("UPDATE_USER_GROUP_LAMBDA_ROLE", lambda_role_arn);
     }
 
-    update_user_groups(&env).await?;
+    let results = update_user_groups(&env, sync_trigger).await?;
+    print_sync_summary(&results);
 
     Ok(())
+}
+
+fn print_sync_summary(results: &[SyncResult]) {
+    let count = results.len();
+    println!("");
+    println!("## Summary");
+    println!("Manual sync complete — {} schedule(s) processed", count);
+    println!();
+
+    for r in results {
+        let to_users = r.new_user_ids.join(", ");
+        let line = if let Some(ref err) = r.error {
+            format!("- Channel #{}, User Group @{}: Error: {}", r.channel_name, r.user_group_handle, err)
+        } else if r.changed {
+            let from_users = r.original_user_ids.join(", ");
+            format!("- Channel #{}, User Group @{}: changed from [{}] to [{}]", r.channel_name, r.user_group_handle, from_users, to_users)
+        } else {
+            format!("- Channel #{}, User Group @{}: no changes, user(s): [{}]", r.channel_name, r.user_group_handle, to_users)
+        };
+        println!("{}", line);
+    }
 }

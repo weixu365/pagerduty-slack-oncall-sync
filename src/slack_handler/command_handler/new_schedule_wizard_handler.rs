@@ -4,11 +4,9 @@ use crate::{
     service::slack::open_slack_modal,
     slack_handler::{
         command_handler::slack_request::SlackCommandRequest,
-        views::new_schedule_modal::build_new_schedule_modal_with_oncall,
+        views::new_schedule_modal::build_new_schedule_modal,
     },
 };
-
-const DEFAULT_ONCALL_TEXT: &str = "ℹ️ Current on-call user will be shown after you select a schedule";
 
 /// Build the wizard modal for creating a new schedule
 pub async fn handle_new_schedule_wizard(
@@ -29,7 +27,7 @@ pub async fn handle_new_schedule_wizard(
         ));
     }
 
-    let modal = build_new_schedule_modal_with_oncall(DEFAULT_ONCALL_TEXT, None);
+    let modal = build_new_schedule_modal(None, None, None);
     let bot_access_token = &installation.access_token;
     open_slack_modal(trigger_id, &modal, bot_access_token).await?;
 
