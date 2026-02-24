@@ -1,0 +1,62 @@
+name: release-please
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: Branch to release from (non-master will use beta prerelease config)
+        required: true
+        default: master
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          command: manifest
+          config-file: ${{ github.event_name == 'workflow_dispatch' && inputs.target_branch != 'master' && 'release-please-config-beta.json' || 'release-please-config.json' }}
+          manifest-file: .release-please-manifest.json
+          target-branch: ${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || 'master' }}
+
+      - name: Checkout release tag
+        if: steps.release.outputs.release_created == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag_name }}
+
+      - name: Setup Rust
+        if: steps.release.outputs.release_created == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install cargo-lambda
+        if: steps.release.outputs.release_created == 'true'
+        run: cargo install cargo-lambda --locked
+
+      - name: Build lambda artifacts
+        if: steps.release.outputs.release_created == 'true'
+        run: make lambda release
+
+      - name: Upload lambda artifacts to GitHub Release
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.release.outputs.tag_name }}" \
+            target/lambda/slack_request_handler_lambda.zip \
+            target/lambda/update_user_groups_lambda.zip \
+            target/release/update_user_groups \
+            --clobber
