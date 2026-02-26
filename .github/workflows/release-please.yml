@@ -46,11 +46,13 @@ jobs:
 
       - uses: cargo-bins/cargo-binstall@main
 
-      - name: Install cargo-lambda
-        run: cargo binstall cargo-lambda
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: "0.13.0"
 
-      - name: Install zig
-        run: cargo lambda system --setup
+      - name: Install cargo-lambda
+        run: cargo binstall cargo-lambda --no-confirm
 
       - name: Build lambda artifacts
         run: make lambda release test
