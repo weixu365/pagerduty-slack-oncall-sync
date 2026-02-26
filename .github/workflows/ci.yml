@@ -14,8 +14,16 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install cargo-lambda
+        if: steps.release.outputs.release_created == 'true'
+        run: cargo binstall cargo-lambda
+
       - name: Build
         run: cargo build
 
       - name: Run tests
         run: make test
+
+      - name: Build lambda artifacts
+        if: steps.release.outputs.release_created == 'true'
+        run: make lambda release
