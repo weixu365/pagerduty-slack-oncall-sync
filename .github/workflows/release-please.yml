@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - '**'  # All branches (excludes nothing; master PRs also get CI)
   workflow_dispatch:
     inputs:
       target_branch:
@@ -30,25 +33,29 @@ jobs:
           manifest-file: .release-please-manifest.json
           target-branch: ${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || 'master' }}
 
-      - name: Checkout release tag
-        if: steps.release.outputs.release_created == 'true'
+      - name: Checkout code
+        if: steps.release.outputs.release_created == 'true' || github.event_name == 'pull_request'
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.release.outputs.tag_name }}
+          ref: ${{ steps.release.outputs.release_created == 'true' && steps.release.outputs.tag_name || github.sha }}
 
       - name: Setup Rust
-        if: steps.release.outputs.release_created == 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-musl
 
+      - uses: cargo-bins/cargo-binstall@main
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: "0.13.0"
+
       - name: Install cargo-lambda
-        if: steps.release.outputs.release_created == 'true'
-        run: cargo install cargo-lambda --locked
+        run: cargo binstall cargo-lambda --no-confirm
 
       - name: Build lambda artifacts
-        if: steps.release.outputs.release_created == 'true'
-        run: make lambda release
+        run: make lambda release test
 
       - name: Upload lambda artifacts to GitHub Release
         if: steps.release.outputs.release_created == 'true'
