@@ -3,11 +3,11 @@ build:
 	cargo build
 
 release:
-	cargo build --release --target x86_64-unknown-linux-musl
+	cargo zigbuild --release --target x86_64-unknown-linux-musl
 
 release-linux:
-	cargo build --release --target x86_64-unknown-linux-musl
-	cargo build --release --bin user-group-updater-lambda --target x86_64-unknown-linux-musl
+	cargo zigbuild --release --target x86_64-unknown-linux-musl
+	cargo zigbuild --release --bin user-group-updater-lambda --target x86_64-unknown-linux-musl
 
 lambda:
 	cargo lambda build --release --output-format zip --target x86_64-unknown-linux-musl
