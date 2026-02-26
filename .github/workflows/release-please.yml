@@ -49,6 +49,9 @@ jobs:
       - name: Install cargo-lambda
         run: cargo binstall cargo-lambda
 
+      - name: Install zig
+        run: cargo lambda system --setup
+
       - name: Build lambda artifacts
         run: make lambda release test
 
