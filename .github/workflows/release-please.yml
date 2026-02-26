@@ -44,7 +44,7 @@ jobs:
 
       - name: Install cargo-lambda
         if: steps.release.outputs.release_created == 'true'
-        run: cargo install cargo-lambda --locked
+        run: cargo binstall cargo-lambda
 
       - name: Build lambda artifacts
         if: steps.release.outputs.release_created == 'true'
