@@ -49,8 +49,17 @@ jobs:
       - name: Install cargo-lambda
         run: cargo binstall cargo-lambda
 
+      - name: Show current directory
+        run: pwd
+
+      - name: Show current directory contents
+        run: ls -la
+
+      - name: Show cargo-lambda version
+        run: cargo lambda --version
+
       - name: Build lambda artifacts
-        run: make lambda release
+        run: make lambda release test
 
       - name: Upload lambda artifacts to GitHub Release
         if: steps.release.outputs.release_created == 'true'
