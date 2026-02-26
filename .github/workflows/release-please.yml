@@ -34,7 +34,6 @@ jobs:
           target-branch: ${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || 'master' }}
 
       - name: Checkout code
-        if: steps.release.outputs.release_created == 'true' || github.event_name == 'pull_request'
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.release.outputs.release_created == 'true' && steps.release.outputs.tag_name || github.sha }}
