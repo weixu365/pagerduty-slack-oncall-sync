@@ -50,8 +50,8 @@ jobs:
         with:
           version: "0.13.0"
 
-      - name: Install cargo-lambda
-        run: cargo binstall cargo-lambda --no-confirm
+      - name: Install cargo tools
+        run: cargo binstall cargo-lambda cargo-zigbuild --no-confirm
 
       - name: Build lambda artifacts
         run: make lambda release test
@@ -64,5 +64,5 @@ jobs:
           gh release upload "${{ steps.release.outputs.tag_name }}" \
             target/lambda/slack_request_handler_lambda.zip \
             target/lambda/update_user_groups_lambda.zip \
-            target/release/update_user_groups \
+            target/x86_64-unknown-linux-musl/release/update_user_groups \
             --clobber
