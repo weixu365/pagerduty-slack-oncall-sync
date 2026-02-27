@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.2.0...pagerduty-slack-oncall-sync-v0.3.0) (2026-02-27)
+
+
+### Features
+
+* Run CI in parallel (trigger new build to test) ([#23](https://github.com/weixu365/pagerduty-slack-oncall-sync/issues/23)) ([4445b7e](https://github.com/weixu365/pagerduty-slack-oncall-sync/commit/4445b7e3b77d95ca632c5a64fdf49f09dadf58e2))
+
 ## [0.2.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.1.0...pagerduty-slack-oncall-sync-v0.2.0) (2026-02-26)
 
 
