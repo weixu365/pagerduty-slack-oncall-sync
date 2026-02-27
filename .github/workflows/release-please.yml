@@ -22,7 +22,13 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      ref: ${{ steps.release.outputs.release_created == 'true' && steps.release.outputs.tag_name || github.sha }}
     steps:
+      - uses: actions/checkout@v6
+
       - name: Run release-please
         id: release
         uses: googleapis/release-please-action@v4
@@ -33,10 +39,13 @@ jobs:
           manifest-file: .release-please-manifest.json
           target-branch: ${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || 'master' }}
 
-      - name: Checkout code
-        uses: actions/checkout@v4
+  build-lambda:
+    needs: release-please
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
         with:
-          ref: ${{ steps.release.outputs.release_created == 'true' && steps.release.outputs.tag_name || github.sha }}
+          ref: ${{ needs.release-please.outputs.ref }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -51,18 +60,93 @@ jobs:
           version: "0.13.0"
 
       - name: Install cargo tools
-        run: cargo binstall cargo-lambda cargo-zigbuild --no-confirm
+        run: cargo binstall cargo-lambda --no-confirm
 
       - name: Build lambda artifacts
-        run: make lambda release test
+        run: make lambda
 
-      - name: Upload lambda artifacts to GitHub Release
-        if: steps.release.outputs.release_created == 'true'
+      - name: Prepare lambda artifacts
+        run: |
+          mkdir -p dist
+          cp target/lambda/slack_request_handler_lambda.zip dist/
+          cp target/lambda/update_user_groups_lambda.zip dist/
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: lambda-artifacts
+          path: dist/
+
+  build-release:
+    needs: release-please
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-please.outputs.ref }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - uses: cargo-bins/cargo-binstall@main
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: "0.13.0"
+
+      - name: Install cargo tools
+        run: cargo binstall cargo-zigbuild --no-confirm
+
+      - name: Build release binary
+        run: make release
+
+      - name: Prepare release artifact
+        run: |
+          mkdir -p dist
+          cp target/x86_64-unknown-linux-musl/release/update_user_groups dist/
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-artifacts
+          path: dist/
+
+  test:
+    needs: release-please
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.release-please.outputs.ref }}
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run tests
+        run: make test
+
+  upload-release:
+    needs: [release-please, build-lambda, build-release]
+    runs-on: ubuntu-latest
+    if: needs.release-please.outputs.release_created == 'true'
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: lambda-artifacts
+          path: lambda-artifacts
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: release-artifacts
+          path: release-artifacts
+
+      - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ steps.release.outputs.tag_name }}" \
-            target/lambda/slack_request_handler_lambda.zip \
-            target/lambda/update_user_groups_lambda.zip \
-            target/x86_64-unknown-linux-musl/release/update_user_groups \
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+            lambda-artifacts/slack_request_handler_lambda.zip \
+            lambda-artifacts/update_user_groups_lambda.zip \
+            release-artifacts/update_user_groups \
             --clobber
