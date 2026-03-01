@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.3.0...pagerduty-slack-oncall-sync-v0.4.0) (2026-03-01)
+
+
+### Features
+
+* update deps and adjust release steps ([6af36f7](https://github.com/weixu365/pagerduty-slack-oncall-sync/commit/6af36f73b00775c781142e3953438f9f96df5144))
+
 ## [0.3.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.2.0...pagerduty-slack-oncall-sync-v0.3.0) (2026-02-27)
 
 
