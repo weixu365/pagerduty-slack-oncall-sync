@@ -7,12 +7,6 @@ on:
   pull_request:
     branches:
       - '**'  # All branches (excludes nothing; master PRs also get CI)
-  workflow_dispatch:
-    inputs:
-      target_branch:
-        description: Branch to release from (non-master will use beta prerelease config)
-        required: true
-        default: master
 
 permissions:
   contents: write
