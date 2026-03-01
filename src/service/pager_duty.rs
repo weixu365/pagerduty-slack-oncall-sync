@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use chrono::{DateTime, Duration, Utc};
-use http::Method;
-use reqwest::Client;
+use reqwest::{Client, Method};
 use serde::Serialize;
 use serde_derive::Deserialize;
 use serde_json::Value;

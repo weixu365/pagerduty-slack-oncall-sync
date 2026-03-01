@@ -88,6 +88,10 @@ pub async fn handle_sync_now(
                 SlackInteractionActionContainer::View(_) => {
                     slack.send_message(user_id, &message).await
                 }
+                SlackInteractionActionContainer::MessageAttachment(_) => {
+                    json_tracing::warn!("Unsupported message attachment container");
+                    Ok(())
+                }
             };
             if let Err(err) = send_result {
                 json_tracing::warn!("Failed to send sync summary message", err = &err.to_string());

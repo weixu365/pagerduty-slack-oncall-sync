@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use crate::{config::Config, errors::AppError};
 use aws_lambda_events::event::apigw::ApiGatewayProxyRequest;
+use aws_lambda_events::http::HeaderMap;
 use aws_sdk_lambda::Client as LambdaClient;
 use aws_sdk_lambda::types::InvocationType;
-use http::HeaderMap;
 use reqwest::header::HeaderName;
 use tracing::info;
 
