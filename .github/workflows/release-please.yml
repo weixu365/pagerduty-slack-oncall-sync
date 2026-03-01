@@ -31,7 +31,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: ${{ github.ref_name == 'master' && 'release-please-config.json' || 'release-please-config-beta.json' }}
           manifest-file: .release-please-manifest.json
-          target-branch: master
+          target-branch: ${{ github.ref_name }}
 
   build-lambda:
     needs: release-please
