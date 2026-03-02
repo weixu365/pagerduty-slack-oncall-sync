@@ -5,16 +5,15 @@ use std::env;
 use std::sync::Arc;
 
 use crate::db::SlackInstallationRepository;
-use crate::utils::logging::json_tracing;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionEvent;
+use crate::utils::logging::json_tracing;
 use new_schedule_modal::{
     pagerduty_schedule_change_handler::handle_pagerduty_schedule_change, submission_handler::handle_view_submission,
 };
 use schedule_list::{
     delete_schedule_handler::handle_delete_schedule, filter_change_handler::handle_filter_change,
     new_schedule_button_handler::handle_new_schedule_button, page_size_change_handlers::handle_page_size_change,
-    pagination_handler::handle_pagination, refresh_handlers::handle_refresh,
-    sync_now_handler::handle_sync_now,
+    pagination_handler::handle_pagination, refresh_handlers::handle_refresh, sync_now_handler::handle_sync_now,
 };
 use slack_morphism::blocks::SlackView;
 use slack_request::parse_slack_request;

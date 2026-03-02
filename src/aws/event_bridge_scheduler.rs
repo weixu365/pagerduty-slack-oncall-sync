@@ -1,4 +1,8 @@
-use crate::{config::Config, errors::AppError, utils::{cron::CronSchedule, logging::json_tracing}};
+use crate::{
+    config::Config,
+    errors::AppError,
+    utils::{cron::CronSchedule, logging::json_tracing},
+};
 use aws_sdk_scheduler::{
     Client,
     operation::get_schedule::GetScheduleOutput,
@@ -47,7 +51,7 @@ impl EventBridgeScheduler {
             .map(|s| self.convert_to_schedule(s))
             .collect();
 
-        json_tracing::info!("Found existing schedules", schedules=&current_schedules);
+        json_tracing::info!("Found existing schedules", schedules = &current_schedules);
 
         Ok(current_schedules)
     }

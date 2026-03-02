@@ -11,11 +11,9 @@ pub fn build_loading_modal() -> SlackView {
     SlackView::Modal(
         SlackModalView::new(
             SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Create Schedule".into())),
-            vec![SlackBlock::Section(
-                SlackSectionBlock::new().with_text(SlackBlockText::from(
-                    SlackBlockPlainText::new("⏳ Creating schedule...".into()),
-                )),
-            )],
+            vec![SlackBlock::Section(SlackSectionBlock::new().with_text(
+                SlackBlockText::from(SlackBlockPlainText::new("⏳ Creating schedule...".into())),
+            ))],
         )
         .with_title(SlackBlockPlainTextOnly::from("Create Schedule")),
     )
@@ -25,11 +23,11 @@ pub fn build_success_modal() -> SlackView {
     SlackView::Modal(
         SlackModalView::new(
             SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Create Schedule".into())),
-            vec![SlackBlock::Section(
-                SlackSectionBlock::new().with_text(SlackBlockText::from(
+            vec![SlackBlock::Section(SlackSectionBlock::new().with_text(
+                SlackBlockText::from(
                     SlackBlockPlainText::new("✅ Schedule created successfully!".into()).with_emoji(true),
-                )),
-            )],
+                ),
+            ))],
         )
         .with_title(SlackBlockPlainTextOnly::from("Create Schedule"))
         .with_close(SlackBlockPlainTextOnly::from("Close")),

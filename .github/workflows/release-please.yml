@@ -29,9 +29,9 @@ jobs:
         uses: googleapis/release-please-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          config-file: ${{ github.ref_name == 'master' && 'release-please-config.json' || 'release-please-config-beta.json' }}
+          config-file: ${{ github.event_name == 'push' && github.ref_name == 'master' && 'release-please-config.json' || 'release-please-config-beta.json' }}
           manifest-file: .release-please-manifest.json
-          target-branch: ${{ github.ref_name }}
+          target-branch: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
 
   build-lambda:
     needs: release-please
@@ -72,7 +72,27 @@ jobs:
 
   build-release:
     needs: release-please
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: update_user_groups-linux-x86_64
+            use_zig: true
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: update_user_groups-macos-x86_64
+            use_zig: false
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: update_user_groups-macos-aarch64
+            use_zig: false
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: update_user_groups-windows-x86_64.exe
+            use_zig: false
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -81,29 +101,45 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-unknown-linux-musl
+          targets: ${{ matrix.target }}
 
       - uses: cargo-bins/cargo-binstall@main
 
       - name: Install Zig
+        if: matrix.use_zig
         uses: mlugg/setup-zig@v2
         with:
           version: "0.13.0"
 
-      - name: Install cargo tools
+      - name: Install cargo-zigbuild
+        if: matrix.use_zig
         run: cargo binstall cargo-zigbuild --no-confirm
 
-      - name: Build release binary
-        run: make release
+      - name: Build release binary (Linux)
+        if: matrix.use_zig
+        run: cargo zigbuild --release --target ${{ matrix.target }} --bin update_user_groups
+
+      - name: Build release binary (macOS/Windows)
+        if: ${{ !matrix.use_zig }}
+        run: cargo build --release --target ${{ matrix.target }} --bin update_user_groups
 
       - name: Prepare release artifact
+        shell: bash
         run: |
           mkdir -p dist
-          cp target/x86_64-unknown-linux-musl/release/update_user_groups dist/
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/update_user_groups.exe dist/${{ matrix.artifact_name }}
+          else
+            cp target/${{ matrix.target }}/release/update_user_groups dist/${{ matrix.artifact_name }}
+          fi
+
+      - name: Verify binary is runnable
+        shell: bash
+        run: ./dist/${{ matrix.artifact_name }} --version
 
       - uses: actions/upload-artifact@v6
         with:
-          name: release-artifacts
+          name: release-${{ matrix.artifact_name }}
           path: dist/
 
   test:
@@ -135,11 +171,11 @@ jobs:
 
       - uses: actions/download-artifact@v7
         with:
-          name: release-artifacts
+          pattern: release-update_user_groups-*
           path: release-artifacts
 
       - name: List Files to release
-        run: ls -lah lambda-artifacts release-artifacts
+        run: ls -lahR lambda-artifacts release-artifacts
 
       - name: Upload to GitHub Release
         if: needs.release-please.outputs.release_created == 'true'
@@ -149,5 +185,5 @@ jobs:
           gh release upload "${{ needs.release-please.outputs.tag_name }}" \
             lambda-artifacts/slack_request_handler_lambda.zip \
             lambda-artifacts/update_user_groups_lambda.zip \
-            release-artifacts/update_user_groups \
+            release-artifacts/*/* \
             --clobber

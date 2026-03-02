@@ -3,11 +3,10 @@ use aws_sdk_dynamodb::{Client, types::AttributeValue};
 
 use crate::db::scheduled_task::{ScheduledTask, ScheduledTaskRepository};
 use crate::utils::dynamodb_client::get_attribute;
-use crate::{
-    config::Config, encryptor::Encryptor, errors::AppError,
-    utils::dynamodb_client::get_optional_encrypted_attribute,
-};
 use crate::utils::logging::json_tracing;
+use crate::{
+    config::Config, encryptor::Encryptor, errors::AppError, utils::dynamodb_client::get_optional_encrypted_attribute,
+};
 use futures::stream::{self, StreamExt};
 use std::sync::Arc;
 
@@ -151,7 +150,11 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
                 match self.parse_scheduled_task(&item).await {
                     Ok(task) => Some(task),
                     Err(err) => {
-                        json_tracing::error!("Failed to parse scheduled task, skipping", err = &err.to_string(), item = &format!("{:?}", item));
+                        json_tracing::error!(
+                            "Failed to parse scheduled task, skipping",
+                            err = &err.to_string(),
+                            item = &format!("{:?}", item)
+                        );
                         None
                     }
                 }

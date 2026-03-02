@@ -4,8 +4,7 @@ use crate::{
     errors::AppError,
     service::slack::open_slack_modal,
     slack_handler::{
-        command_handler::slack_request::SlackCommandRequest,
-        views::new_schedule_modal::build_new_schedule_modal,
+        command_handler::slack_request::SlackCommandRequest, views::new_schedule_modal::build_new_schedule_modal,
     },
 };
 

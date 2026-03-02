@@ -6,13 +6,13 @@ use on_call_support::slack_handler::command_handler::handle_slack_command_async;
 use on_call_support::slack_handler::events_handler::handle_slack_events;
 use on_call_support::slack_handler::external_selection_handler::handle_slack_external_select;
 use on_call_support::slack_handler::interactive_handler::handle_slack_interactive_async;
+use on_call_support::utils::logging::json_tracing;
 use on_call_support::{
     config::Config,
     db::dynamodb::SlackInstallationsDynamoDb,
     errors::AppError,
     slack_handler::{
-        oauth_handler::oauth_handler::handle_slack_oauth,
-        utils::slack_response::response,
+        oauth_handler::oauth_handler::handle_slack_oauth, utils::slack_response::response,
         views::new_schedule_modal::build_loading_modal,
     },
     utils::lambda_client::{invoke_slack_command_async_handler, is_async_processing_requested},
@@ -24,7 +24,8 @@ use tracing::{error, info, warn};
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     logging::init_logging();
-    info!("Start handling Slack request");
+    let version = env!("CARGO_PKG_VERSION");
+    json_tracing::info!("Start handling Slack request", version);
 
     let service_func = service_fn(func);
     let result = lambda_runtime::run(service_func).await;

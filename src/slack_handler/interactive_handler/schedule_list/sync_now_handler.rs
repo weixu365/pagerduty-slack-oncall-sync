@@ -1,10 +1,10 @@
 use std::env;
 use std::sync::Arc;
 
-use crate::utils::logging::json_tracing;
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionBlockActionsEvent;
 use crate::slack_handler::views::schedule_list::build_schedule_list_view;
+use crate::utils::logging::json_tracing;
 use crate::{
     config::Config,
     db::{ScheduledTaskRepository, SlackInstallationRepository},
@@ -44,9 +44,7 @@ pub async fn handle_sync_now(
         .ok_or_else(|| AppError::InvalidData("Missing user in request".to_string()))?;
 
     if !config.admin_user_slack_ids.contains(user_id) {
-        return Err(AppError::Unauthorized(
-            "You are not authorized to trigger a manual sync".to_string(),
-        ));
+        return Err(AppError::Unauthorized("You are not authorized to trigger a manual sync".to_string()));
     }
 
     let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
@@ -71,10 +69,7 @@ pub async fn handle_sync_now(
 
     if !results.is_empty() {
         if let Ok(installation) = slack_installations_db
-            .get_slack_installation(
-                &request.team.id.0,
-                &request.team.enterprise_id.clone().unwrap_or_default(),
-            )
+            .get_slack_installation(&request.team.id.0, &request.team.enterprise_id.clone().unwrap_or_default())
             .await
         {
             let http_client = Arc::new(build_http_client().unwrap_or_default());
@@ -85,9 +80,7 @@ pub async fn handle_sync_now(
                     let channel_id = msg.channel_id.as_ref().map(|c| c.0.as_str()).unwrap_or(user_id);
                     slack.send_ephemeral_text(channel_id, user_id, &message, None).await
                 }
-                SlackInteractionActionContainer::View(_) => {
-                    slack.send_message(user_id, &message).await
-                }
+                SlackInteractionActionContainer::View(_) => slack.send_message(user_id, &message).await,
                 SlackInteractionActionContainer::MessageAttachment(_) => {
                     json_tracing::warn!("Unsupported message attachment container");
                     Ok(())
@@ -121,15 +114,31 @@ fn build_sync_response_message(results: &[SyncResult]) -> String {
     lines.push(String::new());
 
     for r in results {
-        let to_users = r.new_user_ids.iter().map(|id| format!("<@{}>", id)).collect::<Vec<_>>().join(", ");
+        let to_users = r
+            .new_user_ids
+            .iter()
+            .map(|id| format!("<@{}>", id))
+            .collect::<Vec<_>>()
+            .join(", ");
 
         let line = if let Some(ref err) = r.error {
             format!("- Channel <#{}>, User Group <!subteam^{}>: Error: {}", r.channel_id, r.user_group_id, err)
         } else if r.changed {
-            let from_users = r.original_user_ids.iter().map(|id| format!("<@{}>", id)).collect::<Vec<_>>().join(", ");
-            format!("- Channel <#{}>, User Group <!subteam^{}>: changed from {} to {}", r.channel_id, r.user_group_id, from_users, to_users)
+            let from_users = r
+                .original_user_ids
+                .iter()
+                .map(|id| format!("<@{}>", id))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "- Channel <#{}>, User Group <!subteam^{}>: changed from {} to {}",
+                r.channel_id, r.user_group_id, from_users, to_users
+            )
         } else {
-            format!("- Channel <#{}>, User Group <!subteam^{}>: no changes, user(s): {}", r.channel_id, r.user_group_id, to_users)
+            format!(
+                "- Channel <#{}>, User Group <!subteam^{}>: no changes, user(s): {}",
+                r.channel_id, r.user_group_id, to_users
+            )
         };
         lines.push(line);
     }

@@ -1,5 +1,5 @@
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
-use crate::slack_handler::views::schedule_list::{build_schedule_list_view, ScheduleFilter};
+use crate::slack_handler::views::schedule_list::{ScheduleFilter, build_schedule_list_view};
 use crate::{db::ScheduledTaskRepository, errors::AppError};
 
 pub async fn handle_list_schedules_command(
@@ -114,7 +114,8 @@ mod tests {
         let mock_db = MockScheduledTaskRepository { tasks: vec![] };
 
         let view =
-            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false).await?;
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false)
+                .await?;
 
         // Verify it's a Modal view with blocks
         match &view {
@@ -133,7 +134,8 @@ mod tests {
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
         let view =
-            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false).await?;
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false)
+                .await?;
 
         // Verify it's a Modal view with blocks
         match &view {
@@ -163,7 +165,8 @@ mod tests {
         };
 
         let view =
-            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false).await?;
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false)
+                .await?;
 
         // Verify it's a Modal view with blocks
         match &view {
@@ -190,7 +193,8 @@ mod tests {
         let mock_db = MockScheduledTaskRepository { tasks: vec![task] };
 
         let view =
-            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false).await?;
+            handle_list_schedules_command(&mock_db, None, 5, "U123".to_string(), "C123".to_string(), None, false)
+                .await?;
 
         // Verify it's a Modal view with blocks
         match &view {

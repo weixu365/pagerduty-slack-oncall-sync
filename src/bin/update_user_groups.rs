@@ -4,19 +4,29 @@ use std::env;
 use aws_sdk_cloudformation::Client as CloudformationClient;
 use on_call_support::config::Config;
 use on_call_support::errors::AppError;
-use on_call_support::utils::logging::json_tracing;
 use on_call_support::user_group_updater::{SyncResult, SyncTrigger, update_user_groups};
 use on_call_support::utils::logging::init_logging;
+use on_call_support::utils::logging::json_tracing;
 use tokio;
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
+    if env::args().any(|a| a == "--version" || a == "-V") {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     init_logging();
 
     let force = env::args().any(|a| a == "--force");
-    let sync_trigger = if force { SyncTrigger::Manual } else { SyncTrigger::Scheduled };
+    let sync_trigger = if force {
+        SyncTrigger::Manual
+    } else {
+        SyncTrigger::Scheduled
+    };
 
-    json_tracing::info!("Updating Slack user groups based on PagerDuty on-call schedule");
+    let version = env!("CARGO_PKG_VERSION");
+    json_tracing::info!("Updating Slack user groups based on PagerDuty on-call schedule", version);
     let env = env::var("ENV").unwrap_or("dev".to_string());
     let config = Config::get_or_init(&env).await?;
     let cloudformation_stack_name = format!("on-call-support-{}", env);
@@ -70,9 +80,15 @@ fn print_sync_summary(results: &[SyncResult]) {
             format!("- Channel #{}, User Group @{}: Error: {}", r.channel_name, r.user_group_handle, err)
         } else if r.changed {
             let from_users = r.original_user_ids.join(", ");
-            format!("- Channel #{}, User Group @{}: changed from [{}] to [{}]", r.channel_name, r.user_group_handle, from_users, to_users)
+            format!(
+                "- Channel #{}, User Group @{}: changed from [{}] to [{}]",
+                r.channel_name, r.user_group_handle, from_users, to_users
+            )
         } else {
-            format!("- Channel #{}, User Group @{}: no changes, user(s): [{}]", r.channel_name, r.user_group_handle, to_users)
+            format!(
+                "- Channel #{}, User Group @{}: no changes, user(s): [{}]",
+                r.channel_name, r.user_group_handle, to_users
+            )
         };
         println!("{}", line);
     }

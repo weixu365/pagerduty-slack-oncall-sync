@@ -1,11 +1,14 @@
+use crate::utils::logging::json_tracing;
 use crate::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
     db::{ScheduledTask, ScheduledTaskRepository, SlackInstallation},
     errors::AppError,
-    service::{pager_duty::PagerDuty, slack::{self, Slack}},
+    service::{
+        pager_duty::PagerDuty,
+        slack::{self, Slack},
+    },
     utils::{cron::get_next_schedule_from, http_client::build_http_client},
 };
-use crate::utils::logging::json_tracing;
 use chrono::Utc;
 use chrono_tz::Tz;
 use regex::Regex;
@@ -58,8 +61,8 @@ pub async fn create_new_schedule(
         &request.pagerduty_schedule_id,
     )?;
 
-    let timezone = Tz::from_str(&request.timezone)
-        .map_err(|e| AppError::InvalidData(format!("Invalid timezone: {}", e)))?;
+    let timezone =
+        Tz::from_str(&request.timezone).map_err(|e| AppError::InvalidData(format!("Invalid timezone: {}", e)))?;
     let from = Utc::now().with_timezone(&timezone);
 
     let next_schedule = get_next_schedule_from(&request.cron, &from)?;
@@ -129,7 +132,8 @@ async fn get_pagerduty_schedule_users(
             )))?
     };
 
-    let pager_duty = PagerDuty::new(http_client.clone(), pagerduty_token.clone(), request.pagerduty_schedule_id.clone());
+    let pager_duty =
+        PagerDuty::new(http_client.clone(), pagerduty_token.clone(), request.pagerduty_schedule_id.clone());
     let schedule_users = pager_duty.get_on_call_users(None).await?;
 
     json_tracing::info!(
@@ -326,19 +330,29 @@ mod tests {
         };
 
         let pagerduty_users = vec![
-            PagerDutyUser { name: "Alice".to_string(), email: "alice@example.com".to_string() },
-            PagerDutyUser { name: "Bob".to_string(), email: "bob@example.com".to_string() },
+            PagerDutyUser {
+                name: "Alice".to_string(),
+                email: "alice@example.com".to_string(),
+            },
+            PagerDutyUser {
+                name: "Bob".to_string(),
+                email: "bob@example.com".to_string(),
+            },
         ];
         let slack_users = vec![
             User {
                 id: "U1".to_string(),
                 name: "alice".to_string(),
-                profile: Some(UserProfile { email: Some("alice@example.com".to_string()) }),
+                profile: Some(UserProfile {
+                    email: Some("alice@example.com".to_string()),
+                }),
             },
             User {
                 id: "U2".to_string(),
                 name: "bob".to_string(),
-                profile: Some(UserProfile { email: Some("bob@example.com".to_string()) }),
+                profile: Some(UserProfile {
+                    email: Some("bob@example.com".to_string()),
+                }),
             },
         ];
 
@@ -360,7 +374,9 @@ mod tests {
         let slack_users = vec![User {
             id: "U1".to_string(),
             name: "alice".to_string(),
-            profile: Some(UserProfile { email: Some("alice@example.com".to_string()) }),
+            profile: Some(UserProfile {
+                email: Some("alice@example.com".to_string()),
+            }),
         }];
 
         let result = validate_user_group_in_schedule(&pagerduty_users, &slack_users, "oncall", "SCHED01");
@@ -382,12 +398,16 @@ mod tests {
             User {
                 id: "U1".to_string(),
                 name: "alice".to_string(),
-                profile: Some(UserProfile { email: Some("alice@example.com".to_string()) }),
+                profile: Some(UserProfile {
+                    email: Some("alice@example.com".to_string()),
+                }),
             },
             User {
                 id: "U2".to_string(),
                 name: "charlie".to_string(),
-                profile: Some(UserProfile { email: Some("charlie@example.com".to_string()) }),
+                profile: Some(UserProfile {
+                    email: Some("charlie@example.com".to_string()),
+                }),
             },
         ];
 
@@ -436,7 +456,11 @@ mod tests {
             name: "Alice".to_string(),
             email: "alice@example.com".to_string(),
         }];
-        let slack_users = vec![User { id: "U1".to_string(), name: "noprofile".to_string(), profile: None }];
+        let slack_users = vec![User {
+            id: "U1".to_string(),
+            name: "noprofile".to_string(),
+            profile: None,
+        }];
 
         let result = validate_user_group_in_schedule(&pagerduty_users, &slack_users, "oncall", "SCHED01");
         assert!(result.is_err());
@@ -645,8 +669,7 @@ mod tests {
         let installation = make_slack_installation(None);
         let request = make_request(None);
 
-        let slack =
-            Slack::new_with_base_url(http_client.clone(), installation.access_token.clone(), mock_server.uri());
+        let slack = Slack::new_with_base_url(http_client.clone(), installation.access_token.clone(), mock_server.uri());
 
         let user_ids = slack.get_user_group_users(&request.user_group_id).await.unwrap();
         // The guard is in get_user_group_users in schedule.rs; replicate it here
