@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.4.0...pagerduty-slack-oncall-sync-v0.5.0) (2026-03-02)
+
+
+### Features
+
+* Release binary for MacOSX and Windows. ([#28](https://github.com/weixu365/pagerduty-slack-oncall-sync/issues/28)) ([bc01029](https://github.com/weixu365/pagerduty-slack-oncall-sync/commit/bc010298e8e65588bdea43eeedd51f6ead285202))
+
 ## [0.4.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.3.0...pagerduty-slack-oncall-sync-v0.4.0) (2026-03-01)
 
 
