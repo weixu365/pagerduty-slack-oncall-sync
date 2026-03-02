@@ -137,7 +137,7 @@ jobs:
         shell: bash
         run: |
           output=$(./dist/${{ matrix.artifact_name }} 2>&1) || true
-          if echo "$output" | grep -q "Version:"; then
+          if echo "$output" | grep -q "version:"; then
             echo "Binary is runnable (AWS errors expected in CI)"
           else
             echo "Binary failed to run:"; echo "$output"
