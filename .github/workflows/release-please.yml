@@ -29,9 +29,9 @@ jobs:
         uses: googleapis/release-please-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          config-file: ${{ github.ref_name == 'master' && 'release-please-config.json' || 'release-please-config-beta.json' }}
+          config-file: ${{ (github.event_name == 'pull_request' && github.base_ref) || github.ref_name == 'master' }} == 'master' && 'release-please-config.json' || 'release-please-config-beta.json'
           manifest-file: .release-please-manifest.json
-          target-branch: ${{ github.ref_name }}
+          target-branch: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
 
   build-lambda:
     needs: release-please
