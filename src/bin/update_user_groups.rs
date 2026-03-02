@@ -11,6 +11,11 @@ use tokio;
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
+    if env::args().any(|a| a == "--version" || a == "-V") {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     init_logging();
 
     let force = env::args().any(|a| a == "--force");
