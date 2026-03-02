@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use crate::aws::event_bridge_scheduler::EventBridgeScheduler;
-use crate::db::{SlackInstallation, ScheduledTaskRepository};
+use crate::db::{ScheduledTaskRepository, SlackInstallation};
 use crate::service::schedule::{CreateScheduleRequest, create_new_schedule, parse_user_group};
 use crate::service::slack::{Slack, update_slack_view};
 use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionViewSubmissionEvent;
 use crate::slack_handler::views::new_schedule_modal::{build_new_schedule_modal, build_success_modal};
-use crate::slack_handler::views::schedule_list::{build_schedule_list_view, DEFAULT_PAGE_SIZE, ScheduleFilter};
+use crate::slack_handler::views::schedule_list::{DEFAULT_PAGE_SIZE, ScheduleFilter, build_schedule_list_view};
 use crate::utils::http_client::build_http_client;
 use crate::utils::logging::json_tracing;
 use crate::{db::SlackInstallationRepository, errors::AppError};
@@ -119,11 +119,13 @@ async fn send_schedule_list(
 
     json_tracing::info!(
         "Sending schedule list ephemeral message to user in channel",
-        channel=&request.channel_id,
-        user=&request.user_id,
-        payload=&blocks_json,
+        channel = &request.channel_id,
+        user = &request.user_id,
+        payload = &blocks_json,
     );
-    slack.send_ephemeral_text(&request.channel_id, &request.user_id, "📋 Scheduled Tasks", Some(&blocks_json)).await?;
+    slack
+        .send_ephemeral_text(&request.channel_id, &request.user_id, "📋 Scheduled Tasks", Some(&blocks_json))
+        .await?;
 
     Ok(())
 }
@@ -137,10 +139,7 @@ pub async fn handle_view_submission(
     is_admin: bool,
 ) -> Result<(), AppError> {
     let installation = slack_installations_db
-        .get_slack_installation(
-            &event.team.id.0,
-            &event.team.enterprise_id.clone().unwrap_or_default(),
-        )
+        .get_slack_installation(&event.team.id.0, &event.team.enterprise_id.clone().unwrap_or_default())
         .await?;
 
     let result = create_schedule(event, &installation, scheduled_tasks_db, scheduler).await;

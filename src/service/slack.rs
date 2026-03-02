@@ -90,7 +90,11 @@ impl Slack {
 
     #[cfg(test)]
     pub fn new_with_base_url(http_client: Arc<Client>, api_token: String, base_url: String) -> Slack {
-        Slack { http_client, api_token, base_url }
+        Slack {
+            http_client,
+            api_token,
+            base_url,
+        }
     }
 
     pub async fn send_message(&self, channel_id: &str, message: &str) -> Result<(), AppError> {
@@ -103,7 +107,13 @@ impl Slack {
             .await
     }
 
-    pub async fn send_ephemeral_text(&self, channel_id: &str, user_id: &str, message: &str, details: Option<&Value>) -> Result<(), AppError> {
+    pub async fn send_ephemeral_text(
+        &self,
+        channel_id: &str,
+        user_id: &str,
+        message: &str,
+        details: Option<&Value>,
+    ) -> Result<(), AppError> {
         let payload = json!({
             "channel": channel_id,
             "user": user_id,
@@ -358,7 +368,12 @@ pub async fn send_slack_blocks(response_url: &str, blocks: &Vec<SlackBlock>) -> 
 pub async fn send_slack_message(response_url: &str, response_payload: String) -> Result<(), AppError> {
     let payload_size = response_payload.len();
 
-    json_tracing::info!("Posting message to Slack response_url", response_url, replace_original = &true, payload_size = &payload_size);
+    json_tracing::info!(
+        "Posting message to Slack response_url",
+        response_url,
+        replace_original = &true,
+        payload_size = &payload_size
+    );
 
     let client = reqwest::Client::new();
     match client
@@ -378,11 +393,20 @@ pub async fn send_slack_message(response_url: &str, response_payload: String) ->
             if status.is_success() {
                 json_tracing::info!("Successfully sent interactive response to Slack", response_body = &body);
             } else {
-                json_tracing::error!("Failed to send interactive response to Slack", status = &status.to_string(), response_body = &body, response_payload = &response_payload);
+                json_tracing::error!(
+                    "Failed to send interactive response to Slack",
+                    status = &status.to_string(),
+                    response_body = &body,
+                    response_payload = &response_payload
+                );
             }
         }
         Err(err) => {
-            json_tracing::error!("Error sending interactive response to Slack", err = &err.to_string(), response_payload = &response_payload);
+            json_tracing::error!(
+                "Error sending interactive response to Slack",
+                err = &err.to_string(),
+                response_payload = &response_payload
+            );
         }
     }
 
@@ -405,11 +429,7 @@ pub async fn open_slack_modal(trigger_id: &str, modal: &SlackView, bot_access_to
     Ok(())
 }
 
-pub async fn update_slack_view(
-    view_id: &str,
-    modal: &SlackView,
-    bot_access_token: &str,
-) -> Result<(), AppError> {
+pub async fn update_slack_view(view_id: &str, modal: &SlackView, bot_access_token: &str) -> Result<(), AppError> {
     json_tracing::info!("Updating Slack modal");
 
     let modal_json =

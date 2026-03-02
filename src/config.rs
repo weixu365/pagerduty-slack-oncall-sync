@@ -2,12 +2,12 @@ use std::env;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
+use crate::utils::logging::json_tracing;
 use crate::{
     aws::secrets_client::{Secrets, SecretsClient},
     encryptor::{AWSKMSEncryptor, Encryptor, XChaCha20Encryptor},
     errors::AppError,
 };
-use crate::utils::logging::json_tracing;
 use aws_config::{BehaviorVersion, SdkConfig};
 use aws_sdk_kms::Client as KmsClient;
 
@@ -73,7 +73,7 @@ impl Config {
         let result = self
             .secrets_cache
             .get_or_try_init(|| async {
-                json_tracing::info!("Loading secrets from AWS Secrets Manager", secret_name = &self.secret_name);
+                json_tracing::info!("Loading secrets from Secrets Manager", secret_name = &self.secret_name);
                 let secrets_client = SecretsClient::new(&self.aws_config);
                 secrets_client.get_secret(&self.secret_name).await
             })
@@ -93,7 +93,7 @@ impl Config {
             let encryptor = AWSKMSEncryptor::new(kms_client, kms_key_id).await?;
             Ok(Arc::new(encryptor))
         } else if let Some(secret_id) = secret_id {
-            json_tracing::info!("Using XChaCha20 encryption with key from AWS Secret", aws_secret_id = &secret_id);
+            json_tracing::info!("Using XChaCha20 encryption with secret key", aws_secret_id = &secret_id);
             let secrets_client = SecretsClient::new(&self.aws_config);
             let encryption_key = secrets_client.get_secret_value(&secret_id).await?;
 

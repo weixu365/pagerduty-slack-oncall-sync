@@ -6,8 +6,8 @@ use futures::stream::{self, StreamExt};
 use crate::config::Config;
 use crate::db::slack_installation::{SlackInstallation, SlackInstallationRepository};
 use crate::utils::dynamodb_client::{get_attribute, get_encrypted_attribute, get_optional_encrypted_attribute};
-use crate::{encryptor::Encryptor, errors::AppError};
 use crate::utils::logging::json_tracing;
+use crate::{encryptor::Encryptor, errors::AppError};
 use std::sync::Arc;
 
 pub struct SlackInstallationsDynamoDb {
@@ -156,7 +156,11 @@ impl SlackInstallationRepository for SlackInstallationsDynamoDb {
                 match self.parse_installation(&item).await {
                     Ok(installation) => Some(installation),
                     Err(err) => {
-                        json_tracing::error!("Failed to parse Slack installation, skipping", err = &err.to_string(), item = &format!("{:?}", item));
+                        json_tracing::error!(
+                            "Failed to parse Slack installation, skipping",
+                            err = &err.to_string(),
+                            item = &format!("{:?}", item)
+                        );
                         None
                     }
                 }

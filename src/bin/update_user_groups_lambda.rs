@@ -1,8 +1,11 @@
 use std::env;
 
 use lambda_runtime::{Error, LambdaEvent, service_fn};
-use on_call_support::{user_group_updater::{update_user_groups, SyncTrigger}, utils::logging};
 use on_call_support::utils::logging::json_tracing;
+use on_call_support::{
+    user_group_updater::{SyncTrigger, update_user_groups},
+    utils::logging,
+};
 use tokio;
 
 use serde_json::{Value, json};
@@ -10,8 +13,8 @@ use serde_json::{Value, json};
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     logging::init_logging();
-    json_tracing::info!("Start updating Slack user groups based on PagerDuty on-call schedule");
-
+    let version = env!("CARGO_PKG_VERSION");
+    json_tracing::info!("Start updating Slack user groups based on PagerDuty on-call schedule", version);
     let func = service_fn(func);
     lambda_runtime::run(func).await?;
     Ok(())

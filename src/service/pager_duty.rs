@@ -61,14 +61,20 @@ impl PagerDuty {
         schedule_id: String,
         base_url: String,
     ) -> PagerDuty {
-        PagerDuty { http_client, api_token, schedule_id, base_url }
+        PagerDuty {
+            http_client,
+            api_token,
+            schedule_id,
+            base_url,
+        }
     }
 
     pub async fn validate_token(&self) -> Result<(), AppError> {
         json_tracing::info!("Validating PagerDuty API token");
 
-        let _response: serde_json::Value = 
-            self.send_request::<serde_json::Value, ()>("/users/me", Method::GET, None, None).await?;
+        let _response: serde_json::Value = self
+            .send_request::<serde_json::Value, ()>("/users/me", Method::GET, None, None)
+            .await?;
 
         Ok(())
     }
@@ -97,7 +103,7 @@ impl PagerDuty {
             .into_iter()
             .filter_map(|u| match (u.name, u.email) {
                 (Some(name), Some(email)) => Some(PagerDutyUser { name, email }),
-                _ => None
+                _ => None,
             })
             .collect();
 
@@ -115,8 +121,9 @@ impl PagerDuty {
             }
         }
 
-        let schedules_response: PagerDutySchedulesResponse =
-            self.send_request("/schedules", Method::GET, Some(&params), None).await?;
+        let schedules_response: PagerDutySchedulesResponse = self
+            .send_request("/schedules", Method::GET, Some(&params), None)
+            .await?;
 
         Ok(schedules_response.schedules)
     }
@@ -156,7 +163,12 @@ impl PagerDuty {
 
         if status.is_success() {
             serde_json::from_str::<T>(&body).map_err(|e| {
-                json_tracing::error!("Failed to deserialize PagerDuty response", endpoint, body, error = &e.to_string());
+                json_tracing::error!(
+                    "Failed to deserialize PagerDuty response",
+                    endpoint,
+                    body,
+                    error = &e.to_string()
+                );
                 AppError::PagerDutyError(format!(
                     "Failed to deserialize PagerDuty response from {}: {} — body: {}",
                     endpoint, e, body
