@@ -1,0 +1,74 @@
+display_information:
+  name: On-Call Support
+  description: Sync the current on-call user from PagerDuty to Slack user group
+  background_color: "#323336"
+  long_description: "This app sync the current on-call user from PagerDuty to Slack user group\r
+
+    \r
+
+    Show existing schedules and create a schedule using the wizard:\r
+
+    ```\r
+
+    /on-call-support\r
+
+    ```\r
+
+    \r
+
+    Or if you prefer the command line style to add a new schedule:\r
+
+    ```\r
+
+    /on-call-support schedule --user-group @<user-group-handle> --pagerduty-schedule <schedule-id> --cron \"0 9 ? * MON-FRI *\"  --timezone \"Australia/Melbourne\"\r
+
+    ```\r
+
+    For example:\r
+
+    ```\r
+
+    /on-call-support schedule --user-group @mk-support --pagerduty-schedule P7G***I --cron \"0 9 ? * MON-FRI *\"  --timezone \"Australia/Melbourne\"\r
+
+    ```"
+features:
+  app_home:
+    home_tab_enabled: true
+    messages_tab_enabled: false
+    messages_tab_read_only_enabled: true
+  bot_user:
+    display_name: On-Call Support
+    always_online: true
+  slash_commands:
+    - command: /on-call-support
+      url: https://aws_gw_api_id.execute-api.ap-southeast-2.amazonaws.com/dev/slack/command
+      description: Update user group to on-call user
+      usage_hint: schedule on-call user to @mk-support-test at 9am on Friday
+      should_escape: false
+oauth_config:
+  redirect_urls:
+    - https://aws_gw_api_id.execute-api.ap-southeast-2.amazonaws.com/dev/slack/oauth
+  scopes:
+    bot:
+      - app_mentions:read
+      - channels:read
+      - channels:write.topic
+      - chat:write
+      - commands
+      - groups:read
+      - usergroups:read
+      - usergroups:write
+      - users:read
+      - users:read.email
+settings:
+  event_subscriptions:
+    request_url: https://aws_gw_api_id.execute-api.ap-southeast-2.amazonaws.com/dev/slack/events
+    bot_events:
+      - app_home_opened
+  interactivity:
+    is_enabled: true
+    request_url: https://aws_gw_api_id.execute-api.ap-southeast-2.amazonaws.com/dev/slack/interactive
+    message_menu_options_url: https://aws_gw_api_id.execute-api.ap-southeast-2.amazonaws.com/dev/slack/external_select
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

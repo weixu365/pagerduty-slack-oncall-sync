@@ -2,9 +2,45 @@
 
 A Rust serverless app that syncs PagerDuty on-call rotations to Slack user groups. When someone goes on-call in PagerDuty, the corresponding Slack user group is automatically updated so you can `@mention` the right people.
 
+## Deploy to AWS
+
+Sample SAM templates are in `deploy/sam/`. Prerequisites: [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html), Lambda zip artifacts.
+
+1. Create your own repo and copy deploy/sam/* to the root of your repo
+
+2. Download binaries from Github:
+   ```bash
+   make download-lambda
+   ```
+
+3. Deploy:
+   ```bash
+   make deploy-dev
+   ```
+
+4. Before deploy: ensure Secrets Manager has `on-call-support/secrets` with `encryption_key`, `slack_client_id`, `slack_client_secret`, `slack_signing_secret`. Update `ADMIN_USER_SLACK_IDS` in the template if needed.
+
+## Install Slack App
+
+Use `deploy/slack/slack_app_manifest.yml` as a reference when creating your Slack app. **Update all URLs** with the `ApiGatewayApiEndpoint` output from your SAM stack (e.g. `https://abc123.execute-api.ap-southeast-2.amazonaws.com/`).
+
+Replace `aws_gw_api_id.execute-api.ap-southeast-2.amazonaws.com` in the manifest with your actual API Gateway base URL. The paths are:
+
+| Setting | Path |
+|---------|------|
+| Slash command URL | `{endpoint}{Stage}/slack/command` |
+| OAuth redirect | `{endpoint}{Stage}/slack/oauth` |
+| Event subscriptions | `{endpoint}{Stage}/slack/events` |
+| Interactivity | `{endpoint}{Stage}/slack/interactive` |
+| Message menu (external select) | `{endpoint}{Stage}/slack/external_select` |
+
+`{Stage}` matches your deployment (e.g. `dev` or `prod`). Create the app from the manifest in [Slack API](https://api.slack.com/apps) → Create New App → From an app manifest.
+
 ## Usage
 
-All commands are scoped to the channel where they are run. Configure your Slack app with the slash command `/on-call-support`.
+> **Note:** This doc assumes the slash command is `/on-call-support`. If you use a different command, adjust the examples accordingly.
+
+All commands are scoped to the channel where they are run.
 
 ### GUI-style
 
