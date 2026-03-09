@@ -267,7 +267,7 @@ pub async fn update_user_groups(env: &str, trigger: SyncTrigger) -> Result<Vec<S
             );
         }
 
-        json_tracing::info!(
+        json_tracing::debug!(
             "Check if the task has an earlier next trigger",
             task_id = &task.task_id,
             channel_name = &task.channel_name,

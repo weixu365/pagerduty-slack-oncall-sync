@@ -99,16 +99,13 @@ where
             .and_then(|v| v.as_str().map(str::to_string))
             .unwrap_or_default();
 
-        let mut obj = json!({
-            "timestamp": Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ").to_string(),
-            "level": meta.level().to_string(),
-            "message": message,
-        })
-        .as_object_mut()
-        .unwrap()
-        .clone();
-
-        obj.extend(fields);
+        // Build output with predictable order: level, message first, then other fields in insertion order.
+        // serde_json with preserve_order uses IndexMap, so insertion order is preserved.
+        let mut obj = Map::new();
+        obj.insert("level".into(), json!(meta.level().to_string()));
+        obj.insert("message".into(), json!(message));
+        obj.extend(fields); // custom fields in macro order
+        obj.insert("timestamp".into(), json!(Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ").to_string()));
         obj.insert("target".into(), json!(meta.target()));
 
         // Span fields are stored by JsonFields as "key":value pairs in FormattedFields.
@@ -131,7 +128,7 @@ where
             }
         }
 
-        writeln!(writer, "{}", serde_json::to_string(&obj).map_err(|_| fmt::Error)?)
+        writeln!(writer, "{}", serde_json::to_string(&Value::Object(obj)).map_err(|_| fmt::Error)?)
     }
 }
 
