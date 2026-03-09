@@ -1,4 +1,4 @@
-VERSION=v0.5.2
+VERSION=v0.6.0
 GH_RELEASE_URL=https://github.com/weixu365/pagerduty-slack-oncall-sync/releases/download/pagerduty-slack-oncall-sync-$(VERSION)
 
 download-lambda:
