@@ -32,7 +32,7 @@ pub async fn handle_slack_interactive_async(
     config: &Arc<Config>,
     event: ApiGatewayProxyRequest,
 ) -> Result<ApiGatewayProxyResponse, AppError> {
-    json_tracing::info!("Processing slack request", event);
+    json_tracing::debug!("Processing slack request", event);
 
     let request_body = event.body.as_deref().unwrap_or("");
 

@@ -143,7 +143,7 @@ pub async fn update_user_group(
     fields(channel=task.channel_name, user_group=task.user_group_handle),
 )]
 async fn run_task(
-    task: &ScheduledTask,
+    task: &mut ScheduledTask,
     slack_tokens: &HashMap<String, SlackInstallation>,
     http_client: Arc<Client>,
     scheduled_tasks_db: &ScheduledTasksDynamodb,
@@ -179,17 +179,16 @@ async fn run_task(
     )
     .await?;
 
-    let mut updated_task = task.clone();
-    updated_task.last_updated_at = Utc::now().to_rfc3339();
+    task.last_updated_at = Utc::now().to_rfc3339();
 
-    match updated_task.calculate_next_schedule(&Utc::now()) {
+    match task.calculate_next_schedule(&Utc::now()) {
         Ok(task_next_schedule) => {
-            updated_task.next_update_timestamp_utc = task_next_schedule.next_timestamp_utc;
-            updated_task.next_update_time = task_next_schedule.next_datetime.to_rfc3339();
+            task.next_update_timestamp_utc = task_next_schedule.next_timestamp_utc;
+            task.next_update_time = task_next_schedule.next_datetime.to_rfc3339();
         }
         Err(err) => {
-            updated_task.next_update_timestamp_utc = -1;
-            updated_task.next_update_time = "".to_string();
+            task.next_update_timestamp_utc = -1;
+            task.next_update_time = "".to_string();
             json_tracing::info!(
                 "Failed to calculate next schedule",
                 task_id = &task.task_id,
@@ -199,7 +198,7 @@ async fn run_task(
         }
     }
 
-    scheduled_tasks_db.update_next_schedule(&updated_task).await?;
+    scheduled_tasks_db.update_next_schedule(task).await?;
 
     Ok(result)
 }
@@ -235,18 +234,18 @@ pub async fn update_user_groups(env: &str, trigger: SyncTrigger) -> Result<Vec<S
     let mut next_task = None;
     let start_of_the_update = Utc::now();
     let mut results: Vec<SyncResult> = vec![];
-    for task in tasks {
+    for mut task in tasks {
         let need_sync = task.next_update_timestamp_utc > 0 && task.next_update_timestamp_utc <= Utc::now().timestamp();
         if trigger == SyncTrigger::Manual || need_sync {
-            let task_result = match run_task(&task, &slack_tokens, http_client.clone(), &scheduled_tasks_db).await {
-                Ok(r) => r,
+            match run_task(&mut task, &slack_tokens, http_client.clone(), &scheduled_tasks_db).await {
+                Ok(task_result) => results.push(task_result),
                 Err(err) => {
                     json_tracing::error!(
                         "Failed to update user group for task",
                         task_id = &task.task_id,
                         err = &err.to_string()
                     );
-                    SyncResult {
+                    results.push(SyncResult {
                         channel_id: task.channel_id.clone(),
                         channel_name: task.channel_name.clone(),
                         user_group_id: task.user_group_id.clone(),
@@ -255,10 +254,9 @@ pub async fn update_user_groups(env: &str, trigger: SyncTrigger) -> Result<Vec<S
                         new_user_ids: vec![],
                         changed: false,
                         error: Some(err.to_string()),
-                    }
+                    });
                 }
-            };
-            results.push(task_result);
+            }
         } else {
             json_tracing::info!(
                 "Task skipped: next trigger is in the future",
@@ -269,9 +267,27 @@ pub async fn update_user_groups(env: &str, trigger: SyncTrigger) -> Result<Vec<S
             );
         }
 
+        json_tracing::info!(
+            "Check if the task has an earlier next trigger",
+            task_id = &task.task_id,
+            channel_name = &task.channel_name,
+            start_of_the_update = &start_of_the_update.timestamp(),
+            timestamp_of_next_trigger,
+            task_next_update_timestamp_utc = &task.next_update_timestamp_utc,
+        );
+
         if task.next_update_timestamp_utc > start_of_the_update.timestamp()
             && task.next_update_timestamp_utc < timestamp_of_next_trigger
         {
+            json_tracing::info!(
+                "Found an earlier next trigger",
+                task_id = &task.task_id,
+                channel_name = &task.channel_name,
+                next_update_time = &task.next_update_time,
+                task_next_update_timestamp_utc = &task.next_update_timestamp_utc,
+                start_of_the_update = &start_of_the_update.timestamp(),
+                timestamp_of_next_trigger,
+            );
             timestamp_of_next_trigger = task.next_update_timestamp_utc;
             next_task = Some(task);
         }
