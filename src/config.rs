@@ -42,7 +42,7 @@ impl Config {
     }
 
     async fn load(env: &str) -> Result<Arc<Config>, AppError> {
-        json_tracing::info!("Loading config", env);
+        json_tracing::debug!("Loading config", env);
 
         let secret_name = env::var("AWS_SECRET_NAME").unwrap_or("on-call-support/secrets".to_string());
         let table_name_prefix = env::var("TABLE_NAME_PREFIX").unwrap_or("on-call-support-".to_string());
@@ -69,7 +69,7 @@ impl Config {
     }
 
     pub async fn secrets(&self) -> Result<&Secrets, AppError> {
-        json_tracing::info!("Loading secrets", secret_name = &self.secret_name);
+        json_tracing::debug!("Getting secrets", secret_name = &self.secret_name);
         let result = self
             .secrets_cache
             .get_or_try_init(|| async {
@@ -79,7 +79,7 @@ impl Config {
             })
             .await;
 
-        json_tracing::info!("Loaded secrets", secret_name = &self.secret_name);
+        json_tracing::debug!("Got secrets", secret_name = &self.secret_name);
         result
     }
 
