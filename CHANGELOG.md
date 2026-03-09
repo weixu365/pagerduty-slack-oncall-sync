@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.5.1...pagerduty-slack-oncall-sync-v0.6.0) (2026-03-09)
+
+
+### Features
+
+* Preserve field order in JSON logs ([#33](https://github.com/weixu365/pagerduty-slack-oncall-sync/issues/33)) ([e13cdf6](https://github.com/weixu365/pagerduty-slack-oncall-sync/commit/e13cdf65bc7f8060baf81166668112428a2ba741))
+
 ## [0.5.1](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.5.0...pagerduty-slack-oncall-sync-v0.5.1) (2026-03-09)
 
 
