@@ -24,8 +24,6 @@ use tracing::{error, info, warn};
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     logging::init_logging();
-    let version = env!("CARGO_PKG_VERSION");
-    json_tracing::info!("Start handling Slack request", version);
 
     let service_func = service_fn(func);
     let result = lambda_runtime::run(service_func).await;
@@ -46,7 +44,8 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
     let (event, _context) = event.into_parts();
 
     let env = env::var("ENV").unwrap_or("dev".to_string());
-    info!(path = event.path, "Received Slack request");
+    let version = env!("CARGO_PKG_VERSION");
+    json_tracing::info!("Received Slack request", env, version, path = &event.path);
 
     let config = Config::get_or_init(&env).await?;
 

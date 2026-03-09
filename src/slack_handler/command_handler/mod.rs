@@ -24,7 +24,7 @@ use crate::{
 use aws_lambda_events::event::apigw::ApiGatewayProxyRequest;
 
 pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayProxyRequest) -> Result<(), AppError> {
-    json_tracing::info!("Processing command asynchronously", event);
+    json_tracing::debug!("Processing command asynchronously", event);
 
     let request_body = event.body.as_deref().unwrap_or("");
     let params = parse_slack_request(event.headers, request_body, &config).await?;

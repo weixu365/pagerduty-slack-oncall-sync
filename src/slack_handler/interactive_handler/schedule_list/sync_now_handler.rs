@@ -58,7 +58,7 @@ pub async fn handle_sync_now(
         .send()
         .await?;
 
-    json_tracing::info!("Manual sync completed synchronously");
+    json_tracing::info!("Manual sync completed");
 
     // Parse results and send DM
     let results: Vec<SyncResult> = invoke_response
@@ -77,10 +77,14 @@ pub async fn handle_sync_now(
             let message = build_sync_response_message(&results);
             let send_result = match &request.container {
                 SlackInteractionActionContainer::Message(msg) => {
+                    json_tracing::info!("Sending sync result to channel", channel_id = &msg.channel_id);
                     let channel_id = msg.channel_id.as_ref().map(|c| c.0.as_str()).unwrap_or(user_id);
                     slack.send_ephemeral_text(channel_id, user_id, &message, None).await
                 }
-                SlackInteractionActionContainer::View(_) => slack.send_message(user_id, &message).await,
+                SlackInteractionActionContainer::View(_) => {
+                    json_tracing::info!("Sending sync result to user", user_id);
+                    slack.send_message(user_id, &message).await
+                }
                 SlackInteractionActionContainer::MessageAttachment(_) => {
                     json_tracing::warn!("Unsupported message attachment container");
                     Ok(())
