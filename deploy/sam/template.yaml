@@ -1,0 +1,261 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: On-Call Support Slack Bot
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    Description: Deployment stage (e.g. dev, prod)
+
+Globals:
+  Function:
+    Runtime: provided.al2023
+    MemorySize: 256
+Resources:
+  # =============================================================================
+  # IAM Role (must be defined before Lambda functions that reference it)
+  # =============================================================================
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-LambdaRole"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: LamdaRolePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:CreateLogGroup
+                  - logs:TagResource
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}*:*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/on-call-support-${Stage}-*:*"
+              - Effect: Allow
+                Action:
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}*:*:*"
+                  - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/on-call-support-${Stage}-*:*:*"
+
+              - Effect: Allow
+                Action:
+                  - dynamodb:DeleteItem
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub "arn:aws:dynamodb:*:*:table/on-call-support-schedules-${Stage}"
+                  - !Sub "arn:aws:dynamodb:*:*:table/on-call-support-schedules-${Stage}/index/*"
+                  - !Sub "arn:aws:dynamodb:*:*:table/on-call-support-installations-${Stage}"
+                  - !Sub "arn:aws:dynamodb:*:*:table/on-call-support-installations-${Stage}/index/*"
+
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:on-call-support/secrets*"
+
+              - Effect: Allow
+                Action:
+                  - "scheduler:*"
+                Resource:
+                  - "arn:aws:scheduler:*:*:schedule/*/*"
+                  - !Sub "arn:aws:scheduler:*:*:schedule/*/on-call-support-${Stage}_UpdateUserGroupSchedule_*"
+              - Effect: Allow
+                Action:
+                  - "iam:PassRole"
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/${AWS::StackName}-LambdaRole"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: scheduler.amazonaws.com
+              - Effect: Allow
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-UpdateUserGroups"
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-UpdateUserGroups:*"
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-SlackRequestHandler"
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-SlackRequestHandler:*"
+
+  # =============================================================================
+  # CloudWatch Log Groups (Serverless naming: /aws/lambda/on-call-support-{stage}-{function})
+  # =============================================================================
+  UpdateUserGroupsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/on-call-support-${Stage}-UpdateUserGroups"
+      RetentionInDays: 14
+
+  SlackRequestHandlerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/on-call-support-${Stage}-SlackRequestHandler"
+      RetentionInDays: 14
+
+  # =============================================================================
+  # DynamoDB Tables (stack tags from samconfig.toml are propagated automatically)
+  # =============================================================================
+  OnCallSupportScheduledTasks:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Sub "on-call-support-schedules-${Stage}"
+      AttributeDefinitions:
+        - AttributeName: team
+          AttributeType: S
+        - AttributeName: task_id
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: team
+          KeyType: HASH
+        - AttributeName: task_id
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  OnCallSupportInstallations:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Sub "on-call-support-installations-${Stage}"
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # =============================================================================
+  # API Gateway (explicit resource required for tags - stack tags don't propagate)
+  # =============================================================================
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub "${AWS::StackName}-Api"
+      StageName: !Ref Stage
+      OpenApiVersion: 3.0.1   # makes SAM respect StageName only and stop creating the extra "Stage" stage
+      Tags:
+        Name: On-Call Support Slack Bot
+        Project: on-call-support-slack-bot
+        ServiceName: on-call-support
+        Environment: !Ref Stage
+
+  # =============================================================================
+  # Lambda Functions
+  # =============================================================================
+  UpdateUserGroupsLambdaFunction:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - UpdateUserGroupsLogGroup
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-UpdateUserGroups"
+      Handler: bootstrap
+      CodeUri: dist/update_user_groups_lambda.zip
+      Timeout: 900
+      Role: !GetAtt LambdaRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref UpdateUserGroupsLogGroup
+      Events:
+        UpdateUserGroupSchedule:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: cron(10 9 ? * MON-FRI *)
+            ScheduleExpressionTimezone: Australia/Melbourne
+            RetryPolicy:
+              MaximumRetryAttempts: 2
+              MaximumEventAgeInSeconds: 600
+      Environment:
+        Variables:
+          UPDATE_USER_GROUP_LAMBDA: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-UpdateUserGroups"
+          UPDATE_USER_GROUP_LAMBDA_ROLE: !GetAtt LambdaRole.Arn
+
+  SlackRequestHandlerLambdaFunction:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - SlackRequestHandlerLogGroup
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-SlackRequestHandler"
+      Handler: bootstrap
+      CodeUri: dist/slack_request_handler_lambda.zip
+      Timeout: 30
+      Role: !GetAtt LambdaRole.Arn
+      LoggingConfig:
+        LogGroup: !Ref SlackRequestHandlerLogGroup
+      Events:
+        SlackCommand:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /slack/command
+            Method: ANY
+        SlackOauth:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /slack/oauth
+            Method: ANY
+        SlackExternalSelect:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /slack/external_select
+            Method: ANY
+        SlackInteractive:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /slack/interactive
+            Method: ANY
+        SlackEvents:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ApiGatewayApi
+            Path: /slack/events
+            Method: ANY
+      Environment:
+        Variables:
+          SLACK_HANDLER_LAMBDA_ARN: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-SlackRequestHandler"
+          UPDATE_USER_GROUP_LAMBDA: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-UpdateUserGroups"
+          UPDATE_USER_GROUP_LAMBDA_ROLE: !GetAtt LambdaRole.Arn
+          ADMIN_USER_SLACK_IDS:
+            Fn::Join:
+              - ","
+              - - <slack user id> # @slack user name
+
+Outputs:
+  UpdateUserGroupsLambdaArn:
+    Description: ARN of the UpdateUserGroups Lambda function
+    Value: !GetAtt UpdateUserGroupsLambdaFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-UpdateUserGroupsArn"
+  UpdateUserGroupsLambdaRoleArn:
+    Description: ARN of the Lambda execution role
+    Value: !GetAtt LambdaRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaRoleArn"
+  ApiGatewayApiEndpoint:
+    Description: API Gateway endpoint URL for Slack webhooks
+    Value: !Sub
+      - "https://${ApiId}.execute-api.${AWS::Region}.amazonaws.com/"
+      - ApiId: !Ref ApiGatewayApi
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiEndpoint"
