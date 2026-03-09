@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.5.0...pagerduty-slack-oncall-sync-v0.5.1) (2026-03-09)
+
+
+### Bug Fixes
+
+* Calculate the next schedule using the updated task ([#31](https://github.com/weixu365/pagerduty-slack-oncall-sync/issues/31)) ([6f035ab](https://github.com/weixu365/pagerduty-slack-oncall-sync/commit/6f035ab3b07cfb7de35f9805712f5802675cf3c8))
+
 ## [0.5.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.4.0...pagerduty-slack-oncall-sync-v0.5.0) (2026-03-02)
 
 
