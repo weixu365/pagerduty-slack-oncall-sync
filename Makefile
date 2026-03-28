@@ -23,6 +23,10 @@ update:
 threads:
 	cargo run --bin test
 
+upgrade-deps:
+	cargo upgrade
+	cargo update
+
 docker-build:
 	docker run -it --rm -v `pwd`:/work -w /work messense/rust-musl-cross:x86_64-musl bash
 
