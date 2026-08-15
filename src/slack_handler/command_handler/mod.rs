@@ -8,12 +8,13 @@ use list_schedules_handler::handle_list_schedules_command;
 use new_schedule_handler::handle_schedule_command;
 use new_schedule_wizard_handler::handle_new_schedule_wizard;
 use setup_pagerduty_handler::handle_setup_pagerduty_command;
-use slack_request::{Command, parse_slack_command, parse_slack_request};
+use slack_request::{Command, SlackCommandRequest, parse_slack_command, parse_slack_request};
 use std::env;
 use std::sync::Arc;
+use tracing::{Instrument, info_span};
 
 use crate::service::slack::{send_slack_message, send_slack_view};
-use crate::slack_handler::utils::slack_response::markdown_section;
+use crate::slack_handler::utils::slack_response::{error_section, markdown_section};
 use crate::utils::logging::json_tracing;
 use crate::{
     aws::event_bridge_scheduler::EventBridgeScheduler,
@@ -28,6 +29,25 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
 
     let request_body = event.body.as_deref().unwrap_or("");
     let params = parse_slack_request(event.headers, request_body, &config).await?;
+    let response_url = params.response_url.clone();
+
+    let span = info_span!("dispatch_slack_command", user_name = %params.user_name);
+    match dispatch_slack_command(config, params).instrument(span).await {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            json_tracing::error!("Failed to process Slack command", err = &err.to_string());
+            send_slack_message(
+                &response_url,
+                error_section(&format!("Failed to process command. Details: {}", err)),
+            )
+            .await?;
+            // Return Ok so Lambda does not retry after the user was already notified.
+            Ok(())
+        }
+    }
+}
+
+async fn dispatch_slack_command(config: &Arc<Config>, params: SlackCommandRequest) -> Result<(), AppError> {
     let arg = parse_slack_command(&params.command, &params.text).await?;
 
     let response_url = params.response_url.clone();
