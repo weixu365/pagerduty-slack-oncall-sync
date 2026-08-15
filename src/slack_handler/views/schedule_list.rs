@@ -56,15 +56,6 @@ pub fn build_schedule_list_view(
         .with_block_id(format!("header_{}", chrono::Utc::now()).into()),
     ));
 
-    if page_tasks.is_empty() {
-        blocks.push(SlackBlock::Section(SlackSectionBlock::new().with_text(md!("_No scheduled tasks found._"))));
-
-        return SlackView::Modal(SlackModalView::new(
-            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Scheduled Tasks".into())),
-            blocks,
-        ));
-    }
-
     // Filter dropdown
     let filter_label = match filter {
         ScheduleFilter::All => "All Schedules",
@@ -180,6 +171,11 @@ pub fn build_schedule_list_view(
 
     blocks.push(SlackBlock::Divider(SlackDividerBlock::new()));
 
+    // No tasks found
+    if page_tasks.is_empty() {
+        blocks.push(SlackBlock::Section(SlackSectionBlock::new().with_text(md!("_No scheduled tasks found._"))));
+    }
+    
     // Schedule items
     for (idx, task) in page_tasks.iter().enumerate() {
         let blocks_for_task = build_schedule_item_blocks(task, idx, current_page, page_size, user_id, filter);
