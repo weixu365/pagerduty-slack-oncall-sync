@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.7.0...pagerduty-slack-oncall-sync-v0.8.0) (2026-08-15)
+
+
+### Features
+
+* add run as user for admin to test list schedules ([ae0948d](https://github.com/weixu365/pagerduty-slack-oncall-sync/commit/ae0948de9cf18b24024da9a968bb9abc872191ab))
+* always show buttons section even when no schedules found ([073de6d](https://github.com/weixu365/pagerduty-slack-oncall-sync/commit/073de6dcd2ddbe5e89889925f7f091bda8a886d4))
+* Send message to slack when failed to process command ([f8c73c0](https://github.com/weixu365/pagerduty-slack-oncall-sync/commit/f8c73c090cc30041d467f69b3184b371e4c01567))
+
 ## [0.7.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.6.1...pagerduty-slack-oncall-sync-v0.7.0) (2026-03-28)
 
 
