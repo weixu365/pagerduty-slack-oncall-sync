@@ -45,7 +45,7 @@ pub async fn handle_schedule_command(
 
     if let Err(err) = create_new_schedule(request, &installation, scheduled_tasks_db, scheduler).await {
         json_tracing::error!("Failed to create schedule", err = &err.to_string());
-        return Err(AppError::Error(format!("Failed to save schedule task\n{} {}", &params.command, &params.text)));
+        return Err(err);
     }
 
     Ok(vec![format!(

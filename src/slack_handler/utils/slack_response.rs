@@ -26,3 +26,22 @@ pub fn markdown_section(contents: Vec<String>) -> String {
 
     response_payload
 }
+
+/// Builds a Slack response_url payload with an orange callout block for error messages.
+pub fn error_section(message: &str) -> String {
+    serde_json::json!({
+        "response_type": "ephemeral",
+        "blocks": [{
+            "type": "callout",
+            "background_color": "orange",
+            "child_blocks": [{
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("*:exclamation: Error*\n{}", message)
+                }
+            }]
+        }]
+    })
+    .to_string()
+}
