@@ -11,6 +11,10 @@ use serde::Deserialize;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct AppArgs {
+    /// View the schedule list as this Slack user ID (admins only)
+    #[arg(long = "as-user", global = true)]
+    pub as_user: Option<String>,
+
     #[clap(subcommand)]
     pub command: Option<Command>,
 }
@@ -129,6 +133,16 @@ pub async fn parse_slack_command(command: &str, args: &str) -> Result<AppArgs, A
     let arg = arg.ok_or_else(|| AppError::InvalidData("Failed to parse command arguments".to_string()))?;
 
     Ok(arg)
+}
+
+/// Strip Slack mention wrapping (`<@U123>` / `<@U123|name>`) so `--as-user` accepts either form.
+pub fn normalize_slack_user_id(raw: &str) -> String {
+    let trimmed = raw.trim();
+    trimmed
+        .strip_prefix("<@")
+        .and_then(|s| s.strip_suffix('>'))
+        .map(|inner| inner.split('|').next().unwrap_or(inner).to_string())
+        .unwrap_or_else(|| trimmed.to_string())
 }
 
 #[cfg(test)]
@@ -260,5 +274,29 @@ mod tests {
 
         assert_eq!(params.is_enterprise_install, false);
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_as_user_flag() -> Result<(), AppError> {
+        let arg = parse_slack_command("/on-call-support", "--as-user U0123FAKE").await?;
+        assert_eq!(arg.as_user.as_deref(), Some("U0123FAKE"));
+        assert!(arg.command.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_as_user_flag_with_list_schedules() -> Result<(), AppError> {
+        let arg = parse_slack_command("/on-call-support", "list-schedules --as-user U0123FAKE").await?;
+        assert_eq!(arg.as_user.as_deref(), Some("U0123FAKE"));
+        assert!(matches!(arg.command, Some(Command::ListSchedules(_))));
+        Ok(())
+    }
+
+    #[test]
+    fn test_normalize_slack_user_id() {
+        assert_eq!(normalize_slack_user_id("U0123FAKE"), "U0123FAKE");
+        assert_eq!(normalize_slack_user_id("  U0123FAKE  "), "U0123FAKE");
+        assert_eq!(normalize_slack_user_id("<@U0123FAKE>"), "U0123FAKE");
+        assert_eq!(normalize_slack_user_id("<@U0123FAKE|alice>"), "U0123FAKE");
     }
 }
