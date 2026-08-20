@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.8.0...pagerduty-slack-oncall-sync-v0.8.1) (2026-08-20)
+
+
+### Bug Fixes
+
+* update dependencies ([#43](https://github.com/weixu365/pagerduty-slack-oncall-sync/issues/43)) ([392469f](https://github.com/weixu365/pagerduty-slack-oncall-sync/commit/392469fc6bf325e7ac2fc380c6922d453f76cfef))
+
 ## [0.8.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.7.0...pagerduty-slack-oncall-sync-v0.8.0) (2026-08-15)
 
 
