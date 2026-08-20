@@ -143,7 +143,7 @@ pub fn build_schedule_list_view(
         "new_schedule".into(),
         SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Create New".into()).with_emoji(true)),
     )
-    .with_style("primary".into());
+    .with_style(SlackBlockButtonStyle::Primary);
 
     let mut action_elements = vec![
         SlackActionBlockElement::StaticSelect(filter_select),
@@ -163,7 +163,7 @@ pub fn build_schedule_list_view(
             SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("⚡ Sync Now".into()).with_emoji(true)),
         )
         .with_value(sync_value.into())
-        .with_style("primary".into());
+        .with_style(SlackBlockButtonStyle::Primary);
         action_elements.push(SlackActionBlockElement::Button(sync_button));
     }
 
@@ -250,7 +250,7 @@ fn build_schedule_item_blocks(
             SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Delete".into()).with_emoji(true)),
         )
         .with_value(delete_value.into())
-        .with_style("danger".into())
+        .with_style(SlackBlockButtonStyle::Danger)
         .with_confirm(
             SlackBlockConfirmItem::new(
                 SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Delete Schedule?".into())),

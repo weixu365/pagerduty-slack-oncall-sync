@@ -7,8 +7,8 @@ use aws_esdk::material_providers::types::material_providers_config::MaterialProv
 use aws_esdk::types::aws_encryption_sdk_config::AwsEncryptionSdkConfig;
 use aws_sdk_kms::Client as KmsClient;
 use chacha20poly1305::{
-    XChaCha20Poly1305, XNonce,
-    aead::{Aead, AeadCore, KeyInit, OsRng},
+    Key, XChaCha20Poly1305, XNonce,
+    aead::{Aead, Generate, KeyInit},
 };
 use serde_derive::{Deserialize, Serialize};
 
@@ -32,12 +32,9 @@ pub struct XChaCha20Encryptor {
 impl XChaCha20Encryptor {
     pub fn from_key(key: &str) -> Result<XChaCha20Encryptor, AppError> {
         let key_bytes = key.as_bytes();
-
-        if key_bytes.len() != 32 {
-            return Err(AppError::InvalidKeyLength(key_bytes.len()));
-        }
-
-        let cipher = XChaCha20Poly1305::new(key_bytes.into());
+        let cipher_key =
+            Key::try_from(key_bytes).map_err(|_| AppError::InvalidKeyLength(key_bytes.len()))?;
+        let cipher = XChaCha20Poly1305::new(&cipher_key);
 
         Ok(XChaCha20Encryptor { cipher })
     }
@@ -46,7 +43,7 @@ impl XChaCha20Encryptor {
 #[async_trait]
 impl Encryptor for XChaCha20Encryptor {
     async fn encrypt(&self, plaintext: &str) -> Result<String, AppError> {
-        let nonce = XChaCha20Poly1305::generate_nonce(&mut OsRng); // 192-bits; unique per message
+        let nonce = XNonce::generate(); // 192-bits; unique per message
         let ciphertext = self.cipher.encrypt(&nonce, plaintext.as_bytes())?;
 
         let encrypted_data = EncryptedData {
@@ -64,7 +61,12 @@ impl Encryptor for XChaCha20Encryptor {
         let nonce_bytes = base64::decode_no_pad(encrypted_data.nonce.as_ref())?;
         let encrypted = base64::decode_no_pad(encrypted_data.data.as_ref())?;
 
-        let nonce = XNonce::from_slice(nonce_bytes.as_slice());
+        let nonce = XNonce::try_from(nonce_bytes.as_slice()).map_err(|_| {
+            AppError::InvalidData(format!(
+                "Invalid nonce length: expected 24 bytes, got {} bytes",
+                nonce_bytes.len()
+            ))
+        })?;
         let plaintext = self.cipher.decrypt(&nonce, encrypted.as_slice())?;
         let decrypted = String::from_utf8(plaintext)?;
 
