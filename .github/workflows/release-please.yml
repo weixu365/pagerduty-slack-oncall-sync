@@ -46,6 +46,10 @@ jobs:
         with:
           targets: x86_64-unknown-linux-musl
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: lambda
+
       - uses: cargo-bins/cargo-binstall@main
 
       - name: Install Zig
@@ -103,6 +107,10 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
       - uses: cargo-bins/cargo-binstall@main
 
       - name: Install Zig
@@ -152,6 +160,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Run tests
         run: make test
