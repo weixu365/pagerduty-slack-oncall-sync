@@ -6,7 +6,6 @@ use on_call_support::{
     user_group_updater::{SyncTrigger, update_user_groups},
     utils::logging,
 };
-use tokio;
 
 use serde_json::{Value, json};
 

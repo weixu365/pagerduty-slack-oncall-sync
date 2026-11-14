@@ -26,7 +26,7 @@ pub fn validate_request(
 
     let now = chrono::Utc::now().timestamp();
     if (now - slack_request_timestamp).abs() > 60 * 5 {
-        return Err(AppError::InvalidSlackRequest(format!("Invalid slack command: wrong timestamp")));
+        return Err(AppError::InvalidSlackRequest("Invalid slack command: wrong timestamp".to_string()));
     }
 
     let sig_basestring = format!("v0:{}:{}", slack_request_timestamp, request_body);
@@ -38,7 +38,7 @@ pub fn validate_request(
 
     if !constant_time_compare_str(&expected_signature, slack_request_signature) {
         json_tracing::error!("Signature verification failed", slack_request_signature);
-        return Err(AppError::InvalidSlackRequest(format!("Invalid slack command signature")));
+        return Err(AppError::InvalidSlackRequest("Invalid slack command signature".to_string()));
     }
 
     Ok(())

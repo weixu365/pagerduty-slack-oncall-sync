@@ -28,7 +28,7 @@ pub async fn handle_slack_command_async(config: &Arc<Config>, event: ApiGatewayP
     json_tracing::debug!("Processing command asynchronously", event);
 
     let request_body = event.body.as_deref().unwrap_or("");
-    let params = parse_slack_request(event.headers, request_body, &config).await?;
+    let params = parse_slack_request(event.headers, request_body, config).await?;
     let response_url = params.response_url.clone();
 
     let span = info_span!("dispatch_slack_command", user_name = %params.user_name);
@@ -62,9 +62,9 @@ async fn dispatch_slack_command(config: &Arc<Config>, mut params: SlackCommandRe
         Some(Command::Schedule(arg)) => {
             let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
             let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
-            let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
-            let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
-            let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor);
+            let scheduler = EventBridgeScheduler::new(config, lambda_arn, lambda_role);
+            let slack_installations_db = SlackInstallationsDynamoDb::new(config, encryptor.clone());
+            let scheduled_tasks_db = ScheduledTasksDynamodb::new(config, encryptor);
 
             let response_body =
                 handle_schedule_command(params, arg, &slack_installations_db, &scheduled_tasks_db, scheduler).await?;
@@ -72,14 +72,14 @@ async fn dispatch_slack_command(config: &Arc<Config>, mut params: SlackCommandRe
             send_slack_message(&response_url, markdown_section(response_body)).await?;
         }
         Some(Command::SetupPagerduty(arg)) => {
-            let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
+            let slack_installations_db = SlackInstallationsDynamoDb::new(config, encryptor.clone());
             let response_body = handle_setup_pagerduty_command(params, arg, &slack_installations_db).await?;
 
             send_slack_message(&response_url, markdown_section(response_body)).await?;
         }
         Some(Command::New) => {
             let encryptor = config.build_encryptor().await?;
-            let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor);
+            let slack_installations_db = SlackInstallationsDynamoDb::new(config, encryptor);
 
             handle_new_schedule_wizard(&params, &params.trigger_id, &slack_installations_db).await?;
         }
@@ -92,14 +92,14 @@ async fn dispatch_slack_command(config: &Arc<Config>, mut params: SlackCommandRe
 
             let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
             let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
-            let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
+            let scheduler = EventBridgeScheduler::new(config, lambda_arn, lambda_role);
             let next_trigger_timestamp = scheduler
                 .get_current_schedule()
                 .await?
                 .and_then(|s| s.next_scheduled_timestamp_utc);
 
             let is_admin = config.admin_user_slack_ids.contains(&params.user_id);
-            let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor);
+            let scheduled_tasks_db = ScheduledTasksDynamodb::new(config, encryptor);
             let view = handle_list_schedules_command(
                 &scheduled_tasks_db,
                 page,

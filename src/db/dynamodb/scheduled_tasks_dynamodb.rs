@@ -188,7 +188,7 @@ impl ScheduledTaskRepository for ScheduledTasksDynamodb {
             ))
         })?;
 
-        let task = self.parse_scheduled_task(&item).await?;
+        let task = self.parse_scheduled_task(item).await?;
         Ok(task)
     }
 

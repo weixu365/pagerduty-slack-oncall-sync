@@ -35,30 +35,30 @@ pub async fn handle_slack_external_select(
     match request.action_id.as_str() {
         "user_group_suggestion" => {
             let encryptor = config.build_encryptor().await?;
-            let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor);
+            let slack_installations_db = SlackInstallationsDynamoDb::new(config, encryptor);
             let http_client = Arc::new(build_http_client()?);
 
             let options = handle_user_group_options(&request, &slack_installations_db, http_client.clone()).await?;
 
             let json_response = serde_json::to_string(&options)?;
-            return response(200, json_response);
+            response(200, json_response)
         }
         "pagerduty_schedule_suggestion" => {
             let encryptor = config.build_encryptor().await?;
-            let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor);
+            let slack_installations_db = SlackInstallationsDynamoDb::new(config, encryptor);
             let http_client = Arc::new(build_http_client()?);
 
             let options =
                 handle_pagerduty_schedule_options(&request, &slack_installations_db, http_client.clone()).await?;
 
             let json_response = serde_json::to_string(&options)?;
-            return response(200, json_response);
+            response(200, json_response)
         }
         "timezone_suggestion" => {
             let options = handle_timezone_options(&request).await?;
 
             let json_response = serde_json::to_string(&options)?;
-            return response(200, json_response);
+            response(200, json_response)
         }
 
         _ => Err(AppError::InvalidData(format!("Unknown external select action_id: {}", request.action_id))),

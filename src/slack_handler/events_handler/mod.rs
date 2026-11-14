@@ -34,12 +34,12 @@ pub async fn handle_slack_events(
     let slack_request = parse_slack_request(request_body)?;
 
     let encryptor = config.build_encryptor().await?;
-    let scheduled_tasks_db = ScheduledTasksDynamodb::new(&config, encryptor);
-    let slack_installations_db = SlackInstallationsDynamoDb::new(&config, config.build_encryptor().await?);
+    let scheduled_tasks_db = ScheduledTasksDynamodb::new(config, encryptor);
+    let slack_installations_db = SlackInstallationsDynamoDb::new(config, config.build_encryptor().await?);
 
     let lambda_arn = env::var("UPDATE_USER_GROUP_LAMBDA")?;
     let lambda_role = env::var("UPDATE_USER_GROUP_LAMBDA_ROLE")?;
-    let scheduler = EventBridgeScheduler::new(&config, lambda_arn, lambda_role);
+    let scheduler = EventBridgeScheduler::new(config, lambda_arn, lambda_role);
 
     match slack_request {
         SlackPushEvent::UrlVerification(url_verification) => {

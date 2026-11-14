@@ -50,7 +50,7 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
                         .map(|opt| {
                             SlackBlockChoiceItem::new(
                                 SlackBlockPlainTextOnly::from(opt.text),
-                                opt.value.into(),
+                                opt.value,
                             )
                         }),
                     min_query_length: Some(2),
@@ -112,7 +112,7 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
                             .map(|opt| {
                                 SlackBlockChoiceItem::new(
                                     SlackBlockPlainTextOnly::from(opt.text),
-                                    opt.value.into(),
+                                    opt.value,
                                 )
                             }),
                         min_query_length: Some(2),
@@ -162,7 +162,7 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
                                 .map(|opt| {
                                     SlackBlockChoiceItem::new(
                                         SlackBlockPlainTextOnly::from(opt.text),
-                                        opt.value.into(),
+                                        opt.value,
                                     )
                                 })
                                 .unwrap_or_else(|| {

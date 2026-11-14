@@ -51,7 +51,7 @@ pub async fn update_user_group(
 
     let slack = Arc::new(Slack::new(http_client.clone(), slack_api_key.to_string()));
 
-    let new_slack_user_ids: Vec<String> = futures::stream::iter(oncall_users.into_iter())
+    let new_slack_user_ids: Vec<String> = futures::stream::iter(oncall_users)
         .map(|user| {
             let slack = slack.clone();
             let email = user.email;

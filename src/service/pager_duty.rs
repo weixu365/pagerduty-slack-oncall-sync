@@ -95,7 +95,7 @@ impl PagerDuty {
             params.push(("until", until.as_str()));
         }
 
-        let url = format!("/schedules/{}/users", &self.schedule_id);
+        let url = format!("/schedules/{}/users", self.schedule_id);
         let users_response: PagerDutyUsersResponse = self.send_request(&url, Method::GET, Some(&params), None).await?;
 
         let users = users_response
