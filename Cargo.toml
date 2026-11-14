@@ -14,7 +14,6 @@ panic = "abort"
 async-trait = "0.1.92"
 aws_lambda_events = { version = "1.2.1", default-features = false, features = ["apigw"] }
 aws-config = { version = "1.13.2", default-features = false, features = ["behavior-version-latest", "rt-tokio", "default-https-client"] }
-aws-esdk = "1.3.0"
 aws-sdk-cloudformation = { version = "1.139.0", default-features = false, features = ["behavior-version-latest", "rt-tokio", "default-https-client"] }
 aws-sdk-dynamodb = { version = "1.139.0", default-features = false, features = ["behavior-version-latest", "rt-tokio", "default-https-client"] }
 aws-sdk-kms = { version = "1.131.0", default-features = false, features = ["behavior-version-latest", "rt-tokio", "default-https-client"] }
@@ -24,9 +23,9 @@ aws-sdk-secretsmanager = {  version="1.128.0", default-features = false, feature
 aws-smithy-http-client = { version = "1.5.2", default-features = false, features = ["rustls-aws-lc"] }
 base64 = "0.23.1"
 chacha20poly1305 = {version="0.11.0", features = ["getrandom"]}
-chrono = { version = "0.4.45", features = ["serde"] }
+chrono = { version = "0.4.45", default-features = false, features = ["std", "clock", "serde"] }
 chrono-tz = { version = "0.10.4", features = ["std", "case-insensitive", "serde"] }
-clap = {version ="4.6.7", features=["derive"]}
+clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 cron = "0.17.0"
 derive_more = {version = "2.1.1", features=["full"]}
 futures = "0.3.34"
@@ -42,7 +41,7 @@ serde = "1.0.229"
 serde_derive = "1.0.229"
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
 serde_urlencoded = "0.7.1"
-serde_with = {version = "3.24.0", features = ["json"]}
+serde_with = { version = "3.24.0", default-features = false, features = ["std", "macros", "json"] }
 shlex = "2.0.1"
 slack-morphism = "2.32"
 subtle = "2.6.1"
@@ -52,10 +51,11 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "ansi", "env-filter", "tracing-log", "json"] }
 
 [dev-dependencies]
-aws-sdk-cloudformation = {version="1.139.0", features = ["test-util"]}
-aws-sdk-dynamodb = {version="1.139.0", features = ["test-util"]}
-aws-sdk-scheduler = {version="1.122.0", features = ["test-util"]}
-aws-sdk-secretsmanager = {version="1.128.0", features = ["test-util"]}
+aws-sdk-cloudformation = {version="1.139.0", default-features = false, features = ["behavior-version-latest", "rt-tokio", "default-https-client", "test-util"]}
+aws-sdk-dynamodb = {version="1.139.0", default-features = false, features = ["behavior-version-latest", "rt-tokio", "default-https-client", "test-util"]}
+aws-sdk-scheduler = {version="1.122.0", default-features = false, features = ["behavior-version-latest", "rt-tokio", "default-https-client", "test-util"]}
+aws-sdk-secretsmanager = {version="1.128.0", default-features = false, features = ["behavior-version-latest", "rt-tokio", "default-https-client", "test-util"]}
+aws-sdk-kms = {version="1.131.0", default-features = false, features = ["behavior-version-latest", "rt-tokio", "default-https-client", "test-util"]}
 aws-smithy-mocks = "0.3.0"
 pretty_assertions = "1.4"
 wiremock = "0.6"
