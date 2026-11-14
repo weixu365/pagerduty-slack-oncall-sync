@@ -46,9 +46,9 @@ pub async fn handle_slack_oauth(
             };
 
             slack_installations_db.save_slack_installation(&installation).await?;
-            response(200, format!("Received slack oauth callback."))
+            response(200, "Received slack oauth callback.".to_string())
         }
-        None => response(400, format!("Invalid request")),
+        None => response(400, "Invalid request".to_string()),
     }
 }
 

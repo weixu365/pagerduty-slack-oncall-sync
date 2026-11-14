@@ -175,14 +175,12 @@ impl EventBridgeScheduler {
         let clear_outdated_schedules_after = Utc::now().timestamp() - 300;
 
         for schedule in current_schedules {
-            if let Some(schedule_timestamp_utc) = schedule.next_scheduled_timestamp_utc {
-                if schedule_timestamp_utc > next_scheduled_timestamp_utc
-                    || schedule_timestamp_utc <= clear_outdated_schedules_after
-                {
-                    if let Some(name) = schedule.name {
-                        self.delete_schedules(&name).await?;
-                    }
-                }
+            if let Some(schedule_timestamp_utc) = schedule.next_scheduled_timestamp_utc
+                && (schedule_timestamp_utc > next_scheduled_timestamp_utc
+                    || schedule_timestamp_utc <= clear_outdated_schedules_after)
+                && let Some(name) = schedule.name
+            {
+                self.delete_schedules(&name).await?;
             }
         }
 

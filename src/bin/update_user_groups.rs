@@ -7,7 +7,6 @@ use on_call_support::errors::AppError;
 use on_call_support::user_group_updater::{SyncResult, SyncTrigger, update_user_groups};
 use on_call_support::utils::logging::init_logging;
 use on_call_support::utils::logging::json_tracing;
-use tokio;
 
 #[tokio::main]
 async fn main() -> Result<(), AppError> {
@@ -69,7 +68,7 @@ async fn main() -> Result<(), AppError> {
 
 fn print_sync_summary(results: &[SyncResult]) {
     let count = results.len();
-    println!("");
+    println!();
     println!("## Summary");
     println!("Manual sync complete — {} schedule(s) processed", count);
     println!();

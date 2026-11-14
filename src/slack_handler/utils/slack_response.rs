@@ -8,7 +8,7 @@ pub fn response(status_code: i64, body: String) -> Result<ApiGatewayProxyRespons
     response_headers.insert("Content-type", "application/json".parse().unwrap());
 
     let mut response = ApiGatewayProxyResponse::default();
-    response.status_code = status_code as i64;
+    response.status_code = status_code;
     response.headers = response_headers.clone();
     response.body = Some(Body::from(body));
 

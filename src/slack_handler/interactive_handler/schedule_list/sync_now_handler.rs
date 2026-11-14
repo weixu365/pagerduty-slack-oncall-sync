@@ -67,8 +67,8 @@ pub async fn handle_sync_now(
         .and_then(|v| v.get("results").and_then(|r| serde_json::from_value(r.clone()).ok()))
         .unwrap_or_default();
 
-    if !results.is_empty() {
-        if let Ok(installation) = slack_installations_db
+    if !results.is_empty()
+        && let Ok(installation) = slack_installations_db
             .get_slack_installation(&request.team.id.0, &request.team.enterprise_id.clone().unwrap_or_default())
             .await
         {
@@ -94,7 +94,6 @@ pub async fn handle_sync_now(
                 json_tracing::warn!("Failed to send sync summary message", err = &err.to_string());
             }
         }
-    }
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
     let channel_id = request.channel.as_ref().map(|c| &c.id.0);

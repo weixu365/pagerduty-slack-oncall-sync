@@ -114,7 +114,7 @@ pub async fn parse_slack_request(
     let response_url = params.response_url.clone();
     if response_url.is_empty() {
         json_tracing::warn!("response_url is empty, cannot send response to Slack");
-        return Err(AppError::InvalidSlackRequest(format!("response_url is empty")));
+        return Err(AppError::InvalidSlackRequest("response_url is empty".to_string()));
     }
 
     let secrets = config.secrets().await?;
@@ -125,10 +125,8 @@ pub async fn parse_slack_request(
 }
 
 pub async fn parse_slack_command(command: &str, args: &str) -> Result<AppArgs, AppError> {
-    let arg = match shlex::split(cleanse(format!("{} {}", command, args).as_str()).as_str()) {
-        Some(args) => Some(AppArgs::parse_from(args.iter())),
-        None => None,
-    };
+    let arg = shlex::split(cleanse(format!("{} {}", command, args).as_str()).as_str())
+        .map(|args| AppArgs::parse_from(args.iter()));
 
     let arg = arg.ok_or_else(|| AppError::InvalidData("Failed to parse command arguments".to_string()))?;
 

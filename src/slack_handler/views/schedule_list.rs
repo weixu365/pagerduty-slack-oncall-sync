@@ -79,55 +79,21 @@ pub fn build_schedule_list_view(
         .with_options(
             ScheduleFilter::ALL
                 .iter()
-                .map(|f| {
-                    SlackBlockChoiceItem::new(
-                        f.label().into(),
-                        serde_json::json!({
-                            "filter": f,
-                            "page_size": page_size,
-                        })
-                        .to_string(),
-                    )
-                })
+                .map(|f| SlackBlockChoiceItem::new(f.label().into(), list_view_state(0, page_size, f)))
                 .collect(),
         )
-        .with_initial_option(SlackBlockChoiceItem::new(
-            filter.label().into(),
-            serde_json::json!({
-                "filter": filter,
-                "page_size": page_size,
-            })
-            .to_string(),
-        ));
+        .with_initial_option(SlackBlockChoiceItem::new(filter.label().into(), list_view_state(0, page_size, filter)));
 
     let page_size_select = SlackBlockStaticSelectElement::new()
         .with_action_id("page_size_select".into())
         .with_placeholder("Items per page".into())
         .with_options(vec![
-            SlackBlockChoiceItem::new(
-                "5".into(),
-                serde_json::json!({
-                    "page_size": 5,
-                    "filter": filter,
-                })
-                .to_string(),
-            ),
-            SlackBlockChoiceItem::new(
-                "10".into(),
-                serde_json::json!({
-                    "page_size": 10,
-                    "filter": filter,
-                })
-                .to_string(),
-            ),
+            SlackBlockChoiceItem::new("5".into(), list_view_state(0, 5, filter)),
+            SlackBlockChoiceItem::new("10".into(), list_view_state(0, 10, filter)),
         ])
         .with_initial_option(SlackBlockChoiceItem::new(
             page_size.to_string().into(),
-            serde_json::json!({
-                "page_size": page_size,
-                "filter": filter,
-            })
-            .to_string(),
+            list_view_state(0, page_size, filter),
         ));
 
     // Add "New" button
@@ -142,15 +108,9 @@ pub fn build_schedule_list_view(
     ];
 
     if is_admin {
-        let sync_value = serde_json::json!({
-            "page": current_page,
-            "page_size": page_size,
-            "filter": filter,
-        })
-        .to_string();
         let sync_button = SlackBlockButtonElement::new("⚡ Sync Now".into())
             .with_action_id("sync_now".into())
-            .with_value(sync_value.into())
+            .with_value(list_view_state(current_page, page_size, filter))
             .with_style(SlackBlockButtonStyle::Primary);
         action_elements.push(SlackActionBlockElement::Button(sync_button));
     }
@@ -227,7 +187,7 @@ fn build_schedule_item_blocks(
 
         let delete_button = SlackBlockButtonElement::new("Delete".into())
             .with_action_id("delete_schedule".into())
-            .with_value(delete_value.into())
+            .with_value(delete_value)
             .with_style(SlackBlockButtonStyle::Danger)
             .with_confirm(
                 SlackBlockConfirmItem::new(
@@ -257,6 +217,16 @@ fn build_schedule_item_blocks(
     blocks
 }
 
+/// Serialised list view state (page, page size, filter) sent as the Slack value for buttons and dropdown options.
+fn list_view_state(page: usize, page_size: usize, filter: &ScheduleFilter) -> String {
+    serde_json::json!({
+        "page": page,
+        "page_size": page_size,
+        "filter": filter,
+    })
+    .to_string()
+}
+
 fn build_pagination_blocks(
     start_idx: usize,
     end_idx: usize,
@@ -272,48 +242,27 @@ fn build_pagination_blocks(
     let mut button_elements = Vec::new();
 
     // Refresh button
-    let refresh_value = serde_json::json!({
-        "page": current_page,
-        "page_size": page_size,
-        "filter": filter,
-    })
-    .to_string();
-
     button_elements.push(SlackActionBlockElement::Button(
         SlackBlockButtonElement::new("🔄 Refresh".into())
             .with_action_id("refresh".into())
-            .with_value(refresh_value.into()),
+            .with_value(list_view_state(current_page, page_size, filter)),
     ));
 
     // Previous button
     if current_page > 0 {
-        let prev_value = serde_json::json!({
-            "page": current_page - 1,
-            "page_size": page_size,
-            "filter": filter,
-        })
-        .to_string();
-
         button_elements.push(SlackActionBlockElement::Button(
             SlackBlockButtonElement::new("← Previous".into())
                 .with_action_id("page_previous".into())
-                .with_value(prev_value.into()),
+                .with_value(list_view_state(current_page - 1, page_size, filter)),
         ));
     }
 
     // Next button
     if current_page + 1 < total_pages {
-        let next_value = serde_json::json!({
-            "page": current_page + 1,
-            "page_size": page_size,
-            "filter": filter,
-        })
-        .to_string();
-
         button_elements.push(SlackActionBlockElement::Button(
             SlackBlockButtonElement::new("Next →".into())
                 .with_action_id("page_next".into())
-                .with_value(next_value.into()),
+                .with_value(list_view_state(current_page + 1, page_size, filter)),
         ));
     }
 
@@ -347,11 +296,10 @@ fn current_time_markdown() -> String {
 /// Generate a Slack markdown timestamp for the current time
 /// https://docs.slack.dev/messaging/formatting-message-text/#date-formatting
 fn timestamp_markdown(timestamp: Option<i64>) -> String {
-    if let Some(timestamp_seconds) = timestamp {
-        if let Some(time) = chrono::DateTime::from_timestamp(timestamp_seconds, 0) {
+    if let Some(timestamp_seconds) = timestamp
+        && let Some(time) = chrono::DateTime::from_timestamp(timestamp_seconds, 0) {
             return format!("<!date^{}^{{date_pretty}} {{time_secs}}|{}>", time.timestamp(), time.to_rfc3339());
         }
-    }
 
     "".to_string()
 }

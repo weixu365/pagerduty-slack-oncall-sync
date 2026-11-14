@@ -54,40 +54,40 @@ pub enum AppError {
     SlackUserGroupNotFoundError(String),
 
     #[error("Failed to describe cloudformation stack: `{0:?}`")]
-    DescribeStacksError(#[from] SdkError<DescribeStacksError>),
+    DescribeStacksError(Box<SdkError<DescribeStacksError>>),
 
     #[error("Failed to put item to DynamoDB: `{0:?}`")]
-    GetSecretValueError(#[from] SdkError<GetSecretValueError>),
+    GetSecretValueError(Box<SdkError<GetSecretValueError>>),
 
     #[error("Failed to put item to DynamoDB: `{0:?}`")]
-    DynamoDBPutItemError(#[from] SdkError<PutItemError>),
+    DynamoDBPutItemError(Box<SdkError<PutItemError>>),
 
     #[error("Failed to update item to DynamoDB: `{0:?}`")]
-    DynamoDBUpdateItemError(#[from] SdkError<UpdateItemError>),
+    DynamoDBUpdateItemError(Box<SdkError<UpdateItemError>>),
 
     #[error("Failed to delete item from DynamoDB: `{0:?}`")]
-    DynamoDBDeleteItemError(#[from] SdkError<DeleteItemError>),
+    DynamoDBDeleteItemError(Box<SdkError<DeleteItemError>>),
 
     #[error("Failed to get item from DynamoDB: `{0:?}`")]
-    DynamoDBGetItemError(#[from] SdkError<GetItemError>),
+    DynamoDBGetItemError(Box<SdkError<GetItemError>>),
 
     #[error("Failed to scan DynamoDB table: `{0:?}`")]
-    DynamoDBScanError(#[from] SdkError<ScanError>),
+    DynamoDBScanError(Box<SdkError<ScanError>>),
 
     #[error("Schedule doesn't exist: `{0:?}`")]
     ScheduleNotFoundError(String),
 
     #[error("Failed to create schedule in AWS Scheduler: `{0:?}`")]
-    CreateScheduleError(#[from] SdkError<CreateScheduleError>),
+    CreateScheduleError(Box<SdkError<CreateScheduleError>>),
 
     #[error("Failed to list current schedules in AWS Scheduler: `{0:?}`")]
-    ListScheduleError(#[from] SdkError<ListSchedulesError>),
+    ListScheduleError(Box<SdkError<ListSchedulesError>>),
 
     #[error("Failed to delete schedule in AWS Scheduler: `{0:?}`")]
-    DeleteScheduleError(#[from] SdkError<DeleteScheduleError>),
+    DeleteScheduleError(Box<SdkError<DeleteScheduleError>>),
 
     #[error("Failed to invoke Lambda function: `{0:?}`")]
-    LambdaInvokeError(#[from] SdkError<InvokeError>),
+    LambdaInvokeError(Box<SdkError<InvokeError>>),
 
     #[error("Failed to serialize/deserialize json: `{0:?}`")]
     JsonError(#[from] serde_json::Error),
@@ -127,6 +127,34 @@ pub enum AppError {
 
     #[error("Error: `{0:?}`")]
     Error(String),
+}
+
+// SDK errors are large, so they are boxed to keep `AppError` (and every `Result<_, AppError>`) small.
+// `#[from]` can't convert into a `Box`, so the `From` impls are written by hand.
+macro_rules! impl_from_sdk_error {
+    ($($operation_error:ty => $variant:ident),+ $(,)?) => {
+        $(
+            impl From<SdkError<$operation_error>> for AppError {
+                fn from(error: SdkError<$operation_error>) -> Self {
+                    AppError::$variant(Box::new(error))
+                }
+            }
+        )+
+    };
+}
+
+impl_from_sdk_error! {
+    DescribeStacksError => DescribeStacksError,
+    GetSecretValueError => GetSecretValueError,
+    PutItemError => DynamoDBPutItemError,
+    UpdateItemError => DynamoDBUpdateItemError,
+    DeleteItemError => DynamoDBDeleteItemError,
+    GetItemError => DynamoDBGetItemError,
+    ScanError => DynamoDBScanError,
+    CreateScheduleError => CreateScheduleError,
+    ListSchedulesError => ListScheduleError,
+    DeleteScheduleError => DeleteScheduleError,
+    InvokeError => LambdaInvokeError,
 }
 
 // required by Lambda Runtime crate

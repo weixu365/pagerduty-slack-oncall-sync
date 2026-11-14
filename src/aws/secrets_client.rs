@@ -20,7 +20,7 @@ pub struct SecretsClient {
 impl SecretsClient {
     pub fn new(config: &SdkConfig) -> SecretsClient {
         SecretsClient {
-            client: Client::new(&config),
+            client: Client::new(config),
         }
     }
 

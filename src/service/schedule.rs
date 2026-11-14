@@ -76,7 +76,7 @@ pub async fn create_new_schedule(
     );
 
     let task = ScheduledTask {
-        team: format!("{}:{}", &request.team_id, &request.enterprise_id),
+        team: format!("{}:{}", request.team_id, request.enterprise_id),
         task_id,
         next_update_timestamp_utc: next_schedule.next_timestamp_utc,
         next_update_time: next_schedule.next_datetime.to_rfc3339(),
@@ -104,12 +104,12 @@ pub async fn create_new_schedule(
 
     if let Err(err) = scheduled_tasks_db.save_scheduled_task(&task).await {
         json_tracing::error!("Failed to save to dynamodb", err = &err.to_string());
-        return Err(AppError::Error(format!("Failed to save schedule task\n{}", &err)));
+        return Err(AppError::Error(format!("Failed to save schedule task\n{}", err)));
     }
 
     if let Err(err) = scheduler.update_next_schedule(&next_schedule).await {
         json_tracing::error!("Failed to update scheduler", err = &err.to_string());
-        return Err(AppError::Error(format!("Failed to update scheduler\n{}", &err)));
+        return Err(AppError::Error(format!("Failed to update scheduler\n{}", err)));
     }
 
     Ok(())

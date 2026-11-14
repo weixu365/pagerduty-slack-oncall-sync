@@ -18,7 +18,6 @@ use on_call_support::{
     utils::lambda_client::{invoke_slack_command_async_handler, is_async_processing_requested},
     utils::logging,
 };
-use tokio;
 use tracing::{error, info, warn};
 
 #[tokio::main]
@@ -60,14 +59,14 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
             let encryptor = config.build_encryptor().await?;
             let slack_installations_db = SlackInstallationsDynamoDb::new(&config, encryptor.clone());
 
-            match handle_slack_oauth(slack_installations_db, &secrets, event.query_string_parameters).await {
+            match handle_slack_oauth(slack_installations_db, secrets, event.query_string_parameters).await {
                 Ok(res) => {
                     info!("Successfully processed Slack OAuth request");
                     Ok(res)
                 }
                 Err(err) => {
                     error!(%err, request_path, "Failed to process Slack OAuth request");
-                    Err(err.into())
+                    Err(err)
                 }
             }
         }
@@ -122,7 +121,7 @@ async fn func(event: LambdaEvent<ApiGatewayProxyRequest>) -> Result<ApiGatewayPr
 
         _ => {
             warn!(request_path, "Received request for unknown path");
-            response(400, format!("Invalid request"))
+            response(400, "Invalid request".to_string())
         }
     }
 }
