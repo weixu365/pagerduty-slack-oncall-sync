@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.9.0...pagerduty-slack-oncall-sync-v0.10.0) (2026-11-14)
+
+
+### Features
+
+* update kms encryption to use KMS directly instead of aws esdk ([2eca644](https://github.com/weixu365/pagerduty-slack-oncall-sync/commit/2eca6447d2ef411e4e51f2ce225e889a6032f365))
+
 ## [0.9.0](https://github.com/weixu365/pagerduty-slack-oncall-sync/compare/pagerduty-slack-oncall-sync-v0.8.1...pagerduty-slack-oncall-sync-v0.9.0) (2026-11-14)
 
 
