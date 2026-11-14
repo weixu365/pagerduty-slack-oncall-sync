@@ -16,6 +16,25 @@ pub enum ScheduleFilter {
     Channel,
 }
 
+impl ScheduleFilter {
+    /// All filters, in the order they appear in the dropdown.
+    const ALL: [ScheduleFilter; 4] = [
+        ScheduleFilter::Auto,
+        ScheduleFilter::All,
+        ScheduleFilter::User,
+        ScheduleFilter::Channel,
+    ];
+
+    fn label(&self) -> &'static str {
+        match self {
+            ScheduleFilter::Auto => "Auto (My + Channel)",
+            ScheduleFilter::All => "All Schedules",
+            ScheduleFilter::User => "My Schedules",
+            ScheduleFilter::Channel => "Channel Schedules",
+        }
+    }
+}
+
 pub fn build_schedule_list_view(
     tasks: &[ScheduledTask],
     page: usize,
@@ -54,52 +73,26 @@ pub fn build_schedule_list_view(
     ));
 
     // Filter dropdown
-    let filter_label = match filter {
-        ScheduleFilter::All => "All Schedules",
-        ScheduleFilter::User => "My Schedules",
-        ScheduleFilter::Channel => "Channel Schedules",
-        ScheduleFilter::Auto => "Auto (My + Channel)",
-    };
-
     let filter_select = SlackBlockStaticSelectElement::new()
         .with_action_id("filter_select".into())
         .with_placeholder("Filter by".into())
-        .with_options(vec![
-            SlackBlockChoiceItem::new(
-                "Auto (My + Channel)".into(),
-                serde_json::json!({
-                    "filter": "auto",
-                    "page_size": page_size,
+        .with_options(
+            ScheduleFilter::ALL
+                .iter()
+                .map(|f| {
+                    SlackBlockChoiceItem::new(
+                        f.label().into(),
+                        serde_json::json!({
+                            "filter": f,
+                            "page_size": page_size,
+                        })
+                        .to_string(),
+                    )
                 })
-                .to_string(),
-            ),
-            SlackBlockChoiceItem::new(
-                "All Schedules".into(),
-                serde_json::json!({
-                    "filter": "all",
-                    "page_size": page_size,
-                })
-                .to_string(),
-            ),
-            SlackBlockChoiceItem::new(
-                "My Schedules".into(),
-                serde_json::json!({
-                    "filter": "user",
-                    "page_size": page_size,
-                })
-                .to_string(),
-            ),
-            SlackBlockChoiceItem::new(
-                "Channel Schedules".into(),
-                serde_json::json!({
-                    "filter": "channel",
-                    "page_size": page_size,
-                })
-                .to_string(),
-            ),
-        ])
+                .collect(),
+        )
         .with_initial_option(SlackBlockChoiceItem::new(
-            filter_label.into(),
+            filter.label().into(),
             serde_json::json!({
                 "filter": filter,
                 "page_size": page_size,
