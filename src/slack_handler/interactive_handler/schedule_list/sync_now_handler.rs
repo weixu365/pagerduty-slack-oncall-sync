@@ -1,7 +1,6 @@
 use std::env;
 use std::sync::Arc;
 
-use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionBlockActionsEvent;
 use crate::slack_handler::views::schedule_list::build_schedule_list_view;
 use crate::utils::logging::json_tracing;
@@ -71,29 +70,29 @@ pub async fn handle_sync_now(
         && let Ok(installation) = slack_installations_db
             .get_slack_installation(&request.team.id.0, &request.team.enterprise_id.clone().unwrap_or_default())
             .await
-        {
-            let http_client = Arc::new(build_http_client().unwrap_or_default());
-            let slack = Slack::new(http_client, installation.access_token);
-            let message = build_sync_response_message(&results);
-            let send_result = match &request.container {
-                SlackInteractionActionContainer::Message(msg) => {
-                    json_tracing::info!("Sending sync result to channel", channel_id = &msg.channel_id);
-                    let channel_id = msg.channel_id.as_ref().map(|c| c.0.as_str()).unwrap_or(user_id);
-                    slack.send_ephemeral_text(channel_id, user_id, &message, None).await
-                }
-                SlackInteractionActionContainer::View(_) => {
-                    json_tracing::info!("Sending sync result to user", user_id);
-                    slack.send_message(user_id, &message).await
-                }
-                SlackInteractionActionContainer::MessageAttachment(_) => {
-                    json_tracing::warn!("Unsupported message attachment container");
-                    Ok(())
-                }
-            };
-            if let Err(err) = send_result {
-                json_tracing::warn!("Failed to send sync summary message", err = &err.to_string());
+    {
+        let http_client = Arc::new(build_http_client().unwrap_or_default());
+        let slack = Slack::new(http_client, installation.access_token);
+        let message = build_sync_response_message(&results);
+        let send_result = match &request.container {
+            SlackInteractionActionContainer::Message(msg) => {
+                json_tracing::info!("Sending sync result to channel", channel_id = &msg.channel_id);
+                let channel_id = msg.channel_id.as_ref().map(|c| c.0.as_str()).unwrap_or(user_id);
+                slack.send_ephemeral_text(channel_id, user_id, &message, None).await
             }
+            SlackInteractionActionContainer::View(_) => {
+                json_tracing::info!("Sending sync result to user", user_id);
+                slack.send_message(user_id, &message).await
+            }
+            SlackInteractionActionContainer::MessageAttachment(_) => {
+                json_tracing::warn!("Unsupported message attachment container");
+                Ok(())
+            }
+        };
+        if let Err(err) = send_result {
+            json_tracing::warn!("Failed to send sync summary message", err = &err.to_string());
         }
+    }
 
     let tasks = scheduled_tasks_db.list_scheduled_tasks().await?;
     let channel_id = request.channel.as_ref().map(|c| &c.id.0);

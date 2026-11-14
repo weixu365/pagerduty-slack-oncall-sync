@@ -4,13 +4,13 @@ use crate::aws::event_bridge_scheduler::EventBridgeScheduler;
 use crate::db::{ScheduledTaskRepository, SlackInstallation};
 use crate::service::schedule::{CreateScheduleRequest, create_new_schedule, parse_user_group};
 use crate::service::slack::{Slack, update_slack_view};
-use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionViewSubmissionEvent;
 use crate::slack_handler::views::new_schedule_modal::{build_new_schedule_modal, build_success_modal};
 use crate::slack_handler::views::schedule_list::{DEFAULT_PAGE_SIZE, ScheduleFilter, build_schedule_list_view};
 use crate::utils::http_client::build_http_client;
 use crate::utils::logging::json_tracing;
 use crate::{db::SlackInstallationRepository, errors::AppError};
+use slack_morphism::prelude::*;
 
 async fn get_channel_name(slack: &Slack, channel_id: &str) -> Result<String, AppError> {
     // Need groups.read and channels:read scopes, so fallback to channel ID if API call fails

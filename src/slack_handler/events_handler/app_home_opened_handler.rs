@@ -1,9 +1,9 @@
 use crate::aws::event_bridge_scheduler::EventBridgeScheduler;
 use crate::db::SlackInstallationRepository;
 use crate::service::slack::publish_slack_view;
-use crate::slack_handler::morphism_patches::blocks_kit::{SlackHomeView, SlackView};
 use crate::slack_handler::views::schedule_list::{ScheduleFilter, build_schedule_list_view};
 use crate::{db::ScheduledTaskRepository, errors::AppError};
+use slack_morphism::prelude::*;
 
 pub struct AppHomeOpenedEvent {
     pub user_id: String,

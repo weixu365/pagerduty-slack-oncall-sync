@@ -1,5 +1,4 @@
 use crate::db::ScheduledTask;
-use crate::slack_handler::morphism_patches::blocks_kit::{SlackBlock, SlackModalView, SlackView};
 use chrono::{DateTime, SecondsFormat};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
@@ -297,9 +296,10 @@ fn current_time_markdown() -> String {
 /// https://docs.slack.dev/messaging/formatting-message-text/#date-formatting
 fn timestamp_markdown(timestamp: Option<i64>) -> String {
     if let Some(timestamp_seconds) = timestamp
-        && let Some(time) = chrono::DateTime::from_timestamp(timestamp_seconds, 0) {
-            return format!("<!date^{}^{{date_pretty}} {{time_secs}}|{}>", time.timestamp(), time.to_rfc3339());
-        }
+        && let Some(time) = chrono::DateTime::from_timestamp(timestamp_seconds, 0)
+    {
+        return format!("<!date^{}^{{date_pretty}} {{time_secs}}|{}>", time.timestamp(), time.to_rfc3339());
+    }
 
     "".to_string()
 }
@@ -307,7 +307,7 @@ fn timestamp_markdown(timestamp: Option<i64>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
+
     use chrono::Utc;
 
     fn create_test_task(channel: &str, group: &str) -> ScheduledTask {

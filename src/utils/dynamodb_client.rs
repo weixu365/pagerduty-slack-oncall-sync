@@ -10,7 +10,8 @@ pub fn get_optional_attribute(item: &HashMap<String, AttributeValue>, name: &str
             } else {
                 attr.as_s().ok()
             }
-        }).cloned()
+        })
+        .cloned()
 }
 
 pub fn get_attribute(item: &HashMap<String, AttributeValue>, name: &str) -> Result<String, AppError> {

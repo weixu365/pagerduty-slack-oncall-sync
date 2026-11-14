@@ -1,6 +1,6 @@
-use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
 use crate::slack_handler::views::schedule_list::{ScheduleFilter, build_schedule_list_view};
 use crate::{db::ScheduledTaskRepository, errors::AppError};
+use slack_morphism::prelude::*;
 
 pub async fn handle_list_schedules_command(
     scheduled_tasks_db: &dyn ScheduledTaskRepository,
@@ -30,7 +30,7 @@ pub async fn handle_list_schedules_command(
 mod tests {
     use super::*;
     use crate::db::ScheduledTask;
-    use crate::slack_handler::morphism_patches::blocks_kit::SlackView;
+
     use async_trait::async_trait;
     use chrono::Utc;
 
