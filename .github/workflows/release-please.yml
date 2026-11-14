@@ -22,11 +22,11 @@ jobs:
       tag_name: ${{ steps.release.outputs.tag_name }}
       ref: ${{ steps.release.outputs.release_created == 'true' && steps.release.outputs.tag_name || github.sha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Run release-please
         id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: ${{ github.event_name == 'push' && github.ref_name == 'master' && 'release-please-config.json' || 'release-please-config-beta.json' }}
@@ -37,7 +37,7 @@ jobs:
     needs: release-please
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.ref }}
 
@@ -65,7 +65,7 @@ jobs:
           cp target/lambda/slack_request_handler_lambda.zip dist/
           cp target/lambda/update_user_groups_lambda.zip dist/
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: lambda-artifacts
           path: dist/
@@ -94,7 +94,7 @@ jobs:
             use_zig: false
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.ref }}
 
@@ -137,7 +137,7 @@ jobs:
         shell: bash
         run: ./dist/${{ matrix.artifact_name }} --version
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.artifact_name }}
           path: dist/
@@ -146,7 +146,7 @@ jobs:
     needs: release-please
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.ref }}
 
@@ -160,16 +160,16 @@ jobs:
     needs: [release-please, build-lambda, build-release]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release-please.outputs.ref }}
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: lambda-artifacts
           path: lambda-artifacts
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-update_user_groups-*
           path: release-artifacts
