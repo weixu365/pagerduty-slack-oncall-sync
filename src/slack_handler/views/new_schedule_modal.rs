@@ -1,10 +1,4 @@
-use crate::slack_handler::morphism_patches::{
-    blocks_kit::{
-        SlackBlock, SlackBlockConversationsSelectElement, SlackConversationSelectFilter, SlackInputBlock,
-        SlackInputBlockElement, SlackModalView, SlackView,
-    },
-    interaction_event::SlackInteractionBlockActionsEvent,
-};
+use crate::slack_handler::morphism_patches::interaction_event::SlackInteractionBlockActionsEvent;
 use slack_morphism::prelude::*;
 
 pub fn build_loading_modal() -> SlackView {
@@ -78,22 +72,24 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
             SlackInputBlock::new(
                 "Channel".into(),
                 SlackInputBlockElement::ConversationsSelect(
-                    SlackBlockConversationsSelectElement {
-                        action_id: "channel_value".into(),
-                        default_to_current_conversation: Some(true),
-                        initial_conversation: request
-                            .and_then(|r| r.get_state("channel_value"))
-                            .and_then(|state| state.selected_conversation.clone()),
-                        filter: Some(SlackConversationSelectFilter {
-                            include: Some(vec!["public".into(), "private".into()]),
-                            exclude_external_shared_channels: Some(true),
-                            exclude_bot_users: Some(true),
-                        }),
-                        confirm: None,
-                        response_url_enabled: None,
-                        focus_on_load: None,
-                        placeholder: Some("Select a channel".into()),
-                    }
+                    SlackBlockConversationsSelectElement::new()
+                        .with_action_id("channel_value".into())
+                        .with_default_to_current_conversation(true)
+                        .opt_initial_conversation(
+                            request
+                                .and_then(|r| r.get_state("channel_value"))
+                                .and_then(|state| state.selected_conversation.clone()),
+                        )
+                        .with_filter(
+                            SlackBlockConversationFilter::new()
+                                .with_include(vec![
+                                    SlackConversationFilterInclude::Public,
+                                    SlackConversationFilterInclude::Private,
+                                ])
+                                .with_exclude_external_shared_channels(true)
+                                .with_exclude_bot_users(true),
+                        )
+                        .with_placeholder("Select a channel".into()),
                 )
             )
         ),
