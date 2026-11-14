@@ -144,10 +144,7 @@ mod tests {
         let admins = vec!["U_ADMIN".to_string()];
 
         assert_eq!(resolve_as_user("U_ADMIN", None, &admins).unwrap(), None);
-        assert_eq!(
-            resolve_as_user("U_ADMIN", Some("U0123FAKE"), &admins).unwrap(),
-            Some("U0123FAKE".to_string())
-        );
+        assert_eq!(resolve_as_user("U_ADMIN", Some("U0123FAKE"), &admins).unwrap(), Some("U0123FAKE".to_string()));
         assert_eq!(
             resolve_as_user("U_ADMIN", Some("<@U0123FAKE|alice>"), &admins).unwrap(),
             Some("U0123FAKE".to_string())

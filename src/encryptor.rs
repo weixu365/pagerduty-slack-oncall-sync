@@ -32,8 +32,7 @@ pub struct XChaCha20Encryptor {
 impl XChaCha20Encryptor {
     pub fn from_key(key: &str) -> Result<XChaCha20Encryptor, AppError> {
         let key_bytes = key.as_bytes();
-        let cipher_key =
-            Key::try_from(key_bytes).map_err(|_| AppError::InvalidKeyLength(key_bytes.len()))?;
+        let cipher_key = Key::try_from(key_bytes).map_err(|_| AppError::InvalidKeyLength(key_bytes.len()))?;
         let cipher = XChaCha20Poly1305::new(&cipher_key);
 
         Ok(XChaCha20Encryptor { cipher })
@@ -62,10 +61,7 @@ impl Encryptor for XChaCha20Encryptor {
         let encrypted = base64::decode_no_pad(encrypted_data.data.as_ref())?;
 
         let nonce = XNonce::try_from(nonce_bytes.as_slice()).map_err(|_| {
-            AppError::InvalidData(format!(
-                "Invalid nonce length: expected 24 bytes, got {} bytes",
-                nonce_bytes.len()
-            ))
+            AppError::InvalidData(format!("Invalid nonce length: expected 24 bytes, got {} bytes", nonce_bytes.len()))
         })?;
         let plaintext = self.cipher.decrypt(&nonce, encrypted.as_slice())?;
         let decrypted = String::from_utf8(plaintext)?;
