@@ -14,14 +14,8 @@ lambda:
 	cp target/lambda/slack_request_handler_lambda/bootstrap.zip target/lambda/slack_request_handler_lambda.zip
 	cp target/lambda/update_user_groups_lambda/bootstrap.zip target/lambda/update_user_groups_lambda.zip
 
-run:
-	cargo run
-
-update:
-	cargo run --bin update_user_group
-
-threads:
-	cargo run --bin test
+update-user-groups:
+	cargo run --bin update_user_groups
 
 upgrade-deps:
 	cargo upgrade

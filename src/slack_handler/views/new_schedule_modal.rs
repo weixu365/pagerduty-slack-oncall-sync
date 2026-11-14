@@ -10,27 +10,25 @@ use slack_morphism::prelude::*;
 pub fn build_loading_modal() -> SlackView {
     SlackView::Modal(
         SlackModalView::new(
-            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Create Schedule".into())),
-            vec![SlackBlock::Section(SlackSectionBlock::new().with_text(
-                SlackBlockText::from(SlackBlockPlainText::new("⏳ Creating schedule...".into())),
-            ))],
+            "Create Schedule".into(),
+            vec![SlackBlock::Section(
+                SlackSectionBlock::new().with_text(pt!("⏳ Creating schedule...")),
+            )],
         )
-        .with_title(SlackBlockPlainTextOnly::from("Create Schedule")),
+        .with_title("Create Schedule".into()),
     )
 }
 
 pub fn build_success_modal() -> SlackView {
     SlackView::Modal(
         SlackModalView::new(
-            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Create Schedule".into())),
-            vec![SlackBlock::Section(SlackSectionBlock::new().with_text(
-                SlackBlockText::from(
-                    SlackBlockPlainText::new("✅ Schedule created successfully!".into()).with_emoji(true),
-                ),
-            ))],
+            "Create Schedule".into(),
+            vec![SlackBlock::Section(
+                SlackSectionBlock::new().with_text(pt!("✅ Schedule created successfully!")),
+            )],
         )
-        .with_title(SlackBlockPlainTextOnly::from("Create Schedule"))
-        .with_close(SlackBlockPlainTextOnly::from("Close")),
+        .with_title("Create Schedule".into())
+        .with_close("Close".into()),
     )
 }
 
@@ -40,19 +38,12 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
 
     let mut blocks = vec![
         // PagerDuty Schedule
-        SlackBlock::Section(
-            SlackSectionBlock::new()
-                .with_text(SlackBlockText::from(
-                    SlackBlockPlainText::new("PagerDuty Schedule".into()).with_emoji(true),
-                )),
-        ),
+        SlackBlock::Section(SlackSectionBlock::new().with_text(pt!("PagerDuty Schedule"))),
         SlackBlock::Actions(
             SlackActionsBlock::new(vec![SlackActionBlockElement::ExternalSelect(
                 SlackBlockExternalSelectElement {
-                    action_id: "pagerduty_schedule_suggestion".into(),
-                    placeholder: Some(SlackBlockPlainTextOnly::from(
-                        SlackBlockPlainText::new("Search for a PagerDuty schedule".into()),
-                    )),
+                    action_id: Some("pagerduty_schedule_suggestion".into()),
+                    placeholder: Some("Search for a PagerDuty schedule".into()),
                     initial_option: request
                         .and_then(|r| r.get_state("pagerduty_schedule_suggestion"))
                         .and_then(|state| state.selected_option.clone())
@@ -72,9 +63,7 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
         // Current On-Call User (will be populated dynamically)
         SlackBlock::Section(
             SlackSectionBlock::new()
-                .with_text(SlackBlockText::from(
-                    SlackBlockPlainText::new(on_call_text.unwrap_or(default_oncall_text).into()).with_emoji(true),
-                ))
+                .with_text(pt!(on_call_text.unwrap_or(default_oncall_text)))
                 .with_block_id("pagerduty_oncall_info".into()),
         ),
 
@@ -82,17 +71,12 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
         SlackBlock::Divider(SlackDividerBlock::new()),
 
         // Section 3: Slack Configuration Header
-        SlackBlock::Section(
-            SlackSectionBlock::new()
-                .with_text(SlackBlockText::from(
-                    SlackBlockPlainText::new("Slack Configuration".into()).with_emoji(true),
-                ))
-        ),
+        SlackBlock::Section(SlackSectionBlock::new().with_text(pt!("Slack Configuration"))),
 
         // Channel Selector
         SlackBlock::Input(
             SlackInputBlock::new(
-                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Channel".into())),
+                "Channel".into(),
                 SlackInputBlockElement::ConversationsSelect(
                     SlackBlockConversationsSelectElement {
                         action_id: "channel_value".into(),
@@ -108,9 +92,7 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
                         confirm: None,
                         response_url_enabled: None,
                         focus_on_load: None,
-                        placeholder: Some(SlackBlockPlainTextOnly::from(
-                            SlackBlockPlainText::new("Select a channel".into())
-                        )),
+                        placeholder: Some("Select a channel".into()),
                     }
                 )
             )
@@ -119,13 +101,11 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
         // User Group Selector (using external select to fetch from Slack)
         SlackBlock::Input(
             SlackInputBlock::new(
-                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("User Group".into())),
+                "User Group".into(),
                 SlackInputBlockElement::ExternalSelect(
                     SlackBlockExternalSelectElement {
-                        action_id: "user_group_suggestion".into(),
-                        placeholder: Some(SlackBlockPlainTextOnly::from(
-                            SlackBlockPlainText::new("Search for a user group".into())
-                        )),
+                        action_id: Some("user_group_suggestion".into()),
+                        placeholder: Some("Search for a user group".into()),
                         initial_option: request
                             .and_then(|r| r.get_state("user_group_suggestion"))
                             .and_then(|state| state.selected_option.clone())
@@ -147,45 +127,34 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
         SlackBlock::Divider(SlackDividerBlock::new()),
 
         // Section 4: Schedule Configuration Header
-        SlackBlock::Section(
-            SlackSectionBlock::new()
-                .with_text(SlackBlockText::from(
-                    SlackBlockPlainText::new("Schedule Configuration".into()).with_emoji(true),
-                ))
-        ),
+        SlackBlock::Section(SlackSectionBlock::new().with_text(pt!("Schedule Configuration"))),
 
         // Cron Expression Input
         SlackBlock::Input(
             SlackInputBlock::new(
-                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Cron Expression".into())),
+                "Cron Expression".into(),
                 SlackInputBlockElement::PlainTextInput(
-                    SlackBlockPlainTextInputElement::new("cron_value".into())
+                    SlackBlockPlainTextInputElement::new().with_action_id("cron_value".into())
                         .with_initial_value(
                             request
                                 .and_then(|r| r.get_state("cron_value"))
                                 .and_then(|state| state.value)
                                 .unwrap_or_else(|| "0 9 * * MON-FRI *".into())
                         )
-                        .with_placeholder(SlackBlockPlainTextOnly::from(
-                            SlackBlockPlainText::new("e.g., 0 9 * * MON-FRI * (9 AM on weekdays)".into())
-                        ))
+                        .with_placeholder("e.g., 0 9 * * MON-FRI * (9 AM on weekdays)".into())
                 )
             )
-            .with_hint(SlackBlockPlainTextOnly::from(
-                SlackBlockPlainText::new("Syntax: minutes hours day-of-month month day-of-week year".into())
-            ))
+            .with_hint("Syntax: minutes hours day-of-month month day-of-week year".into())
         ),
 
         // Timezone Selector
         SlackBlock::Input(
             SlackInputBlock::new(
-                SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Timezone".into())),
+                "Timezone".into(),
                 SlackInputBlockElement::ExternalSelect(
                     SlackBlockExternalSelectElement {
-                        action_id: "timezone_suggestion".into(),
-                        placeholder: Some(SlackBlockPlainTextOnly::from(
-                            SlackBlockPlainText::new("Search for a timezone".into())
-                        )),
+                        action_id: Some("timezone_suggestion".into()),
+                        placeholder: Some("Search for a timezone".into()),
                         initial_option: Some(
                             request
                                 .and_then(|r| r.get_state("timezone_suggestion"))
@@ -198,10 +167,7 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
                                 })
                                 .unwrap_or_else(|| {
                                     // Default to UTC if no previous selection
-                                    SlackBlockChoiceItem::new(
-                                        SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("UTC".into())),
-                                        "UTC".into(),
-                                    )
+                                    SlackBlockChoiceItem::new("UTC".into(), "UTC".into())
                                 })
                         ),
                         min_query_length: Some(2),
@@ -222,13 +188,10 @@ pub(crate) fn build_new_schedule_modal(on_call_text: Option<&str>, request: Opti
     }
 
     SlackView::Modal(
-        SlackModalView::new(
-            SlackBlockPlainTextOnly::from(SlackBlockPlainText::new("Create Schedule".into())),
-            blocks,
-        )
-        .with_title(SlackBlockPlainTextOnly::from("Create Schedule"))
-        .with_submit(SlackBlockPlainTextOnly::from("Submit"))
-        .with_close(SlackBlockPlainTextOnly::from("Cancel"))
-        .with_callback_id("new_schedule_form".into())
+        SlackModalView::new("Create Schedule".into(), blocks)
+            .with_title("Create Schedule".into())
+            .with_submit("Submit".into())
+            .with_close("Cancel".into())
+            .with_callback_id("new_schedule_form".into())
     )
 }
