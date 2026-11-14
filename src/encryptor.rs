@@ -4,8 +4,8 @@ use async_trait::async_trait;
 use aws_sdk_kms::Client as KmsClient;
 use aws_sdk_kms::primitives::Blob;
 use aws_sdk_kms::types::DataKeySpec;
-use ring::aead;
-use ring::rand::{SecureRandom, SystemRandom};
+use aws_lc_rs::aead;
+use aws_lc_rs::rand::{SecureRandom, SystemRandom};
 use chacha20poly1305::{
     Key, XChaCha20Poly1305, XNonce,
     aead::{Aead, Generate, KeyInit},

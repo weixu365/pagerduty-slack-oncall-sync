@@ -3,7 +3,7 @@ use aws_lambda_events::http::{HeaderMap, HeaderValue};
 use crate::utils::logging::json_tracing;
 use crate::{errors::AppError, utils::constant_time::constant_time_compare_str};
 
-use ring::hmac;
+use aws_lc_rs::hmac;
 
 pub fn validate_request(
     request_headers: HeaderMap<HeaderValue>,
